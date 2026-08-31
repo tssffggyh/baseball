@@ -151,13 +151,16 @@ html_code = """
         const defaultCamLook = new THREE.Vector3(0, 1.2, -22);
 
         let hitFlightProgress = 0;
-        let flightSpeed = 0.0035; // 공 비행 시간 길게 설정
+        let flightSpeed = 0.0035;
         let hitStartPos = new THREE.Vector3();
         let hitTargetPos = new THREE.Vector3();
         let hitMaxHeight = 0;
         let currentResultType = "";
         let assignedFielder = null;
         let isDiving = false;
+
+        const STADIUM_CENTER_Z = -15;
+        const OUTFIELD_WALL_RADIUS = 78; // 야수 통과 방지 경계선 반경
 
         function initGame() {
             const teamKey = document.getElementById('team-select').value;
@@ -251,7 +254,6 @@ html_code = """
         }
 
         function createStadiumEnvironment() {
-            // 대형 야구 경기장 (펜스 제거, 관중석 확대)
             const fieldGeo = new THREE.PlaneGeometry(260, 260);
             const fieldMat = new THREE.MeshStandardMaterial({ color: 0x1e5631, roughness: 0.8 });
             const field = new THREE.Mesh(fieldGeo, fieldMat);
@@ -266,24 +268,21 @@ html_code = """
             dirt.position.set(0, 0.01, -15);
             scene.add(dirt);
 
-            // 흙 마운드
             const moundGeo = new THREE.CylinderGeometry(3.5, 4.5, 0.4, 32);
             const moundMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
             const mound = new THREE.Mesh(moundGeo, moundMat);
             mound.position.set(0, 0.2, -18.4);
             scene.add(mound);
 
-            // 관중석 스탠드 확대 및 대량 관중 생성 (외야 펜스는 제거됨)
             const colors = [0xe74c3c, 0x3498db, 0xf1c40f, 0xecf0f1, 0x9b59b6, 0x1abc9c];
             for (let i = 0; i < 8; i++) {
                 const radius = 80 + i * 2.5;
                 const standGeo = new THREE.CylinderGeometry(radius, radius, 1.5, 48, 1, true, Math.PI * 0.15, Math.PI * 0.7);
                 const standMat = new THREE.MeshStandardMaterial({ color: 0x22272e, side: THREE.DoubleSide });
                 const stand = new THREE.Mesh(standGeo, standMat);
-                stand.position.set(0, 1 + i * 1.5, -15);
+                stand.position.set(0, 1 + i * 1.5, STADIUM_CENTER_Z);
                 scene.add(stand);
 
-                // 관중 인파 점 입자들 추가
                 for (let j = 0; j < 60; j++) {
                     const angle = Math.PI * 0.18 + (j / 60) * (Math.PI * 0.64);
                     const spectatorGeo = new THREE.BoxGeometry(0.6, 0.8, 0.6);
@@ -292,7 +291,7 @@ html_code = """
                     spectator.position.set(
                         Math.cos(angle) * radius,
                         2.0 + i * 1.5,
-                        Math.sin(angle) * radius - 15
+                        Math.sin(angle) * radius + STADIUM_CENTER_Z
                     );
                     scene.add(spectator);
                 }
@@ -338,7 +337,6 @@ html_code = """
             createStrikeZone9Grid();
             createStadiumEnvironment();
 
-            // 넓어진 대형 구장에 맞춘 야수 배치
             fielders.push(createHumanoidModel(-12, 0, -12, 0x1d4ed8));  // 3루수
             fielders.push(createHumanoidModel(-8, 0, -26, 0x1d4ed8));   // 유격수
             fielders.push(createHumanoidModel(8, 0, -26, 0x1d4ed8));    // 2루수
@@ -409,35 +407,40 @@ html_code = """
                 ball.position.x = THREE.MathUtils.lerp(hitStartPos.x, hitTargetPos.x, hitFlightProgress);
                 ball.position.z = THREE.MathUtils.lerp(hitStartPos.z, hitTargetPos.z, hitFlightProgress);
 
-                // 땅볼과 뜬공 구분 높이 계산
                 if (currentResultType === "GROUND") {
-                    // 낮게 튀면서 굴러가는 땅볼 타구
                     ball.position.y = Math.max(0.08, Math.abs(Math.sin(hitFlightProgress * Math.PI * 4)) * (1.2 * (1 - hitFlightProgress)));
                 } else {
                     ball.position.y = Math.max(0.08, hitStartPos.y + Math.sin(hitFlightProgress * Math.PI) * hitMaxHeight);
                 }
 
-                // 3인칭 추적 카메라
                 camera.position.x = THREE.MathUtils.lerp(camera.position.x, ball.position.x * 0.3, 0.04);
                 camera.position.y = THREE.MathUtils.lerp(camera.position.y, ball.position.y + 12, 0.04);
                 camera.position.z = THREE.MathUtils.lerp(camera.position.z, ball.position.z + 20, 0.04);
                 camera.lookAt(ball.position);
 
-                // 야수 이동 및 달리기 모션 (야수 속도를 느리게 설정: runProgress 계수 0.85)
                 if (assignedFielder) {
                     const runProgress = Math.min(1.0, hitFlightProgress * 0.85);
                     
-                    assignedFielder.position.x = THREE.MathUtils.lerp(assignedFielder.userData.originX, hitTargetPos.x, runProgress);
-                    assignedFielder.position.z = THREE.MathUtils.lerp(assignedFielder.userData.originZ, hitTargetPos.z, runProgress);
+                    let targetX = THREE.MathUtils.lerp(assignedFielder.userData.originX, hitTargetPos.x, runProgress);
+                    let targetZ = THREE.MathUtils.lerp(assignedFielder.userData.originZ, hitTargetPos.z, runProgress);
 
-                    // 팔 다리 교차 달리기 애니메이션
+                    // 야수가 외야 관중석 경계선을 넘지 못하도록 충돌 제어 (펜스 관통 차단)
+                    const distFromCenter = Math.hypot(targetX, targetZ - STADIUM_CENTER_Z);
+                    if (distFromCenter > OUTFIELD_WALL_RADIUS) {
+                        const angle = Math.atan2(targetZ - STADIUM_CENTER_Z, targetX);
+                        targetX = Math.cos(angle) * OUTFIELD_WALL_RADIUS;
+                        targetZ = Math.sin(angle) * OUTFIELD_WALL_RADIUS + STADIUM_CENTER_Z;
+                    }
+
+                    assignedFielder.position.x = targetX;
+                    assignedFielder.position.z = targetZ;
+
                     const runLegAngle = Math.sin(hitFlightProgress * 25) * 0.7;
                     assignedFielder.userData.leftLegGroup.rotation.x = runLegAngle;
                     assignedFielder.userData.rightLegGroup.rotation.x = -runLegAngle;
                     assignedFielder.userData.leftArmGroup.rotation.x = -runLegAngle;
                     assignedFielder.userData.rightArmGroup.rotation.x = runLegAngle;
 
-                    // 다이빙 모션
                     if (isDiving && runProgress > 0.5 && runProgress < 0.9) {
                         assignedFielder.rotation.x = -Math.PI / 2.5;
                         assignedFielder.position.y = 0.3;
@@ -520,7 +523,7 @@ html_code = """
                 hitTargetPos.set((Math.random() - 0.5) * 55, 0, -48);
                 hitMaxHeight = 12;
             } else if (result === "GROUND") {
-                flightSpeed = 0.0045; // 땅볼 속도
+                flightSpeed = 0.0045;
                 hitTargetPos.set((Math.random() - 0.5) * 40, 0, -28);
                 hitMaxHeight = 0.5;
             } else if (result === "FLY") {
@@ -564,7 +567,6 @@ html_code = """
                 updateBSOHUD();
                 setTimeout(startPitchSequence, 1500);
             } else {
-                // 느려진 야수가 최종 지점 근처(거리 3.0 이내)에 접근했는지 판정
                 if (catchDistance <= 3.0) {
                     showFeedback(currentResultType === "GROUND" ? "OUT (땅볼 포구 아웃)" : "OUT (야수 포구 아웃)", "#d29922");
                     outs++;
