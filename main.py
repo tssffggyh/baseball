@@ -1,964 +1,411 @@
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.set_page_config(
+    page_title="2026 KBO 3D Real Baseball", layout="wide", initial_sidebar_state="collapsed"
+)
+
+html_code = """
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026 KBO 3D Real Hitting Baseball</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome CDN -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
-    <!-- Three.js CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
+    <title>2026 KBO 3D Baseball</title>
     <style>
-        body {
-            font-family: 'Noto Sans KR', sans-serif;
-            background-color: #0b0f19;
-            color: #ffffff;
-            overflow: hidden;
-            user-select: none;
-        }
-        .font-title {
-            font-family: 'Black Han Sans', sans-serif;
-        }
-        #game-canvas {
-            width: 100vw;
-            height: 100vh;
-            display: block;
-        }
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.85);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-        }
-        .team-card {
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .team-card:hover {
-            transform: translateY(-6px) scale(1.02);
-            box-shadow: 0 12px 25px -5px rgba(59, 130, 246, 0.5);
-        }
-        .pulse-hit {
-            animation: pulse-border 1.5s infinite;
-        }
-        @keyframes pulse-border {
-            0%, 100% { border-color: rgba(239, 68, 68, 0.8); box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); }
-            50% { border-color: rgba(245, 158, 11, 0.9); box-shadow: 0 0 25px rgba(245, 158, 11, 0.8); }
-        }
-        @keyframes popup-text {
-            0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
-            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        }
-        .animate-popup {
-            animation: popup-text 0.4s ease-out forwards;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { background-color: #0b0e14; font-family: 'Pretendard', -apple-system, sans-serif; color: #fff; overflow: hidden; }
+        #game-container { width: 100vw; height: 100vh; position: relative; }
+        
+        /* 팀 선택 UI */
+        #team-modal { position: absolute; inset: 0; z-index: 100; background: rgba(11, 14, 20, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .modal-card { background: #161b22; border: 1px solid #30363d; border-radius: 16px; padding: 32px; width: 480px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
+        .modal-title { font-size: 28px; font-weight: 800; color: #58a6ff; margin-bottom: 8px; }
+        .modal-sub { font-size: 14px; color: #8b949e; margin-bottom: 24px; }
+        select { width: 100%; padding: 12px 16px; font-size: 16px; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 20px; outline: none; }
+        .start-btn { width: 100%; padding: 14px; font-size: 18px; font-weight: 700; background: #238636; color: #fff; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+        .start-btn:hover { background: #2ea043; }
+
+        /* HUD 및 전광판 */
+        #hud-top { position: absolute; top: 16px; left: 16px; right: 16px; z-index: 10; display: flex; justify-content: space-between; pointer-events: none; }
+        .scoreboard { background: rgba(22, 27, 34, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 20px; display: flex; gap: 24px; align-items: center; }
+        .score-team { text-align: center; }
+        .team-name { font-size: 12px; color: #8b949e; font-weight: 600; }
+        .team-score { font-size: 24px; font-weight: 800; }
+        .bso-box { display: flex; gap: 12px; font-size: 14px; font-weight: 700; border-left: 1px solid #30363d; padding-left: 16px; }
+        .bso-dots { display: flex; gap: 4px; align-items: center; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #30363d; }
+        .dot.b { background: #58a6ff; }
+        .dot.s { background: #f85149; }
+        .dot.o { background: #d29922; }
+
+        .batter-card { background: rgba(22, 27, 34, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 20px; text-align: right; }
+        .batter-order { font-size: 12px; color: #2f81f7; font-weight: 700; }
+        .batter-name { font-size: 20px; font-weight: 800; }
+        .batter-stats { font-size: 12px; color: #8b949e; }
+
+        /* 타격 판정 알림 */
+        #timing-feedback { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); z-index: 20; font-size: 42px; font-weight: 900; text-shadow: 0 4px 12px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: 0.1s; }
+        
+        /* 스윙 컨트롤러 */
+        #controls { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .swing-btn { padding: 16px 48px; font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #f85149, #da3633); color: #fff; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 8px 24px rgba(218, 54, 51, 0.4); transition: transform 0.1s; }
+        .swing-btn:active { transform: scale(0.95); }
+        .pitch-info { font-size: 14px; color: #8b949e; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 12px; }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
-<body class="relative min-h-screen">
-
-    <!-- TEAM SELECTION SCREEN -->
-    <div id="selection-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 overflow-y-auto">
-        <div class="text-center mb-6">
-            <span class="inline-block px-4 py-1.5 bg-blue-600/30 text-blue-400 font-bold rounded-full text-sm border border-blue-500/40 mb-2 tracking-wider">
-                2026 OFFICIAL KBO ROSTER
-            </span>
-            <h1 class="font-title text-4xl md:text-6xl text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-200 to-amber-500 drop-shadow-md">
-                KBO 3D 리얼 타격 야구
-            </h1>
-            <p class="text-slate-300 text-sm md:text-base mt-2">응원하는 KBO 구단을 선택하고 직접 타석에 들어서서 홈런을 날려보세요!</p>
+<body>
+    <div id="game-container">
+        <!-- 팀 선택 모달 -->
+        <div id="team-modal">
+            <div class="modal-card">
+                <div class="modal-title">⚾ 2026 KBO 3D REAL</div>
+                <div class="modal-sub">구단을 선택하여 경기를 시작하세요</div>
+                <select id="team-select">
+                    <option value="KIA">KIA 타이거즈</option>
+                    <option value="SAMSUNG">삼성 라이온즈</option>
+                    <option value="LG">LG 트윈스</option>
+                    <option value="DOOSAN">두산 베어스</option>
+                    <option value="KT">KT 위즈</option>
+                    <option value="SSG">SSG 랜더스</option>
+                    <option value="LOTTE">롯데 자이언츠</option>
+                    <option value="HANWHA">한화 이글스</option>
+                    <option value="NC">NC 다이노스</option>
+                    <option value="KIWOOM">키움 히어로즈</option>
+                </select>
+                <button class="start-btn" onclick="initGame()">PLAY GAME</button>
+            </div>
         </div>
 
-        <!-- Team Grid -->
-        <div id="team-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 max-w-5xl w-full px-2">
-            <!-- Dynamically populated -->
-        </div>
-
-        <div class="mt-8 text-center text-xs text-slate-400">
-            <p><i class="fa-solid fa-gamepad mr-1 text-amber-400"></i> 조작법: 투구가 들어올 때 <span class="bg-slate-800 text-amber-300 px-2 py-0.5 rounded border border-slate-700 font-mono">SPACE BAR</span> 또는 <span class="bg-slate-800 text-amber-300 px-2 py-0.5 rounded border border-slate-700">마우스 클릭 / 스크린 터치</span>로 타격</p>
-        </div>
-    </div>
-
-    <!-- MAIN GAME CANVAS & OVERLAY -->
-    <div id="game-wrapper" class="relative hidden w-full h-screen">
-        <canvas id="game-canvas"></canvas>
-
-        <!-- TOP HUD: Scoreboard & Inning -->
-        <div class="absolute top-4 left-4 right-4 z-20 flex flex-col sm:flex-row justify-between items-center gap-3 pointer-events-none">
-            <!-- Scoreboard -->
-            <div class="glass-panel rounded-2xl px-5 py-3 flex items-center gap-6 shadow-2xl pointer-events-auto">
-                <div class="flex items-center gap-3">
-                    <div id="hud-team-logo" class="w-10 h-10 rounded-xl flex items-center justify-center font-title text-xl text-white shadow-inner">
-                        KIA
+        <!-- HUD -->
+        <div id="hud-top">
+            <div class="scoreboard">
+                <div class="score-team">
+                    <div class="team-name" id="user-team-label">USER</div>
+                    <div class="team-score" id="user-score">0</div>
+                </div>
+                <div style="font-size: 18px; font-weight: 700; color: #484f58;">VS</div>
+                <div class="score-team">
+                    <div class="team-name">COM</div>
+                    <div class="team-score" id="com-score">0</div>
+                </div>
+                <div class="bso-box">
+                    <div>
+                        <div style="color:#8b949e; font-size:10px;">BALL</div>
+                        <div class="bso-dots" id="b-dots">
+                            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                        </div>
                     </div>
                     <div>
-                        <div id="hud-team-name" class="font-bold text-base text-white">KIA 타이거즈</div>
-                        <div class="text-xs text-slate-400 flex items-center gap-2">
-                            <span id="hud-inning" class="text-amber-400 font-bold">1회초</span>
-                            <span>•</span>
-                            <span>공격</span>
+                        <div style="color:#8b949e; font-size:10px;">STRIKE</div>
+                        <div class="bso-dots" id="s-dots">
+                            <div class="dot"></div><div class="dot"></div>
                         </div>
                     </div>
-                </div>
-
-                <div class="h-8 w-px bg-slate-700"></div>
-
-                <div class="text-center">
-                    <div class="text-xs text-slate-400">SCORE</div>
-                    <div id="hud-score" class="font-title text-2xl text-amber-400 tracking-wider">0 - 0</div>
-                </div>
-
-                <div class="h-8 w-px bg-slate-700"></div>
-
-                <!-- BSO Counter -->
-                <div class="flex flex-col gap-1 text-xs font-bold">
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-slate-400 w-3">B</span>
-                        <div class="flex gap-1" id="ball-indicators">
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-slate-400 w-3">S</span>
-                        <div class="flex gap-1" id="strike-indicators">
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-slate-400 w-3">O</span>
-                        <div class="flex gap-1" id="out-indicators">
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-700"></span>
+                    <div>
+                        <div style="color:#8b949e; font-size:10px;">OUT</div>
+                        <div class="bso-dots" id="o-dots">
+                            <div class="dot"></div><div class="dot"></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Pitcher Info & Game Status -->
-            <div class="glass-panel rounded-2xl px-5 py-3 flex items-center gap-4 text-right shadow-2xl pointer-events-auto">
-                <div>
-                    <div class="text-xs text-slate-400">상대 선발 투수</div>
-                    <div id="hud-pitcher" class="font-bold text-sm text-slate-200">외국인 에이스 (RHP)</div>
-                    <div id="hud-pitch-type" class="text-xs text-emerald-400 font-semibold mt-0.5">직구 준비 중...</div>
-                </div>
-                <div class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400">
-                    <i class="fa-solid fa-baseball text-lg"></i>
-                </div>
+            <div class="batter-card">
+                <div class="batter-order" id="batter-order-txt">1번 타자</div>
+                <div class="batter-name" id="batter-name-txt">-</div>
+                <div class="batter-stats" id="batter-stat-txt">컨택 90 | 파워 85</div>
             </div>
         </div>
 
-        <!-- BOTTOM HUD: Active Batter Card & Hitting Button -->
-        <div class="absolute bottom-4 left-4 right-4 z-20 flex flex-col md:flex-row justify-between items-end gap-4 pointer-events-none">
-            <!-- Current Batter Info -->
-            <div class="glass-panel rounded-2xl p-4 flex items-center gap-4 shadow-2xl pointer-events-auto max-w-md w-full">
-                <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-slate-800 to-slate-700 flex items-center justify-center font-title text-2xl text-amber-400 border border-slate-600 shadow-md">
-                    <span id="batter-number">38</span>
-                </div>
-                <div class="flex-grow">
-                    <div class="flex items-center justify-between">
-                        <span id="batter-order" class="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold border border-amber-500/30">3번 타자</span>
-                        <span id="batter-pos" class="text-xs text-slate-400">3루수</span>
-                    </div>
-                    <div id="batter-name" class="font-title text-xl text-white mt-0.5">김도영</div>
-                    <div class="flex gap-3 text-xs text-slate-300 mt-1">
-                        <span>타율: <strong id="batter-avg" class="text-amber-300">.347</strong></span>
-                        <span>홈런: <strong id="batter-hr" class="text-amber-300">38개</strong></span>
-                        <span>OPS: <strong id="batter-ops" class="text-amber-300">1.060</strong></span>
-                    </div>
-                </div>
-            </div>
+        <div id="timing-feedback">PERFECT!</div>
 
-            <!-- Swing / Pitch Controls -->
-            <div class="flex items-center gap-3 pointer-events-auto w-full md:w-auto justify-center">
-                <button id="btn-change-camera" class="glass-panel hover:bg-slate-800 text-slate-200 px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 transition active:scale-95 shadow-lg">
-                    <i class="fa-solid fa-camera"></i> 시점 변경
-                </button>
-                <button id="btn-pitch" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-title text-lg px-6 py-3 rounded-2xl shadow-xl transition active:scale-95 flex items-center gap-2 border border-emerald-400/30">
-                    <i class="fa-solid fa-play"></i> 투구 시작
-                </button>
-                <button id="btn-swing" class="pulse-hit bg-gradient-to-r from-red-600 via-amber-600 to-red-600 hover:from-red-500 hover:to-amber-500 text-white font-title text-xl px-10 py-3 rounded-2xl shadow-2xl transition active:scale-95 flex items-center gap-2 border border-amber-300/50">
-                    <i class="fa-solid fa-baseball-bat-ball"></i> SWING! (Space)
-                </button>
-            </div>
-        </div>
-
-        <!-- ACTION RESULT ANNOUNCEMENT POPUP -->
-        <div id="action-popup" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none text-center">
-            <div id="action-text" class="font-title text-5xl md:text-7xl text-amber-300 drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] stroke-black tracking-wider animate-popup">
-                HOME RUN!
-            </div>
-            <div id="action-subtext" class="text-xl md:text-2xl text-white font-bold mt-2 drop-shadow-md">
-                비거리 125m • 대형 홈런!
-            </div>
+        <!-- 컨트롤러 -->
+        <div id="controls">
+            <div class="pitch-info" id="pitch-info-txt">투수 준비 중...</div>
+            <button class="swing-btn" onclick="swing()">SWING</button>
         </div>
     </div>
 
-    <!-- GAME LOGIC & THREE.JS ENGINE -->
     <script>
-        // KBO 10 TEAM DATA & REAL ACTIVE LINEUPS (2025/2026 Key Rosters)
-        const KBO_TEAMS = [
-            {
-                id: 'KIA',
-                name: 'KIA 타이거즈',
-                color: '#EA0029',
-                secondaryColor: '#06141F',
-                logoText: 'KIA',
-                pitchers: ['네일', '양현종', '윤영철', '정해영'],
-                lineup: [
-                    { order: 1, name: '박찬호', pos: '유격수', number: 1, avg: '.307', hr: 5, ops: '.770' },
-                    { order: 2, name: '소크라테스', pos: '좌익수', number: 30, avg: '.310', hr: 26, ops: '.880' },
-                    { order: 3, name: '김도영', pos: '3루수', number: 38, avg: '.347', hr: 38, ops: '1.060' },
-                    { order: 4, name: '최형우', pos: '지명타자', number: 34, avg: '.280', hr: 22, ops: '.860' },
-                    { order: 5, name: '나성범', pos: '우익수', number: 47, avg: '.290', hr: 21, ops: '.850' },
-                    { order: 6, name: '김선빈', pos: '2루수', number: 3, avg: '.320', hr: 9, ops: '.810' },
-                    { order: 7, name: '이우성', pos: '1루수', number: 25, avg: '.288', hr: 9, ops: '.775' },
-                    { order: 8, name: '김태군', pos: '포수', number: 42, avg: '.260', hr: 7, ops: '.690' },
-                    { order: 9, name: '최원준', pos: '중견수', number: 2, avg: '.292', hr: 9, ops: '.760' }
-                ]
-            },
-            {
-                id: 'SAMSUNG',
-                name: '삼성 라이온즈',
-                color: '#0066B3',
-                secondaryColor: '#C0C0C0',
-                logoText: '삼성',
-                pitchers: ['원태인', '레예스', '최채흥', '김재윤'],
-                lineup: [
-                    { order: 1, name: '김지찬', pos: '중견수', number: 58, avg: '.316', hr: 3, ops: '.802' },
-                    { order: 2, name: '이재현', pos: '유격수', number: 7, avg: '.260', hr: 14, ops: '.770' },
-                    { order: 3, name: '구자욱', pos: '좌익수', number: 65, avg: '.343', hr: 33, ops: '1.044' },
-                    { order: 4, name: '디아즈', pos: '1루수', number: 44, avg: '.282', hr: 25, ops: '.890' },
-                    { order: 5, name: '강민호', pos: '포수', number: 47, avg: '.303', hr: 19, ops: '.861' },
-                    { order: 6, name: '김영웅', pos: '3루수', number: 5, avg: '.252', hr: 28, ops: '.806' },
-                    { order: 7, name: '박병호', pos: '지명타자', number: 59, avg: '.245', hr: 23, ops: '.790' },
-                    { order: 8, name: '윤정빈', pos: '우익수', number: 31, avg: '.286', hr: 7, ops: '.780' },
-                    { order: 9, name: '류지혁', pos: '2루수', number: 16, avg: '.258', hr: 3, ops: '.680' }
-                ]
-            },
-            {
-                id: 'LG',
-                name: 'LG 트윈스',
-                color: '#C3002F',
-                secondaryColor: '#000000',
-                logoText: 'LG',
-                pitchers: ['임찬규', '최원태', '손주영', '유영찬'],
-                lineup: [
-                    { order: 1, name: '홍창기', pos: '우익수', number: 51, avg: '.336', hr: 5, ops: '.857' },
-                    { order: 2, name: '신민재', pos: '2루수', number: 4, avg: '.297', hr: 1, ops: '.750' },
-                    { order: 3, name: '오스틴', pos: '1루수', number: 23, avg: '.319', hr: 32, ops: '.957' },
-                    { order: 4, name: '문보경', pos: '3루수', number: 35, avg: '.301', hr: 22, ops: '.870' },
-                    { order: 5, name: '김현수', pos: '지명타자', number: 22, avg: '.294', hr: 8, ops: '.780' },
-                    { order: 6, name: '오지환', pos: '유격수', number: 10, avg: '.254', hr: 10, ops: '.750' },
-                    { order: 7, name: '박동원', pos: '포수', number: 27, avg: '.272', hr: 20, ops: '.810' },
-                    { order: 8, name: '문성주', pos: '좌익수', number: 8, avg: '.315', hr: 2, ops: '.790' },
-                    { order: 9, name: '박해민', pos: '중견수', number: 17, avg: '.263', hr: 6, ops: '.700' }
-                ]
-            },
-            {
-                id: 'DOOSAN',
-                name: '두산 베어스',
-                color: '#131230',
-                secondaryColor: '#ED1C24',
-                logoText: '두산',
-                pitchers: ['곽빈', '발라조빅', '최승용', '정철원'],
-                lineup: [
-                    { order: 1, name: '정수빈', pos: '중견수', number: 31, avg: '.284', hr: 4, ops: '.760' },
-                    { order: 2, name: '허경민', pos: '3루수', number: 13, avg: '.309', hr: 7, ops: '.810' },
-                    { order: 3, name: '양의지', pos: '포수', number: 25, avg: '.314', hr: 17, ops: '.890' },
-                    { order: 4, name: '김재환', pos: '지명타자', number: 32, avg: '.283', hr: 29, ops: '.880' },
-                    { order: 5, name: '양석환', pos: '1루수', number: 53, avg: '.246', hr: 34, ops: '.815' },
-                    { order: 6, name: '강승호', pos: '2루수', number: 23, avg: '.280', hr: 18, ops: '.800' },
-                    { order: 7, name: '제러디', pos: '좌익수', number: 33, avg: '.325', hr: 10, ops: '.930' },
-                    { order: 8, name: '전민재', pos: '유격수', number: 14, avg: '.272', hr: 2, ops: '.690' },
-                    { order: 9, name: '조수행', pos: '우익수', number: 51, avg: '.265', hr: 0, ops: '.660' }
-                ]
-            },
-            {
-                id: 'KT',
-                name: 'KT 위즈',
-                color: '#000000',
-                secondaryColor: '#EC1C24',
-                logoText: 'KT',
-                pitchers: ['고영표', '엄상백', '쿠에바스', '박영현'],
-                lineup: [
-                    { order: 1, name: '멜 로하스', pos: '좌익수', number: 3, avg: '.329', hr: 32, ops: '.980' },
-                    { order: 2, name: '강백호', pos: '지명타자', number: 50, avg: '.289', hr: 26, ops: '.840' },
-                    { order: 3, name: '장성우', pos: '포수', number: 22, avg: '.275', hr: 19, ops: '.810' },
-                    { order: 4, name: '문상철', pos: '1루수', number: 24, avg: '.256', hr: 17, ops: '.770' },
-                    { order: 5, name: '황재균', pos: '3루수', number: 10, avg: '.260', hr: 13, ops: '.740' },
-                    { order: 6, name: '김상수', pos: '유격수', number: 7, avg: '.270', hr: 4, ops: '.710' },
-                    { order: 7, name: '배정대', pos: '중견수', number: 27, avg: '.275', hr: 8, ops: '.750' },
-                    { order: 8, name: '오윤석', pos: '2루수', number: 6, avg: '.250', hr: 6, ops: '.700' },
-                    { order: 9, name: '정준영', pos: '우익수', number: 51, avg: '.262', hr: 1, ops: '.650' }
-                ]
-            },
-            {
-                id: 'SSG',
-                name: 'SSG 랜더스',
-                color: '#CE0E2D',
-                secondaryColor: '#FFB81C',
-                logoText: 'SSG',
-                pitchers: ['김광현', '앤더슨', '엘리아스', '조병현'],
-                lineup: [
-                    { order: 1, name: '최지훈', pos: '중견수', number: 54, avg: '.272', hr: 11, ops: '.740' },
-                    { order: 2, name: '박성한', pos: '유격수', number: 2, avg: '.301', hr: 10, ops: '.790' },
-                    { order: 3, name: '최정', pos: '3루수', number: 14, avg: '.291', hr: 37, ops: '.978' },
-                    { order: 4, name: '에레디아', pos: '좌익수', number: 27, avg: '.360', hr: 21, ops: '.960' },
-                    { order: 5, name: '한유섬', pos: '지명타자', number: 35, avg: '.265', hr: 24, ops: '.830' },
-                    { order: 6, name: '이지영', pos: '포수', number: 59, avg: '.280', hr: 5, ops: '.710' },
-                    { order: 7, name: '고명준', pos: '1루수', number: 18, avg: '.270', hr: 11, ops: '.730' },
-                    { order: 8, name: '하재훈', pos: '우익수', number: 13, avg: '.250', hr: 8, ops: '.700' },
-                    { order: 9, name: '안상현', pos: '2루수', number: 6, avg: '.235', hr: 2, ops: '.620' }
-                ]
-            },
-            {
-                id: 'LOTTE',
-                name: '롯데 자이언츠',
-                color: '#041E42',
-                secondaryColor: '#D11241',
-                logoText: '롯데',
-                pitchers: ['박세웅', '반즈', '윌커슨', '김원중'],
-                lineup: [
-                    { order: 1, name: '황성빈', pos: '중견수', number: 0, avg: '.320', hr: 5, ops: '.800' },
-                    { order: 2, name: '윤동희', pos: '우익수', number: 91, avg: '.293', hr: 14, ops: '.820' },
-                    { order: 3, name: '레이예스', pos: '좌익수', number: 29, avg: '.352', hr: 15, ops: '.905' },
-                    { order: 4, name: '전준우', pos: '지명타자', number: 8, avg: '.290', hr: 17, ops: '.830' },
-                    { order: 5, name: '손호영', pos: '3루수', number: 33, avg: '.317', hr: 18, ops: '.890' },
-                    { order: 6, name: '고승민', pos: '2루수', number: 4, avg: '.308', hr: 14, ops: '.840' },
-                    { order: 7, name: '나승엽', pos: '1루수', number: 51, avg: '.312', hr: 7, ops: '.870' },
-                    { order: 8, name: '유강남', pos: '포수', number: 27, avg: '.240', hr: 6, ops: '.680' },
-                    { order: 9, name: '박승욱', pos: '유격수', number: 5, avg: '.262', hr: 7, ops: '.720' }
-                ]
-            },
-            {
-                id: 'HANWHA',
-                name: '한화 이글스',
-                color: '#FF6600',
-                secondaryColor: '#000000',
-                logoText: '한화',
-                pitchers: ['류현진', '문동주', '와이스', '주현상'],
-                lineup: [
-                    { order: 1, name: '황영묵', pos: '2루수', number: 5, avg: '.301', hr: 3, ops: '.740' },
-                    { order: 2, name: '페라자', pos: '좌익수', number: 30, avg: '.275', hr: 24, ops: '.850' },
-                    { order: 3, name: '노시환', pos: '3루수', number: 8, avg: '.272', hr: 24, ops: '.820' },
-                    { order: 4, name: '채은성', pos: '1루수', number: 22, avg: '.270', hr: 20, ops: '.800' },
-                    { order: 5, name: '안치홍', pos: '지명타자', number: 25, avg: '.285', hr: 13, ops: '.780' },
-                    { order: 6, name: '김태연', pos: '우익수', number: 26, avg: '.291', hr: 12, ops: '.810' },
-                    { order: 7, name: '최재훈', pos: '포수', number: 13, avg: '.268', hr: 5, ops: '.730' },
-                    { order: 8, name: '하주석', pos: '유격수', number: 16, avg: '.280', hr: 2, ops: '.710' },
-                    { order: 9, name: '장진혁', pos: '중견수', number: 38, avg: '.263', hr: 9, ops: '.720' }
-                ]
-            },
-            {
-                id: 'NC',
-                name: 'NC 다이노스',
-                color: '#112C55',
-                secondaryColor: '#A1B2C6',
-                logoText: 'NC',
-                pitchers: ['하트', '신민혁', '김시훈', 'R.유영찬'],
-                lineup: [
-                    { order: 1, name: '박민우', pos: '2루수', number: 2, avg: '.328', hr: 7, ops: '.860' },
-                    { order: 2, name: '권희동', pos: '좌익수', number: 36, avg: '.285', hr: 11, ops: '.810' },
-                    { order: 3, name: '박건우', pos: '우익수', number: 37, avg: '.344', hr: 13, ops: '.920' },
-                    { order: 4, name: '데이비슨', pos: '1루수', number: 24, avg: '.289', hr: 46, ops: '.970' },
-                    { order: 5, name: '손아섭', pos: '지명타자', number: 31, avg: '.291', hr: 7, ops: '.760' },
-                    { order: 6, name: '서호철', pos: '3루수', number: 5, avg: '.282', hr: 10, ops: '.750' },
-                    { order: 7, name: '김형준', pos: '포수', number: 25, avg: '.220', hr: 17, ops: '.710' },
-                    { order: 8, name: '김주원', pos: '유격수', number: 7, avg: '.252', hr: 9, ops: '.730' },
-                    { order: 9, name: '최정원', pos: '중견수', number: 64, avg: '.270', hr: 1, ops: '.680' }
-                ]
-            },
-            {
-                id: 'KIWOOM',
-                name: '키움 히어로즈',
-                color: '#820024',
-                secondaryColor: '#B2B2B2',
-                logoText: '키움',
-                pitchers: ['후라도', '헤이수스', '하영민', '주승우'],
-                lineup: [
-                    { order: 1, name: '이주형', pos: '중견수', number: 2, avg: '.266', hr: 13, ops: '.750' },
-                    { order: 2, name: '송성문', pos: '3루수', number: 24, avg: '.340', hr: 19, ops: '.927' },
-                    { order: 3, name: '김혜성', pos: '2루수', number: 3, avg: '.326', hr: 11, ops: '.840' },
-                    { order: 4, name: '최주환', pos: '1루수', number: 53, avg: '.255', hr: 13, ops: '.740' },
-                    { order: 5, name: '김건희', pos: '지명타자', number: 60, avg: '.270', hr: 9, ops: '.730' },
-                    { order: 6, name: '변상권', pos: '좌익수', number: 50, avg: '.260', hr: 5, ops: '.690' },
-                    { order: 7, name: '김태진', pos: '유격수', number: 27, avg: '.275', hr: 1, ops: '.670' },
-                    { order: 8, name: '김동헌', pos: '포수', number: 12, avg: '.240', hr: 3, ops: '.640' },
-                    { order: 9, name: '원성준', pos: '우익수', number: 10, avg: '.250', hr: 2, ops: '.650' }
-                ]
-            }
-        ];
+        // KBO 10개 팀 9인 풀 라인업
+        const kboData = {
+            'KIA': { name: 'KIA 타이거즈', roster: [
+                {n:'박찬호', c:88, p:70}, {n:'소크라테스', c:85, p:86}, {n:'김도영', c:95, p:94},
+                {n:'최형우', c:90, p:92}, {n:'나성범', c:86, p:90}, {n:'김선빈', c:89, p:68},
+                {n:'이우성', c:82, p:80}, {n:'한준수', c:78, p:76}, {n:'최원준', c:84, p:74}
+            ]},
+            'SAMSUNG': { name: '삼성 라이온즈', roster: [
+                {n:'김지찬', c:88, p:65}, {n:'윤정빈', c:80, p:78}, {n:'구자욱', c:94, p:90},
+                {n:'디아즈', c:83, p:92}, {n:'강민호', c:86, p:88}, {n:'김영웅', c:81, p:89},
+                {n:'박병호', c:76, p:91}, {n:'류지혁', c:82, p:70}, {n:'이재현', c:80, p:82}
+            ]},
+            'LG': { name: 'LG 트윈스', roster: [
+                {n:'홍창기', c:94, p:70}, {n:'신민재', c:86, p:62}, {n:'오스틴', c:92, p:93},
+                {n:'문보경', c:88, p:85}, {n:'오지환', c:82, p:83}, {n:'김현수', c:87, p:82},
+                {n:'박동원', c:80, p:86}, {n:'박해민', c:83, p:68}, {n:'구본혁', c:80, p:70}
+            ]},
+            'DOOSAN': { name: '두산 베어스', roster: [
+                {n:'정수빈', c:87, p:66}, {n:'허경민', c:88, p:74}, {n:'양의지', c:93, p:89},
+                {n:'김재환', c:80, p:91}, {n:'양석환', c:79, p:88}, {n:'강승호', c:82, p:84},
+                {n:'전민재', c:78, p:68}, {n:'조수행', c:84, p:60}, {n:'기라성', c:76, p:72}
+            ]},
+            'KT': { name: 'KT 위즈', roster: [
+                {n:'로하스', c:90, p:93}, {n:'강백호', c:89, p:90}, {n:'장성우', c:84, p:82},
+                {n:'문상철', c:81, p:85}, {n:'황재균', c:82, p:80}, {n:'김민혁', c:86, p:68},
+                {n:'배정대', c:80, p:76}, {n:'오윤석', c:78, p:74}, {n:'심우준', c:79, p:65}
+            ]},
+            'SSG': { name: 'SSG 랜더스', roster: [
+                {n:'최지훈', c:84, p:72}, {n:'박성한', c:87, p:76}, {n:'최정', c:89, p:96},
+                {n:'에레디아', c:93, p:86}, {n:'한유섬', c:78, p:89}, {n:'이지영', c:82, p:68},
+                {n:'고명준', c:79, p:80}, {n:'하재훈', c:76, p:82}, {n:'김성현', c:78, p:66}
+            ]},
+            'LOTTE': { name: '롯데 자이언츠', roster: [
+                {n:'황성빈', c:86, p:60}, {n:'윤동희', c:88, p:82}, {n:'전준우', c:90, p:86},
+                {n:'레이예스', c:94, p:85}, {n:'나승엽', c:85, p:81}, {n:'노진혁', c:78, p:76}, {n:'손성빈', c:75, p:74}, {n:'유강남', c:76, p:78}, {n:'박승욱', c:80, p:70}
+            ]},
+            'HANWHA': { name: '한화 이글스', roster: [
+                {n:'최인호', c:82, p:72}, {n:'페라자', c:86, p:91}, {n:'노시환', c:84, p:93}, {n:'채은성', c:85, p:86}, {n:'안치홍', c:86, p:80}, {n:'하주석', c:78, p:72}, {n:'최재훈', c:80, p:68}, {n:'장진혁', c:80, p:74}, {n:'이도윤', c:79, p:62}
+            ]},
+            'NC': { name: 'NC 다이노스', roster: [
+                {n:'박민우', c:92, p:68}, {n:'권희동', c:85, p:80}, {n:'박건우', c:91, p:85}, {n:'데이비드슨', c:82, p:95}, {n:'손아섭', c:89, p:76}, {n:'김휘집', c:78, p:81}, {n:'서호철', c:83, p:75}, {n:'김형준', c:75, p:80}, {n:'김주원', c:79, p:74}
+            ]},
+            'KIWOOM': { name: '키움 히어로즈', roster: [
+                {n:'이주형', c:86, p:80}, {n:'도슨', c:89, p:84}, {n:'송성문', c:90, p:86}, {n:'최주환', c:81, p:85}, {n:'김혜성', c:92, p:78}, {n:'변상권', c:78, p:74}, {n:'김건희', c:76, p:76}, {n:'김태진', c:80, p:62}, {n:'장재영', c:72, p:80}
+            ]}
+        };
 
-        // GAME STATE
-        let selectedTeam = null;
-        let currentBatterIdx = 0;
-        let score = { user: 0, cpu: 0 };
-        let count = { ball: 0, strike: 0, out: 0 };
-        let inning = 1;
+        let currentTeam = null;
+        let batterIdx = 0;
+        let balls = 0, strikes = 0, outs = 0;
+        let userScore = 0, comScore = 0;
 
-        // THREE.JS SYSTEM VARIABLES
-        let scene, camera, renderer;
-        let pitcherMesh, batterMesh, batMesh, ballMesh, stadiumGroup;
-        let cameraMode = 0; // 0: Catcher View, 1: Broadcast View
-        
-        let pitchState = 'IDLE'; // IDLE, PITCHING, HIT, RESULT
-        let ballVel = new THREE.Vector3();
-        let pitchType = 'FASTBALL';
-        let pitchStartTime = 0;
-        let swingStartTime = 0;
-        let isSwung = false;
+        // 3D Three.js 변수들
+        let scene, camera, renderer, ball, bat;
+        let isPitching = false;
+        let pitchProgress = 0;
+        let currentPitch = { type: '직구', speed: 148, startX: 0, startY: 1.6, curveX: 0, curveY: 0 };
 
-        // Initialize Web Audio API for sound effects
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        let audioCtx = null;
+        function initGame() {
+            const teamKey = document.getElementById('team-select').value;
+            currentTeam = kboData[teamKey];
 
-        function playSound(type) {
-            try {
-                if (!audioCtx) audioCtx = new AudioContext();
-                if (audioCtx.state === 'suspended') audioCtx.resume();
+            document.getElementById('user-team-label').innerText = currentTeam.name.split(' ')[0];
+            document.getElementById('team-modal').style.display = 'none';
 
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-
-                const now = audioCtx.currentTime;
-                if (type === 'HIT') {
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(600, now);
-                    osc.frequency.exponentialRampToValueAtTime(150, now + 0.15);
-                    gain.gain.setValueAtTime(1.0, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-                    osc.start(now);
-                    osc.stop(now + 0.2);
-                } else if (type === 'HOMERUN') {
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(300, now);
-                    osc.frequency.linearRampToValueAtTime(800, now + 0.5);
-                    gain.gain.setValueAtTime(0.8, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
-                    osc.start(now);
-                    osc.stop(now + 0.6);
-                } else if (type === 'CATCH') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(180, now);
-                    gain.gain.setValueAtTime(0.5, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-                    osc.start(now);
-                    osc.stop(now + 0.08);
-                }
-            } catch (e) { console.log('Audio context not allowed yet.'); }
+            init3D();
+            updateBatterHUD();
+            startPitchSequence();
         }
 
-        // INIT DOM & SELECTION
-        window.addEventListener('DOMContentLoaded', () => {
-            renderTeamSelection();
-            setupEventListeners();
-        });
-
-        function renderTeamSelection() {
-            const grid = document.getElementById('team-grid');
-            grid.innerHTML = KBO_TEAMS.map(team => `
-                <div onclick="selectTeam('${team.id}')" class="team-card glass-panel rounded-2xl p-4 flex flex-col items-center cursor-pointer border-2 border-slate-700/60 hover:border-amber-400 group relative overflow-hidden">
-                    <div class="w-16 h-16 rounded-2xl flex items-center justify-center font-title text-2xl text-white shadow-lg mb-3 transform group-hover:scale-110 transition" style="background: linear-gradient(135deg, ${team.color}, ${team.secondaryColor})">
-                        ${team.logoText}
-                    </div>
-                    <div class="font-bold text-base text-white group-hover:text-amber-300 text-center">${team.name}</div>
-                    <div class="text-xs text-slate-400 mt-1">대표타자: ${team.lineup[2].name}</div>
-                    <div class="mt-3 text-xs bg-slate-800/80 text-amber-400 font-bold px-3 py-1 rounded-full border border-slate-700">선택하기</div>
-                </div>
-            `).join('');
-        }
-
-        function selectTeam(teamId) {
-            selectedTeam = KBO_TEAMS.find(t => t.id === teamId);
-            document.getElementById('selection-screen').classList.add('hidden');
-            document.getElementById('game-wrapper').classList.remove('hidden');
-
-            updateHUD();
-            init3DScene();
-            animate();
-        }
-
-        function updateHUD() {
-            if (!selectedTeam) return;
-            const batter = selectedTeam.lineup[currentBatterIdx];
-
-            document.getElementById('hud-team-logo').innerText = selectedTeam.logoText;
-            document.getElementById('hud-team-logo').style.background = `linear-gradient(135deg, ${selectedTeam.color}, ${selectedTeam.secondaryColor})`;
-            document.getElementById('hud-team-name').innerText = selectedTeam.name;
-            document.getElementById('hud-score').innerText = `${score.user} - ${score.cpu}`;
-
-            document.getElementById('batter-number').innerText = batter.number;
-            document.getElementById('batter-order').innerText = `${batter.order}번 타자`;
-            document.getElementById('batter-pos').innerText = batter.pos;
-            document.getElementById('batter-name').innerText = batter.name;
-            document.getElementById('batter-avg').innerText = batter.avg;
-            document.getElementById('batter-hr').innerText = `${batter.hr}개`;
-            document.getElementById('batter-ops').innerText = batter.ops;
-
-            updateBSO();
-        }
-
-        function updateBSO() {
-            const ballContainer = document.getElementById('ball-indicators');
-            const strikeContainer = document.getElementById('strike-indicators');
-            const outContainer = document.getElementById('out-indicators');
-
-            ballContainer.innerHTML = Array(3).fill(0).map((_, i) => 
-                `<span class="w-2.5 h-2.5 rounded-full ${i < count.ball ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-slate-700'}"></span>`
-            ).join('');
-
-            strikeContainer.innerHTML = Array(2).fill(0).map((_, i) => 
-                `<span class="w-2.5 h-2.5 rounded-full ${i < count.strike ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]' : 'bg-slate-700'}"></span>`
-            ).join('');
-
-            outContainer.innerHTML = Array(2).fill(0).map((_, i) => 
-                `<span class="w-2.5 h-2.5 rounded-full ${i < count.out ? 'bg-red-500 shadow-[0_0_8px_#ef4444]' : 'bg-slate-700'}"></span>`
-            ).join('');
-        }
-
-        // THREE.JS STADIUM & GAME OBJECT BUILDER
-        function init3DScene() {
-            const container = document.getElementById('game-wrapper');
-            canvas = document.getElementById('game-canvas');
-
+        function init3D() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0c1427);
-            scene.fog = new THREE.FogExp2(0x0c1427, 0.003);
+            scene.background = new THREE.Color(0x0a1118);
+            scene.fog = new THREE.FogExp2(0x0a1118, 0.015);
 
             camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
-            setCameraPosition();
+            camera.position.set(0.6, 1.4, 1.8); // 타자 우측 뒤쪽 시점
 
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('game-container').appendChild(renderer.domElement);
 
-            // Lights
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
+            // 조명
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            mainLight.position.set(10, 20, 10);
+            mainLight.castShadow = true;
+            scene.add(mainLight);
+            scene.add(new THREE.AmbientLight(0x404854));
 
-            const sunLight = new THREE.DirectionalLight(0xfffaed, 1.2);
-            sunLight.position.set(30, 80, -20);
-            sunLight.castShadow = true;
-            sunLight.shadow.mapSize.width = 2048;
-            sunLight.shadow.mapSize.height = 2048;
-            scene.add(sunLight);
+            // 야구장 필드
+            const fieldGeo = new THREE.PlaneGeometry(80, 80);
+            const fieldMat = new THREE.MeshStandardMaterial({ color: 0x1e5631, roughness: 0.8 });
+            const field = new THREE.Mesh(fieldGeo, fieldMat);
+            field.rotation.x = -Math.PI / 2;
+            scene.add(field);
 
-            // Stadium Lights (Stadium Floodlights)
-            const floodPositions = [[-40, 35, 10], [40, 35, 10], [-50, 40, -60], [50, 40, -60]];
-            floodPositions.forEach(pos => {
-                const light = new THREE.PointLight(0xffffff, 0.8, 120);
-                light.position.set(...pos);
-                scene.add(light);
-            });
-
-            stadiumGroup = new THREE.Group();
-            scene.add(stadiumGroup);
-
-            buildStadium();
-            createPitcherAndBatter();
-            createBall();
-
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        function setCameraPosition() {
-            if (cameraMode === 0) {
-                // Catcher / Batter View
-                camera.position.set(0, 2.2, 3.8);
-                camera.lookAt(0, 1.2, -18.4);
-            } else {
-                // Broadcast Angle
-                camera.position.set(12, 14, 18);
-                camera.lookAt(0, 1, -8);
-            }
-        }
-
-        function buildStadium() {
-            // Field Dirt Diamond
-            const dirtGeo = new THREE.PlaneGeometry(55, 55);
-            const dirtMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
+            // 내야 흙 다이아몬드
+            const dirtGeo = new THREE.PlaneGeometry(20, 20);
+            const dirtMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
             const dirt = new THREE.Mesh(dirtGeo, dirtMat);
             dirt.rotation.x = -Math.PI / 2;
             dirt.rotation.z = Math.PI / 4;
-            dirt.position.set(0, 0, -18);
-            dirt.receiveShadow = true;
-            stadiumGroup.add(dirt);
+            dirt.position.set(0, 0.01, -8);
+            scene.add(dirt);
 
-            // Grass Outfield
-            const grassGeo = new THREE.CircleGeometry(110, 64, 0, Math.PI);
-            const grassMat = new THREE.MeshStandardMaterial({ color: 0x1e6b2c, roughness: 0.8 });
-            const grass = new THREE.Mesh(grassGeo, grassMat);
-            grass.rotation.x = -Math.PI / 2;
-            grass.rotation.z = Math.PI / 4;
-            grass.position.set(0, -0.05, -18);
-            grass.receiveShadow = true;
-            stadiumGroup.add(grass);
+            // 야구 공
+            const ballGeo = new THREE.SphereGeometry(0.07, 16, 16);
+            const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+            ball = new THREE.Mesh(ballGeo, ballMat);
+            ball.castShadow = true;
+            scene.add(ball);
 
-            // Infield Grass Diamond
-            const innerGrassGeo = new THREE.PlaneGeometry(28, 28);
-            const innerGrass = new THREE.Mesh(innerGrassGeo, grassMat);
-            innerGrass.rotation.x = -Math.PI / 2;
-            innerGrass.rotation.z = Math.PI / 4;
-            innerGrass.position.set(0, 0.02, -18);
-            stadiumGroup.add(innerGrass);
+            // 배트
+            const batGeo = new THREE.CylinderGeometry(0.035, 0.018, 0.9);
+            const batMat = new THREE.MeshStandardMaterial({ color: 0xc49a45, roughness: 0.4 });
+            bat = new THREE.Mesh(batGeo, batMat);
+            bat.position.set(0.4, 1.1, 0.2);
+            bat.rotation.set(0.2, 0, 0.6);
+            scene.add(bat);
 
-            // Bases (Home, 1B, 2B, 3B)
-            const baseGeo = new THREE.BoxGeometry(0.5, 0.1, 0.5);
-            const baseMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            const basePositions = [
-                [0, 0.05, 0],       // Home Plate
-                [13, 0.05, -13],    // 1B
-                [0, 0.05, -26],     // 2B
-                [-13, 0.05, -13]    // 3B
+            animate();
+        }
+
+        function startPitchSequence() {
+            if (outs >= 3) return;
+
+            const types = [
+                { t: '직구', spd: 145 + Math.floor(Math.random() * 8), cx: 0, cy: 0 },
+                { t: '슬라이더', spd: 132 + Math.floor(Math.random() * 6), cx: -0.4, cy: -0.1 },
+                { t: '체인지업', spd: 128 + Math.floor(Math.random() * 5), cx: 0.1, cy: -0.3 }
             ];
-            basePositions.forEach(pos => {
-                const base = new THREE.Mesh(baseGeo, baseMat);
-                base.position.set(...pos);
-                stadiumGroup.add(base);
-            });
+            currentPitch = types[Math.floor(Math.random() * types.length)];
+            
+            document.getElementById('pitch-info-txt').innerText = `${currentPitch.t} (${currentPitch.spd}km/h) 투구 중...`;
 
-            // Pitcher Mound
-            const moundGeo = new THREE.CylinderGeometry(2.5, 3.2, 0.4, 32);
-            const moundMat = new THREE.MeshStandardMaterial({ color: 0x7c4f24 });
-            const mound = new THREE.Mesh(moundGeo, moundMat);
-            mound.position.set(0, 0.15, -18.4);
-            stadiumGroup.add(mound);
-
-            // Outfield Fence Wall
-            const wallGeo = new THREE.CylinderGeometry(100, 100, 6, 64, 1, true, Math.PI * 0.25, Math.PI * 0.5);
-            const wallMat = new THREE.MeshStandardMaterial({ color: 0x0a2f52, side: THREE.DoubleSide });
-            const wall = new THREE.Mesh(wallGeo, wallMat);
-            wall.position.set(0, 3, -18);
-            stadiumGroup.add(wall);
-
-            // Outfield Distance Ads / Signs
-            const signGeo = new THREE.PlaneGeometry(16, 4);
-            const signMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
-            const sign = new THREE.Mesh(signGeo, signMat);
-            sign.position.set(0, 5, -117.5);
-            stadiumGroup.add(sign);
+            pitchProgress = 0;
+            ball.position.set(0, 1.6, -18.4); // 마운드 위치
+            isPitching = true;
         }
 
-        function createPitcherAndBatter() {
-            // Pitcher Model (Simple Stylized Mesh)
-            const bodyGeo = new THREE.CylinderGeometry(0.35, 0.3, 1.6, 16);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
-            pitcherMesh = new THREE.Mesh(bodyGeo, bodyMat);
-            pitcherMesh.position.set(0, 1.1, -18.4);
-            pitcherMesh.castShadow = true;
-
-            const headGeo = new THREE.SphereGeometry(0.25, 16, 16);
-            const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-            const pHead = new THREE.Mesh(headGeo, headMat);
-            pHead.position.set(0, 1.0, 0);
-            pitcherMesh.add(pHead);
-
-            scene.add(pitcherMesh);
-
-            // Batter Model & Bat
-            const batterColor = selectedTeam ? selectedTeam.color : 0xef4444;
-            const bBodyMat = new THREE.MeshStandardMaterial({ color: batterColor });
-            batterMesh = new THREE.Mesh(bodyGeo, bBodyMat);
-            batterMesh.position.set(-0.8, 1.1, 0.2); // Right handed batter position
-            batterMesh.castShadow = true;
-
-            const bHead = new THREE.Mesh(headGeo, headMat);
-            bHead.position.set(0, 1.0, 0);
-            batterMesh.add(bHead);
-
-            // Bat
-            const batGeo = new THREE.CylinderGeometry(0.03, 0.07, 1.1, 16);
-            const batMat = new THREE.MeshStandardMaterial({ color: 0xc8963e, roughness: 0.3 });
-            batMesh = new THREE.Mesh(batGeo, batMat);
-            batMesh.position.set(0.4, 0.5, 0.2);
-            batMesh.rotation.z = -Math.PI / 4;
-            batMesh.rotation.x = Math.PI / 6;
-            batterMesh.add(batMesh);
-
-            scene.add(batterMesh);
-        }
-
-        function createBall() {
-            const ballGeo = new THREE.SphereGeometry(0.12, 32, 32);
-            const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
-            ballMesh = new THREE.Mesh(ballGeo, ballMat);
-            ballMesh.castShadow = true;
-            ballMesh.position.set(0, 1.5, -18.4); // Start at pitcher hand
-            scene.add(ballMesh);
-        }
-
-        // GAME MECHANICS & CONTROLS
-        function setupEventListeners() {
-            document.getElementById('btn-pitch').addEventListener('click', startPitch);
-            document.getElementById('btn-swing').addEventListener('click', triggerSwing);
-            document.getElementById('btn-change-camera').addEventListener('click', () => {
-                cameraMode = (cameraMode === 0) ? 1 : 0;
-                setCameraPosition();
-            });
-
-            window.addEventListener('keydown', (e) => {
-                if (e.code === 'Space') {
-                    e.preventDefault();
-                    if (pitchState === 'IDLE') {
-                        startPitch();
-                    } else if (pitchState === 'PITCHING') {
-                        triggerSwing();
-                    }
-                }
-            });
-
-            // Touch screen / mouse hit on canvas
-            document.getElementById('game-canvas').addEventListener('pointerdown', () => {
-                if (pitchState === 'IDLE') startPitch();
-                else if (pitchState === 'PITCHING') triggerSwing();
-            });
-        }
-
-        function startPitch() {
-            if (pitchState !== 'IDLE') return;
-
-            pitchState = 'PITCHING';
-            isSwung = false;
-            pitchStartTime = performance.now();
-
-            // Random Pitch Type
-            const pitchTypes = ['직구 (Fastball)', '슬라이더 (Slider)', '커브 (Curveball)', '체인지업 (Changeup)'];
-            const pIdx = Math.floor(Math.random() * pitchTypes.length);
-            const pitchName = pitchTypes[pIdx];
-
-            const speedKmh = Math.floor(138 + Math.random() * 16);
-            document.getElementById('hud-pitch-type').innerText = `${pitchName} • ${speedKmh} km/h`;
-
-            // Initial Ball Position at Pitcher Release
-            ballMesh.position.set(0, 1.6, -18.4);
-
-            // Pitch Physics trajectory logic
-            const durationSec = 180 / speedKmh; // Flight duration approx 0.8s - 1.2s
-            ballVel.z = 18.4 / durationSec; 
-
-            // Curve/Break offsets
-            ballVel.x = (Math.random() - 0.5) * 0.8;
-            if (pIdx === 1) ballVel.x = 1.2; // Slider breaks right
-            if (pIdx === 2) ballVel.y = -0.8; // Curve breaks down
-
-            // Windup Pitcher Animation
-            pitcherMesh.position.y = 1.4;
-            setTimeout(() => { pitcherMesh.position.y = 1.1; }, 200);
-        }
-
-        function triggerSwing() {
-            if (pitchState !== 'PITCHING' || isSwung) return;
-
-            isSwung = true;
-            swingStartTime = performance.now();
-
-            // Bat Swing Animation
-            const duration = 250;
-            const startTime = performance.now();
-
-            function animateBat() {
-                const elapsed = performance.now() - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-
-                // Bat Rotation Sweep
-                batMesh.rotation.y = -Math.PI * 0.8 * progress;
-                batMesh.rotation.z = -Math.PI / 4 + Math.PI * 0.5 * progress;
-
-                if (progress < 1) {
-                    requestAnimationFrame(animateBat);
-                } else {
-                    // Reset Bat
-                    batMesh.rotation.set(Math.PI / 6, 0, -Math.PI / 4);
-                }
-            }
-            animateBat();
-
-            // Contact Timing Check (Distance to home plate z = 0)
-            const ballZ = ballMesh.position.z;
-            const timingDiff = Math.abs(ballZ - 0.0); // Perfect hit when ball z is close to 0
-
-            if (timingDiff < 1.2) {
-                // HIT!
-                pitchState = 'HIT';
-                playSound('HIT');
-
-                // Determine Hit Quality based on timing & pitch position
-                let hitQuality = 'SINGLE';
-                if (timingDiff < 0.35) {
-                    hitQuality = 'HOMERUN';
-                } else if (timingDiff < 0.65) {
-                    hitQuality = 'DOUBLE';
-                } else if (timingDiff < 0.95) {
-                    hitQuality = (Math.random() > 0.4) ? 'SINGLE' : 'FOUL';
-                } else {
-                    hitQuality = 'OUT';
-                }
-
-                executeHitTrajectory(hitQuality);
-            }
-        }
-
-        function executeHitTrajectory(type) {
-            const exitVel = (type === 'HOMERUN') ? 42 : (type === 'DOUBLE') ? 30 : 22;
-            const launchAngle = (type === 'HOMERUN') ? 0.65 : (type === 'DOUBLE') ? 0.4 : 0.25;
-
-            const spreadX = (Math.random() - 0.5) * 0.8;
-
-            ballVel.x = Math.sin(spreadX) * exitVel;
-            ballVel.y = Math.sin(launchAngle) * exitVel;
-            ballVel.z = -Math.cos(launchAngle) * exitVel;
-
-            let text = '안타!';
-            let subtext = '1루타 성공!';
-
-            if (type === 'HOMERUN') {
-                text = 'HOME RUN!!';
-                const dist = Math.floor(115 + Math.random() * 20);
-                subtext = `대형 담장을 넘어갑니다! 비거리 ${dist}m`;
-                score.user += 1;
-                playSound('HOMERUN');
-            } else if (type === 'DOUBLE') {
-                text = '2루타!';
-                subtext = '우중간을 가르는 통쾌한 장타!';
-            } else if (type === 'FOUL') {
-                text = '파울 Ball';
-                subtext = '타구는 관중석으로 들어갑니다.';
-                if (count.strike < 2) count.strike++;
-            } else if (type === 'OUT') {
-                text = '아웃 (OUT)';
-                subtext = '야수 정면으로 향하는 타구입니다.';
-                count.out++;
-            }
-
-            if (type === 'SINGLE' || type === 'DOUBLE') {
-                // Advance score
-                if (Math.random() > 0.5) score.user += 1;
-            }
-
-            showActionPopup(text, subtext);
-            updateHUD();
-
-            setTimeout(resetPitch, 3500);
-        }
-
-        function handleStrikeOrBall() {
-            if (pitchState !== 'PITCHING') return;
-
-            pitchState = 'RESULT';
-            playSound('CATCH');
-
-            // Ball Zone check
-            const inZone = Math.abs(ballMesh.position.x) < 0.6 && Math.abs(ballMesh.position.y - 1.2) < 0.6;
-
-            if (isSwung) {
-                count.strike++;
-                showActionPopup('헛스윙 삼진!', '타이밍을 빼앗겼습니다.');
-            } else if (inZone) {
-                count.strike++;
-                showActionPopup('스트라이크!', '루킹 스트라이크 인정');
-            } else {
-                count.ball++;
-                showActionPopup('볼 (BALL)', '선구안이 빛났습니다!');
-            }
-
-            if (count.strike >= 3) {
-                count.out++;
-                count.strike = 0;
-                count.ball = 0;
-                showActionPopup('삼진 아웃!', '다음 타자로 교체됩니다.');
-                nextBatter();
-            } else if (count.ball >= 4) {
-                count.ball = 0;
-                count.strike = 0;
-                showActionPopup('볼넷 출루!', '1루로 출루합니다.');
-                nextBatter();
-            }
-
-            if (count.out >= 3) {
-                count.out = 0;
-                count.strike = 0;
-                count.ball = 0;
-                inning++;
-                showActionPopup('공수 교대!', '이닝이 종료되었습니다.');
-            }
-
-            updateHUD();
-            setTimeout(resetPitch, 2200);
-        }
-
-        function nextBatter() {
-            currentBatterIdx = (currentBatterIdx + 1) % selectedTeam.lineup.length;
-            updateHUD();
-        }
-
-        function resetPitch() {
-            pitchState = 'IDLE';
-            ballMesh.position.set(0, 1.5, -18.4);
-            document.getElementById('hud-pitch-type').innerText = '투구 준비 중...';
-            document.getElementById('action-popup').classList.add('hidden');
-        }
-
-        function showActionPopup(mainText, subText) {
-            const popup = document.getElementById('action-popup');
-            document.getElementById('action-text').innerText = mainText;
-            document.getElementById('action-subtext').innerText = subText;
-            popup.classList.remove('hidden');
-        }
-
-        // MAIN THREE.JS ANIMATION LOOP
         function animate() {
             requestAnimationFrame(animate);
 
-            const delta = 0.016; // approx 60fps frame delta
+            if (isPitching) {
+                // 구속에 맞춘 이동 속도 연산
+                pitchProgress += currentPitch.spd / 3600;
+                
+                // 공 궤적 이동 및 꺾임 적용
+                ball.position.z = -18.4 + (18.6 * pitchProgress);
+                ball.position.x = currentPitch.cx * Math.pow(pitchProgress, 2);
+                ball.position.y = 1.6 + (currentPitch.cy * pitchProgress) - (0.2 * Math.pow(pitchProgress, 2));
 
-            if (pitchState === 'PITCHING') {
-                ballMesh.position.z += ballVel.z * delta;
-                ballMesh.position.x += ballVel.x * delta;
-                ballMesh.position.y += ballVel.y * delta;
-                ballMesh.rotation.x += 0.2;
-
-                // Pass catcher threshold
-                if (ballMesh.position.z >= 1.0) {
-                    handleStrikeOrBall();
-                }
-            } else if (pitchState === 'HIT') {
-                ballMesh.position.x += ballVel.x * delta;
-                ballMesh.position.y += ballVel.y * delta;
-                ballMesh.position.z += ballVel.z * delta;
-
-                // Gravity on batted ball
-                ballVel.y -= 9.8 * delta;
-
-                ballMesh.rotation.x += 0.3;
-                ballMesh.rotation.y += 0.3;
-
-                // Bounce on field floor
-                if (ballMesh.position.y <= 0.12) {
-                    ballMesh.position.y = 0.12;
-                    ballVel.y *= -0.5;
-                    ballVel.x *= 0.7;
-                    ballVel.z *= 0.7;
+                // 포수 미트 도달 시
+                if (pitchProgress >= 1.0) {
+                    isPitching = false;
+                    handleTake();
                 }
             }
 
             renderer.render(scene, camera);
         }
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        function swing() {
+            if (!isPitching) return;
+            isPitching = false;
+
+            // 배트 스윙 애니메이션 시뮬레이션
+            bat.rotation.y = -Math.PI / 2;
+            setTimeout(() => { bat.rotation.y = 0; }, 200);
+
+            // 타이밍 오차 판정 (0.85 ~ 0.95 가 적정 타격 지점)
+            const diff = pitchProgress - 0.90;
+            
+            if (Math.abs(diff) < 0.03) {
+                showFeedback("🔥 PERFECT!", "#f85149");
+                triggerHit(Math.random() > 0.4 ? "홈런" : "2루타");
+            } else if (Math.abs(diff) < 0.07) {
+                showFeedback("⚾ GOOD HIT", "#58a6ff");
+                triggerHit("안타");
+            } else if (diff < -0.07) {
+                showFeedback("EARLY (파울)", "#d29922");
+                addStrike();
+            } else {
+                showFeedback("LATE (헛스윙)", "#8b949e");
+                addStrike();
+            }
         }
+
+        function handleTake() {
+            // 스트라이크존 들어왔는지 여부
+            if (Math.abs(ball.position.x) < 0.3 && ball.position.y > 0.8 && ball.position.y < 1.8) {
+                showFeedback("STRIKE!", "#f85149");
+                addStrike();
+            } else {
+                showFeedback("BALL", "#58a6ff");
+                balls++;
+                if (balls >= 4) {
+                    showFeedback("볼넷 출루!", "#2f81f7");
+                    resetCount();
+                    nextBatter();
+                }
+            }
+            updateBSOHUD();
+        }
+
+        function triggerHit(type) {
+            if (type === "홈런") {
+                userScore += 1;
+                document.getElementById('user-score').innerText = userScore;
+            }
+            resetCount();
+            setTimeout(nextBatter, 1500);
+        }
+
+        function addStrike() {
+            strikes++;
+            if (strikes >= 3) {
+                showFeedback("삼진 아웃!", "#f85149");
+                outs++;
+                resetCount();
+                setTimeout(nextBatter, 1500);
+            } else {
+                setTimeout(startPitchSequence, 1500);
+            }
+            updateBSOHUD();
+        }
+
+        function resetCount() {
+            balls = 0;
+            strikes = 0;
+            updateBSOHUD();
+        }
+
+        function nextBatter() {
+            if (outs >= 3) {
+                showFeedback("3아웃 공수교대", "#d29922");
+                outs = 0;
+                resetCount();
+            }
+            batterIdx = (batterIdx + 1) % currentTeam.roster.length;
+            updateBatterHUD();
+            setTimeout(startPitchSequence, 1000);
+        }
+
+        function updateBatterHUD() {
+            const b = currentTeam.roster[batterIdx];
+            document.getElementById('batter-order-txt').innerText = `${batterIdx + 1}번 타자`;
+            document.getElementById('batter-name-txt').innerText = b.n;
+            document.getElementById('batter-stat-txt').innerText = `컨택 ${b.c} | 파워 ${b.p}`;
+        }
+
+        function updateBSOHUD() {
+            const renderDots = (containerId, count, cssClass) => {
+                const dots = document.getElementById(containerId).children;
+                for (let i = 0; i < dots.length; i++) {
+                    dots[i].className = 'dot' + (i < count ? ' ' + cssClass : '');
+                }
+            };
+            renderDots('b-dots', balls, 'b');
+            renderDots('s-dots', strikes, 's');
+            renderDots('o-dots', outs, 'o');
+        }
+
+        function showFeedback(txt, color) {
+            const el = document.getElementById('timing-feedback');
+            el.innerText = txt;
+            el.style.color = color;
+            el.style.opacity = '1';
+            setTimeout(() => { el.style.opacity = '0'; }, 1000);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') swing();
+        });
     </script>
 </body>
 </html>
+"""
+
+components.html(html_code, height=800, scrolling=False)
