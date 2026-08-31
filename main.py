@@ -182,19 +182,18 @@ html_code = """
         let isPitching = false;
         let isHitInFlight = false;
         let pitchProgress = 0;
-        let currentPitch = { cx: 0, cy: 0, spd: 0.012 };
+        let currentPitch = { cx: 0, cy: 0, spd: 0.022 }; // 구속 상향으로 난이도 증가
 
-        // 컴투스 프로야구 스타일 카메라 기본 뷰
-        const defaultCamPos = new THREE.Vector3(0.6, 1.4, 1.8);
-        const defaultCamLook = new THREE.Vector3(0, 1.2, -18.4);
+        // 카메라 시점 (정중앙 투구 조망)
+        const defaultCamPos = new THREE.Vector3(0, 1.4, 1.8);
+        const defaultCamLook = new THREE.Vector3(0, 1.1, -18.4);
 
-        // 타격된 공 물리 변수
         let hitFlightProgress = 0;
         let hitStartPos = new THREE.Vector3();
         let hitTargetPos = new THREE.Vector3();
         let hitMaxHeight = 0;
         let currentResultType = "";
-        let assignedFielder = null; // 공으로 전담 이동할 야수 1명
+        let assignedFielder = null;
 
         function initGame() {
             const teamKey = document.getElementById('team-select').value;
@@ -208,26 +207,21 @@ html_code = """
             startPitchSequence();
         }
 
-        // 팔다리 관절이 있는 3D 캐릭터 모델링
-        function createHumanoidModel(x, z, colorHex, isPitcher = false) {
+        function createHumanoidModel(x, y, z, colorHex, isPitcher = false) {
             const character = new THREE.Group();
-
             const mat = new THREE.MeshStandardMaterial({ color: colorHex });
             const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
 
-            // 몸통
             const torsoGeo = new THREE.BoxGeometry(0.4, 0.6, 0.25);
             const torso = new THREE.Mesh(torsoGeo, mat);
             torso.position.y = 0.9;
             character.add(torso);
 
-            // 머리
             const headGeo = new THREE.SphereGeometry(0.16, 12, 12);
             const head = new THREE.Mesh(headGeo, skinMat);
             head.position.y = 1.35;
             character.add(head);
 
-            // 왼팔 / 오른팔 (어깨 관절)
             const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.5);
             
             const leftArmGroup = new THREE.Group();
@@ -244,7 +238,6 @@ html_code = """
             rightArmGroup.add(rightArm);
             character.add(rightArmGroup);
 
-            // 왼다리 / 오른다리
             const legGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.6);
             
             const leftLeg = new THREE.Mesh(legGeo, mat);
@@ -255,9 +248,10 @@ html_code = """
             rightLeg.position.set(0.12, 0.3, 0);
             character.add(rightLeg);
 
-            character.position.set(x, 0, z);
+            character.position.set(x, y, z);
             character.userData = { 
                 originX: x, 
+                originY: y,
                 originZ: z, 
                 rightArmGroup: rightArmGroup,
                 leftArmGroup: leftArmGroup,
@@ -277,17 +271,34 @@ html_code = """
             scene.add(base);
         }
 
+        // 스트라이크존을 홈플레이트 위 중앙으로 정확히 배치
         function createStrikeZone() {
-            const zoneGeo = new THREE.PlaneGeometry(0.7, 0.9);
+            const zoneGeo = new THREE.PlaneGeometry(0.65, 0.85);
             const zoneMat = new THREE.MeshBasicMaterial({ 
                 color: 0x58a6ff, 
                 wireframe: true, 
                 transparent: true, 
-                opacity: 0.6 
+                opacity: 0.8 
             });
             const zone = new THREE.Mesh(zoneGeo, zoneMat);
-            zone.position.set(0, 1.25, 0);
+            zone.position.set(0, 1.25, 0); // 홈플레이트 정확한 중앙
             scene.add(zone);
+        }
+
+        // 마운드 3D 메쉬 렌더링
+        function createMound() {
+            const moundGeo = new THREE.CylinderGeometry(2.5, 3.2, 0.35, 32);
+            const moundMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
+            const mound = new THREE.Mesh(moundGeo, moundMat);
+            mound.position.set(0, 0.15, -18.4);
+            scene.add(mound);
+
+            // 투수판(Plate)
+            const plateGeo = new THREE.BoxGeometry(0.6, 0.05, 0.15);
+            const plateMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const plate = new THREE.Mesh(plateGeo, plateMat);
+            plate.position.set(0, 0.35, -18.4);
+            scene.add(plate);
         }
 
         function resetFielderPositions() {
@@ -321,7 +332,6 @@ html_code = """
             scene.add(mainLight);
             scene.add(new THREE.AmbientLight(0x404854));
 
-            // 야구장 경기장 잔디 및 내야 흙
             const fieldGeo = new THREE.PlaneGeometry(120, 120);
             const fieldMat = new THREE.MeshStandardMaterial({ color: 0x1e5631, roughness: 0.8 });
             const field = new THREE.Mesh(fieldGeo, fieldMat);
@@ -336,34 +346,31 @@ html_code = """
             dirt.position.set(0, 0.01, -8);
             scene.add(dirt);
 
-            // 베이스배치 (본루, 1루, 2루, 3루)
-            createBase(0, 0, Math.PI / 4);     // 홈베이스
-            createBase(6, -6, Math.PI / 4);    // 1루
-            createBase(0, -12, Math.PI / 4);   // 2루
-            createBase(-6, -6, Math.PI / 4);   // 3루
+            createBase(0, 0, Math.PI / 4);
+            createBase(6, -6, Math.PI / 4);
+            createBase(0, -12, Math.PI / 4);
+            createBase(-6, -6, Math.PI / 4);
 
-            // 스트라이크 존 렌더링
             createStrikeZone();
+            createMound();
 
-            // 야수(팔다리 구조 적용)
-            fielders.push(createHumanoidModel(-5, -6, 0x1d4ed8));   // 3루수
-            fielders.push(createHumanoidModel(-3, -12, 0x1d4ed8));  // 유격수
-            fielders.push(createHumanoidModel(3, -12, 0x1d4ed8));   // 2루수
-            fielders.push(createHumanoidModel(5, -6, 0x1d4ed8));    // 1루수
-            fielders.push(createHumanoidModel(-18, -25, 0x1d4ed8)); // 좌익수
-            fielders.push(createHumanoidModel(0, -32, 0x1d4ed8));   // 중견수
-            fielders.push(createHumanoidModel(18, -25, 0x1d4ed8));  // 우익수
+            // 야수들 배치
+            fielders.push(createHumanoidModel(-5, 0, -6, 0x1d4ed8));
+            fielders.push(createHumanoidModel(-3, 0, -12, 0x1d4ed8));
+            fielders.push(createHumanoidModel(3, 0, -12, 0x1d4ed8));
+            fielders.push(createHumanoidModel(5, 0, -6, 0x1d4ed8));
+            fielders.push(createHumanoidModel(-18, 0, -25, 0x1d4ed8));
+            fielders.push(createHumanoidModel(0, 0, -32, 0x1d4ed8));
+            fielders.push(createHumanoidModel(18, 0, -25, 0x1d4ed8));
 
-            // 투수
-            pitcherMesh = createHumanoidModel(0, -18.4, 0xda3633, true);
+            // 투수를 마운드 높이(y: 0.35) 위로 배치
+            pitcherMesh = createHumanoidModel(0, 0.35, -18.4, 0xda3633, true);
 
-            // 야구공
             const ballGeo = new THREE.SphereGeometry(0.08, 16, 16);
             const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
             ball = new THREE.Mesh(ballGeo, ballMat);
             scene.add(ball);
 
-            // 배트
             const batGeo = new THREE.CylinderGeometry(0.035, 0.018, 0.9);
             const batMat = new THREE.MeshStandardMaterial({ color: 0xc49a45 });
             bat = new THREE.Mesh(batGeo, batMat);
@@ -381,33 +388,34 @@ html_code = """
             resetCamera();
             isHitInFlight = false;
 
+            // 구종 다양화 및 무작위 변화구 (난이도 향상)
             const trajectories = [
-                { cx: 0, cy: 0, spd: 0.013 },
-                { cx: -0.3, cy: -0.1, spd: 0.011 },
-                { cx: 0.2, cy: -0.2, spd: 0.012 }
+                { cx: 0, cy: 0, spd: 0.024 },             // 빠른 직구
+                { cx: -0.6, cy: -0.3, spd: 0.020 },       // 슬라이더
+                { cx: 0.5, cy: -0.4, spd: 0.019 },        // 싱커
+                { cx: 0, cy: -0.7, spd: 0.017 },          // 포크볼 (낙차 큼)
+                { cx: -0.4, cy: 0.2, spd: 0.022 }         // 커터
             ];
             currentPitch = trajectories[Math.floor(Math.random() * trajectories.length)];
 
             pitchProgress = 0;
-            ball.position.set(0, 1.6, -18.4);
+            ball.position.set(0, 1.8, -18.4);
             isPitching = true;
         }
 
         function animate() {
             requestAnimationFrame(animate);
 
-            // 1. 투구 동작 및 투구 궤적 연산
             if (isPitching) {
                 pitchProgress += currentPitch.spd;
                 
-                // 투수 와인드업 팔 흔들기 모션
                 if (pitcherMesh && pitcherMesh.userData.rightArmGroup) {
                     pitcherMesh.userData.rightArmGroup.rotation.x = -Math.sin(pitchProgress * Math.PI) * 2.5;
                 }
 
-                ball.position.z = -18.4 + (18.6 * pitchProgress);
-                ball.position.x = currentPitch.cx * Math.pow(pitchProgress, 2);
-                ball.position.y = 1.6 + (currentPitch.cy * pitchProgress) - (0.1 * Math.pow(pitchProgress, 2));
+                ball.position.z = -18.4 + (18.4 * pitchProgress);
+                ball.position.x = currentPitch.cx * Math.pow(pitchProgress, 1.8);
+                ball.position.y = 1.8 + (currentPitch.cy * pitchProgress) - (0.1 * Math.pow(pitchProgress, 2));
 
                 if (pitchProgress >= 1.0) {
                     isPitching = false;
@@ -415,22 +423,18 @@ html_code = """
                 }
             }
 
-            // 2. 컴투스프로야구V26 스타일 타구 추적 카메라 연출 & 1명 야수 수비
             if (isHitInFlight) {
                 hitFlightProgress += 0.012;
 
-                // 포물선 궤적
                 ball.position.x = THREE.MathUtils.lerp(hitStartPos.x, hitTargetPos.x, hitFlightProgress);
                 ball.position.z = THREE.MathUtils.lerp(hitStartPos.z, hitTargetPos.z, hitFlightProgress);
                 ball.position.y = hitStartPos.y + Math.sin(hitFlightProgress * Math.PI) * hitMaxHeight;
 
-                // 하늘 위에서 공을 추적하는 방송용 패닝 스카이 카메라 뷰
                 camera.position.x = THREE.MathUtils.lerp(camera.position.x, ball.position.x * 0.4, 0.05);
                 camera.position.y = THREE.MathUtils.lerp(camera.position.y, ball.position.y + 12, 0.05);
                 camera.position.z = THREE.MathUtils.lerp(camera.position.z, ball.position.z + 15, 0.05);
                 camera.lookAt(ball.position);
 
-                // 단 1명의 전담 야수만 공의 낙구 지점으로 이동
                 if (assignedFielder) {
                     assignedFielder.position.x = THREE.MathUtils.lerp(assignedFielder.position.x, hitTargetPos.x, 0.025);
                     assignedFielder.position.z = THREE.MathUtils.lerp(assignedFielder.position.z, hitTargetPos.z, 0.025);
@@ -452,12 +456,13 @@ html_code = """
             bat.rotation.y = -Math.PI / 2;
             setTimeout(() => { bat.rotation.y = 0; }, 200);
 
-            const diff = pitchProgress - 0.90;
+            // 좁아진 퍼펙트 타이밍 구간 (난이도 상향)
+            const diff = pitchProgress - 0.92;
             let timingType = "";
 
-            if (Math.abs(diff) < 0.03) timingType = "PERFECT";
-            else if (Math.abs(diff) < 0.07) timingType = diff < 0 ? "SLIGHT_EARLY" : "SLIGHT_LATE";
-            else if (Math.abs(diff) < 0.11) timingType = diff < 0 ? "EARLY" : "LATE";
+            if (Math.abs(diff) < 0.018) timingType = "PERFECT";
+            else if (Math.abs(diff) < 0.045) timingType = diff < 0 ? "SLIGHT_EARLY" : "SLIGHT_LATE";
+            else if (Math.abs(diff) < 0.08) timingType = diff < 0 ? "EARLY" : "LATE";
             else timingType = "MISS";
 
             processHitOutcome(timingType);
@@ -512,7 +517,6 @@ html_code = """
                 hitMaxHeight = 8;
             }
 
-            // 타구 낙구 지점과 가장 가까운 단 1명의 야수만 선정
             let minDistance = Infinity;
             fielders.forEach(f => {
                 const d = f.position.distanceTo(hitTargetPos);
@@ -551,7 +555,8 @@ html_code = """
         }
 
         function handleTake() {
-            if (Math.abs(ball.position.x) < 0.35 && ball.position.y > 0.7 && ball.position.y < 1.8) {
+            // 정밀해진 스트라이크 판정 판별 범위
+            if (Math.abs(ball.position.x) < 0.32 && ball.position.y > 0.8 && ball.position.y < 1.7) {
                 showFeedback("STRIKE!", "#f85149");
                 addStrike();
             } else {
