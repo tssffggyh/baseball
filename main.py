@@ -1,6 +1,4 @@
 import random
-import matplotlib.pyplot as plt
-import numpy as np
 import streamlit as st
 
 st.set_page_config(page_title="컴프야 V26 라이트", layout="wide")
@@ -10,14 +8,13 @@ st.set_page_config(page_title="컴프야 V26 라이트", layout="wide")
 def init_game():
     st.session_state.game = {
         "inning": 1,
-        "is_top": True,  # True: 초(공격), False: 말(수비)
         "score": {"USER": 0, "COM": 0},
         "outs": 0,
         "balls": 0,
         "strikes": 0,
-        "bases": [False, False, False],  # 1루, 2루, 3루
+        "bases": [False, False, False],
         "log": [],
-        "last_pitch_pos": None,
+        "last_pitch_pos": None,  # (row, col) 형태로 3x3 격자 저장
         "last_pitch_type": "",
         "last_result": "",
     }
@@ -28,54 +25,23 @@ if "game" not in st.session_state:
 
 game = st.session_state.game
 
-# --- 선수 능력치 설정 ---
+# --- 선수 능력치 ---
 pitcher_stats = {
     "name": "안우진 (ACE)",
-    "stuff": 88,  # 구위
-    "control": 82,  # 제구
-    "pitches": {
-        "직구": {"speed": 155, "power": 88},
-        "슬라이더": {"speed": 142, "power": 85},
-        "체인지업": {"speed": 135, "power": 78},
-        "커브": {"speed": 128, "power": 80},
-    },
+    "stuff": 88,
+    "control": 82,
+    "pitches": ["직구", "슬라이더", "체인지업", "커브"],
 }
 
 batter_stats = {
     "name": "이정후 (MVP)",
-    "contact": 92,  # 컨택
-    "power": 85,  # 파워
-    "eye": 89,  # 선구안
+    "contact": 92,
+    "power": 85,
+    "eye": 89,
 }
 
-# --- 스트라이크 존 시각화 함수 ---
-def draw_strike_zone(pitch_pos=None, is_strike=False):
-    fig, ax = plt.subplots(figsize=(3, 3))
-    # 스트라이크 존 경계 설정
-    ax.plot([-1, 1, 1, -1, -1], [-1, -1, 1, 1, -1], "k-", lw=2)
 
-    if pitch_pos:
-        x, y = pitch_pos
-        color = "red" if is_strike else "blue"
-        ax.scatter(x, y, color=color, s=250, zorder=5)
-        ax.text(
-            x,
-            y,
-            "⚾",
-            fontsize=12,
-            ha="center",
-            va="center",
-            color="white",
-            fontweight="bold",
-        )
-
-    ax.set_xlim(-2, 2)
-    ax.set_ylim(-2, 2)
-    ax.axis("off")
-    return fig
-
-
-# --- 주자 및 이닝 리셋 ---
+# --- 주자 계산 및 이닝 리셋 ---
 def reset_at_bat():
     game["balls"] = 0
     game["strikes"] = 0
@@ -114,20 +80,20 @@ def advance_runners(hit_type):
     return score
 
 
-# --- 투구 및 타격 로직 ---
-def process_pitch(swing_action, target_zone):
-    pitch_type = random.choice(list(pitcher_stats["pitches"].keys()))
-    # 제구력에 따른 공 위치 변동
-    err = (100 - pitcher_stats["control"]) / 50
-    pitch_x = np.clip(random.uniform(-0.8, 0.8) + random.uniform(-err, err), -1.8, 1.8)
-    pitch_y = np.clip(random.uniform(-0.8, 0.8) + random.uniform(-err, err), -1.8, 1.8)
+# --- 투구 처리 로직 ---
+def process_pitch(swing_action):
+    pitch_type = random.choice(pitcher_stats["pitches"])
 
-    is_strike = (-1.0 <= pitch_x <= 1.0) and (-1.0 <= pitch_y <= 1.0)
-    game["last_pitch_pos"] = (pitch_x, pitch_y)
+    # 3x3 격자 기반 투구 (0: 스트라이크 존 내부, 1: 볼 존)
+    # 제구력에 따라 스트라이크 존에 들어올 확률 결정
+    is_strike = random.random() < (pitcher_stats["control"] / 100)
+
+    row = random.randint(0, 2)
+    col = random.randint(0, 2)
+    game["last_pitch_pos"] = (row, col)
     game["last_pitch_type"] = pitch_type
 
-    # 결과 판정
-    if swing_action == "지켜보기":
+    if swing_action == "지켜보기 (Take)":
         if is_strike:
             game["strikes"] += 1
             res = "스트라이크!"
@@ -143,19 +109,15 @@ def process_pitch(swing_action, target_zone):
                 advance_runners("볼넷")
                 reset_at_bat()
     else:  # 스윙
-        # 타격 타이밍 및 존 일치 여부 계산
-        contact_prob = (batter_stats["contact"] / 100) * 0.7
-        if is_strike:
-            contact_prob += 0.2
+        contact_prob = (batter_stats["contact"] / 100) * (0.8 if is_strike else 0.4)
 
         if random.random() < contact_prob:
-            # 타격 성공 -> 안타/파울/아웃 판정
             power_roll = random.randint(1, 100) + (
                 batter_stats["power"] - pitcher_stats["stuff"]
             )
             if power_roll > 85:
                 res = "🚨 대형 홈런!!"
-                runs = advance_runners("홈런")
+                advance_runners("홈런")
                 reset_at_bat()
             elif power_roll > 65:
                 res = "🔥 2루타!"
@@ -181,7 +143,6 @@ def process_pitch(swing_action, target_zone):
                 game["outs"] += 1
                 reset_at_bat()
 
-    # 아웃 카운트 처리
     if game["outs"] >= 3:
         game["log"].append(f"--- {game['inning']}이닝 종료 ---")
         game["inning"] += 1
@@ -195,7 +156,7 @@ def process_pitch(swing_action, target_zone):
     )
 
 
-# --- UI 레이아웃 ---
+# --- UI 구성 ---
 st.title("⚾ COMP2US PRO BASEBALL V26 - Streamlit Edition")
 
 # 스코어보드
@@ -220,7 +181,6 @@ with col_score3:
 
 st.divider()
 
-# 메인 게임 화면
 col_left, col_center, col_right = st.columns([3, 3, 3])
 
 with col_left:
@@ -232,33 +192,32 @@ with col_left:
         f"**타자:** {batter_stats['name']}\n\n- 컨택: {batter_stats['contact']} | 파워: {batter_stats['power']} | 선구: {batter_stats['eye']}"
     )
 
+# Matplotlib 대신 Streamlit 컬럼으로 스트라이크 존 시각화
 with col_center:
-    st.subheader("🎯 스트라이크 존 (Pitch Zone)")
+    st.subheader("🎯 스트라이크 존")
+    zone_matrix = [["⬜" for _ in range(3)] for _ in range(3)]
+
     if game["last_pitch_pos"]:
-        is_str = (
-            "스트라이크" in game["last_result"]
-            or "안타" in game["last_result"]
-            or "홈런" in game["last_result"]
+        r, c = game["last_pitch_pos"]
+        zone_matrix[r][c] = "⚾"
+
+    for row in zone_matrix:
+        st.markdown(
+            f"### &nbsp;&nbsp;&nbsp;&nbsp; {row[0]} &nbsp; {row[1]} &nbsp; {row[2]}"
         )
-        fig = draw_strike_zone(game["last_pitch_pos"], is_str)
-        st.pyplot(fig)
-    else:
-        fig = draw_strike_zone()
-        st.pyplot(fig)
 
 with col_right:
     st.subheader("🎮 타격 컨트롤러")
     swing = st.radio("타격 방식 선택", ["강타 (Power)", "일반 타격 (Contact)", "지켜보기 (Take)"])
 
     if st.button("⚾ 공 타격 / 투구 진행", use_container_width=True):
-        process_pitch(swing, None)
+        process_pitch(swing)
         st.rerun()
 
     if game["last_result"]:
         st.subheader("최근 결과")
         st.warning(f"구종: {game['last_pitch_type']} ➡️ 결과: {game['last_result']}")
 
-# 중계 로그
 st.divider()
 st.subheader("📜 경기 중계 로그")
 for log_item in game["log"][:8]:
