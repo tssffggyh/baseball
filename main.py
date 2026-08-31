@@ -2,7 +2,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="2026 KBO 3D Real Baseball", layout="wide", initial_sidebar_state="collapsed"
+    page_title="2026 KBO 3D Real Baseball",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 html_code = """
@@ -50,7 +52,6 @@ html_code = """
         #controls { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 8px; }
         .swing-btn { padding: 16px 48px; font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #f85149, #da3633); color: #fff; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 8px 24px rgba(218, 54, 51, 0.4); transition: transform 0.1s; }
         .swing-btn:active { transform: scale(0.95); }
-        .pitch-info { font-size: 14px; color: #8b949e; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 12px; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -63,9 +64,9 @@ html_code = """
                 <div class="modal-sub">구단을 선택하여 경기를 시작하세요</div>
                 <select id="team-select">
                     <option value="KIA">KIA 타이거즈</option>
+                    <option value="DOOSAN">두산 베어스</option>
                     <option value="SAMSUNG">삼성 라이온즈</option>
                     <option value="LG">LG 트윈스</option>
-                    <option value="DOOSAN">두산 베어스</option>
                     <option value="KT">KT 위즈</option>
                     <option value="SSG">SSG 랜더스</option>
                     <option value="LOTTE">롯데 자이언츠</option>
@@ -122,18 +123,22 @@ html_code = """
 
         <!-- 컨트롤러 -->
         <div id="controls">
-            <div class="pitch-info" id="pitch-info-txt">투수 준비 중...</div>
             <button class="swing-btn" onclick="swing()">SWING</button>
         </div>
     </div>
 
     <script>
-        // KBO 10개 팀 9인 풀 라인업
+        // 2026 KBO 최신 이적반영 10개 팀 라인업
         const kboData = {
             'KIA': { name: 'KIA 타이거즈', roster: [
-                {n:'박찬호', c:88, p:70}, {n:'소크라테스', c:85, p:86}, {n:'김도영', c:95, p:94},
+                {n:'최원준', c:85, p:74}, {n:'소크라테스', c:85, p:86}, {n:'김도영', c:95, p:94},
                 {n:'최형우', c:90, p:92}, {n:'나성범', c:86, p:90}, {n:'김선빈', c:89, p:68},
-                {n:'이우성', c:82, p:80}, {n:'한준수', c:78, p:76}, {n:'최원준', c:84, p:74}
+                {n:'이우성', c:82, p:80}, {n:'한준수', c:78, p:76}, {n:'변우혁', c:76, p:78}
+            ]},
+            'DOOSAN': { name: '두산 베어스', roster: [
+                {n:'박찬호', c:88, p:70}, {n:'정수빈', c:87, p:66}, {n:'양의지', c:93, p:89},
+                {n:'김재환', c:80, p:91}, {n:'양석환', c:79, p:88}, {n:'강승호', c:82, p:84},
+                {n:'허경민', c:88, p:74}, {n:'전민재', c:78, p:68}, {n:'조수행', c:84, p:60}
             ]},
             'SAMSUNG': { name: '삼성 라이온즈', roster: [
                 {n:'김지찬', c:88, p:65}, {n:'윤정빈', c:80, p:78}, {n:'구자욱', c:94, p:90},
@@ -144,11 +149,6 @@ html_code = """
                 {n:'홍창기', c:94, p:70}, {n:'신민재', c:86, p:62}, {n:'오스틴', c:92, p:93},
                 {n:'문보경', c:88, p:85}, {n:'오지환', c:82, p:83}, {n:'김현수', c:87, p:82},
                 {n:'박동원', c:80, p:86}, {n:'박해민', c:83, p:68}, {n:'구본혁', c:80, p:70}
-            ]},
-            'DOOSAN': { name: '두산 베어스', roster: [
-                {n:'정수빈', c:87, p:66}, {n:'허경민', c:88, p:74}, {n:'양의지', c:93, p:89},
-                {n:'김재환', c:80, p:91}, {n:'양석환', c:79, p:88}, {n:'강승호', c:82, p:84},
-                {n:'전민재', c:78, p:68}, {n:'조수행', c:84, p:60}, {n:'기라성', c:76, p:72}
             ]},
             'KT': { name: 'KT 위즈', roster: [
                 {n:'로하스', c:90, p:93}, {n:'강백호', c:89, p:90}, {n:'장성우', c:84, p:82},
@@ -178,13 +178,12 @@ html_code = """
         let currentTeam = null;
         let batterIdx = 0;
         let balls = 0, strikes = 0, outs = 0;
-        let userScore = 0, comScore = 0;
+        let userScore = 0;
 
-        // 3D Three.js 변수들
         let scene, camera, renderer, ball, bat;
         let isPitching = false;
         let pitchProgress = 0;
-        let currentPitch = { type: '직구', speed: 148, startX: 0, startY: 1.6, curveX: 0, curveY: 0 };
+        let currentPitch = { cx: 0, cy: 0, speedFactor: 0.012 }; // 구속 연산 속도 대폭 낮춤
 
         function initGame() {
             const teamKey = document.getElementById('team-select').value;
@@ -198,35 +197,52 @@ html_code = """
             startPitchSequence();
         }
 
+        function createFielder(x, z) {
+            const group = new THREE.Group();
+            // 몸통
+            const bodyGeo = new THREE.CylinderGeometry(0.2, 0.15, 0.8);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.4;
+            group.add(body);
+            // 머리
+            const headGeo = new THREE.SphereGeometry(0.15, 8, 8);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 0.9;
+            group.add(head);
+
+            group.position.set(x, 0, z);
+            scene.add(group);
+        }
+
         function init3D() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0a1118);
-            scene.fog = new THREE.FogExp2(0x0a1118, 0.015);
+            scene.fog = new THREE.FogExp2(0x0a1118, 0.012);
 
             camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0.6, 1.4, 1.8); // 타자 우측 뒤쪽 시점
+            camera.position.set(0.6, 1.4, 1.8);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             document.getElementById('game-container').appendChild(renderer.domElement);
 
-            // 조명
             const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
             mainLight.position.set(10, 20, 10);
-            mainLight.castShadow = true;
             scene.add(mainLight);
             scene.add(new THREE.AmbientLight(0x404854));
 
-            // 야구장 필드
-            const fieldGeo = new THREE.PlaneGeometry(80, 80);
+            // 야구장 잔디
+            const fieldGeo = new THREE.PlaneGeometry(100, 100);
             const fieldMat = new THREE.MeshStandardMaterial({ color: 0x1e5631, roughness: 0.8 });
             const field = new THREE.Mesh(fieldGeo, fieldMat);
             field.rotation.x = -Math.PI / 2;
             scene.add(field);
 
-            // 내야 흙 다이아몬드
-            const dirtGeo = new THREE.PlaneGeometry(20, 20);
+            // 내야 흙
+            const dirtGeo = new THREE.PlaneGeometry(24, 24);
             const dirtMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
             const dirt = new THREE.Mesh(dirtGeo, dirtMat);
             dirt.rotation.x = -Math.PI / 2;
@@ -234,16 +250,27 @@ html_code = """
             dirt.position.set(0, 0.01, -8);
             scene.add(dirt);
 
-            // 야구 공
-            const ballGeo = new THREE.SphereGeometry(0.07, 16, 16);
-            const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+            // 야수(수비수) 3D 모델 배치
+            createFielder(-5, -6);  // 3루수
+            createFielder(-2.5, -12); // 유격수
+            createFielder(2.5, -12);  // 2루수
+            createFielder(5, -6);   // 1루수
+            createFielder(-15, -25); // 좌익수
+            createFielder(0, -30);   // 중견수
+            createFielder(15, -25);  // 우익수
+
+            // 투수
+            createFielder(0, -18.4);
+
+            // 공
+            const ballGeo = new THREE.SphereGeometry(0.08, 16, 16);
+            const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
             ball = new THREE.Mesh(ballGeo, ballMat);
-            ball.castShadow = true;
             scene.add(ball);
 
             // 배트
             const batGeo = new THREE.CylinderGeometry(0.035, 0.018, 0.9);
-            const batMat = new THREE.MeshStandardMaterial({ color: 0xc49a45, roughness: 0.4 });
+            const batMat = new THREE.MeshStandardMaterial({ color: 0xc49a45 });
             bat = new THREE.Mesh(batGeo, batMat);
             bat.position.set(0.4, 1.1, 0.2);
             bat.rotation.set(0.2, 0, 0.6);
@@ -255,17 +282,17 @@ html_code = """
         function startPitchSequence() {
             if (outs >= 3) return;
 
-            const types = [
-                { t: '직구', spd: 145 + Math.floor(Math.random() * 8), cx: 0, cy: 0 },
-                { t: '슬라이더', spd: 132 + Math.floor(Math.random() * 6), cx: -0.4, cy: -0.1 },
-                { t: '체인지업', spd: 128 + Math.floor(Math.random() * 5), cx: 0.1, cy: -0.3 }
+            // 랜덤 무작위 궤적 (구종 유출 금지)
+            const trajectories = [
+                { cx: 0, cy: 0, spd: 0.015 },
+                { cx: -0.3, cy: -0.1, spd: 0.013 },
+                { cx: 0.2, cy: -0.2, spd: 0.012 }
             ];
-            currentPitch = types[Math.floor(Math.random() * types.length)];
-            
-            document.getElementById('pitch-info-txt').innerText = `${currentPitch.t} (${currentPitch.spd}km/h) 투구 중...`;
+            const p = trajectories[Math.floor(Math.random() * trajectories.length)];
+            currentPitch = p;
 
             pitchProgress = 0;
-            ball.position.set(0, 1.6, -18.4); // 마운드 위치
+            ball.position.set(0, 1.6, -18.4);
             isPitching = true;
         }
 
@@ -273,15 +300,13 @@ html_code = """
             requestAnimationFrame(animate);
 
             if (isPitching) {
-                // 구속에 맞춘 이동 속도 연산
-                pitchProgress += currentPitch.spd / 3600;
+                // 공이 보이는 속도를 크게 완화함
+                pitchProgress += currentPitch.spd;
                 
-                // 공 궤적 이동 및 꺾임 적용
                 ball.position.z = -18.4 + (18.6 * pitchProgress);
                 ball.position.x = currentPitch.cx * Math.pow(pitchProgress, 2);
-                ball.position.y = 1.6 + (currentPitch.cy * pitchProgress) - (0.2 * Math.pow(pitchProgress, 2));
+                ball.position.y = 1.6 + (currentPitch.cy * pitchProgress) - (0.1 * Math.pow(pitchProgress, 2));
 
-                // 포수 미트 도달 시
                 if (pitchProgress >= 1.0) {
                     isPitching = false;
                     handleTake();
@@ -295,20 +320,18 @@ html_code = """
             if (!isPitching) return;
             isPitching = false;
 
-            // 배트 스윙 애니메이션 시뮬레이션
             bat.rotation.y = -Math.PI / 2;
             setTimeout(() => { bat.rotation.y = 0; }, 200);
 
-            // 타이밍 오차 판정 (0.85 ~ 0.95 가 적정 타격 지점)
             const diff = pitchProgress - 0.90;
             
-            if (Math.abs(diff) < 0.03) {
+            if (Math.abs(diff) < 0.04) {
                 showFeedback("🔥 PERFECT!", "#f85149");
                 triggerHit(Math.random() > 0.4 ? "홈런" : "2루타");
-            } else if (Math.abs(diff) < 0.07) {
+            } else if (Math.abs(diff) < 0.09) {
                 showFeedback("⚾ GOOD HIT", "#58a6ff");
                 triggerHit("안타");
-            } else if (diff < -0.07) {
+            } else if (diff < -0.09) {
                 showFeedback("EARLY (파울)", "#d29922");
                 addStrike();
             } else {
@@ -318,8 +341,7 @@ html_code = """
         }
 
         function handleTake() {
-            // 스트라이크존 들어왔는지 여부
-            if (Math.abs(ball.position.x) < 0.3 && ball.position.y > 0.8 && ball.position.y < 1.8) {
+            if (Math.abs(ball.position.x) < 0.35 && ball.position.y > 0.7 && ball.position.y < 1.8) {
                 showFeedback("STRIKE!", "#f85149");
                 addStrike();
             } else {
