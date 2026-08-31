@@ -46,7 +46,7 @@ html_code = """
         .batter-stats { font-size: 12px; color: #8b949e; }
 
         /* 타격 판정 알림 */
-        #timing-feedback { position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); z-index: 20; font-size: 42px; font-weight: 900; text-shadow: 0 4px 12px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: 0.1s; }
+        #timing-feedback { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); z-index: 20; font-size: 42px; font-weight: 900; text-shadow: 0 4px 12px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: 0.1s; }
         
         /* 스윙 컨트롤러 */
         #controls { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -178,17 +178,23 @@ html_code = """
 
         let scene, camera, renderer, ball, bat;
         let fielders = [];
+        let pitcherMesh = null;
         let isPitching = false;
         let isHitInFlight = false;
         let pitchProgress = 0;
         let currentPitch = { cx: 0, cy: 0, spd: 0.012 };
 
-        // 타격된 공의 물리 변수
+        // 컴투스 프로야구 스타일 카메라 기본 뷰
+        const defaultCamPos = new THREE.Vector3(0.6, 1.4, 1.8);
+        const defaultCamLook = new THREE.Vector3(0, 1.2, -18.4);
+
+        // 타격된 공 물리 변수
         let hitFlightProgress = 0;
         let hitStartPos = new THREE.Vector3();
         let hitTargetPos = new THREE.Vector3();
         let hitMaxHeight = 0;
         let currentResultType = "";
+        let assignedFielder = null; // 공으로 전담 이동할 야수 1명
 
         function initGame() {
             const teamKey = document.getElementById('team-select').value;
@@ -202,24 +208,86 @@ html_code = """
             startPitchSequence();
         }
 
-        function createFielder(x, z, name) {
-            const group = new THREE.Group();
-            const bodyGeo = new THREE.CylinderGeometry(0.2, 0.15, 0.8);
-            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8 });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 0.4;
-            group.add(body);
+        // 팔다리 관절이 있는 3D 캐릭터 모델링
+        function createHumanoidModel(x, z, colorHex, isPitcher = false) {
+            const character = new THREE.Group();
 
-            const headGeo = new THREE.SphereGeometry(0.15, 8, 8);
-            const headMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-            const head = new THREE.Mesh(headGeo, headMat);
-            head.position.y = 0.9;
-            group.add(head);
+            const mat = new THREE.MeshStandardMaterial({ color: colorHex });
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
 
-            group.position.set(x, 0, z);
-            group.userData = { originX: x, originZ: z, name: name };
-            scene.add(group);
-            fielders.push(group);
+            // 몸통
+            const torsoGeo = new THREE.BoxGeometry(0.4, 0.6, 0.25);
+            const torso = new THREE.Mesh(torsoGeo, mat);
+            torso.position.y = 0.9;
+            character.add(torso);
+
+            // 머리
+            const headGeo = new THREE.SphereGeometry(0.16, 12, 12);
+            const head = new THREE.Mesh(headGeo, skinMat);
+            head.position.y = 1.35;
+            character.add(head);
+
+            // 왼팔 / 오른팔 (어깨 관절)
+            const armGeo = new THREE.CylinderGeometry(0.06, 0.05, 0.5);
+            
+            const leftArmGroup = new THREE.Group();
+            leftArmGroup.position.set(-0.28, 1.15, 0);
+            const leftArm = new THREE.Mesh(armGeo, mat);
+            leftArm.position.y = -0.25;
+            leftArmGroup.add(leftArm);
+            character.add(leftArmGroup);
+
+            const rightArmGroup = new THREE.Group();
+            rightArmGroup.position.set(0.28, 1.15, 0);
+            const rightArm = new THREE.Mesh(armGeo, mat);
+            rightArm.position.y = -0.25;
+            rightArmGroup.add(rightArm);
+            character.add(rightArmGroup);
+
+            // 왼다리 / 오른다리
+            const legGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.6);
+            
+            const leftLeg = new THREE.Mesh(legGeo, mat);
+            leftLeg.position.set(-0.12, 0.3, 0);
+            character.add(leftLeg);
+
+            const rightLeg = new THREE.Mesh(legGeo, mat);
+            rightLeg.position.set(0.12, 0.3, 0);
+            character.add(rightLeg);
+
+            character.position.set(x, 0, z);
+            character.userData = { 
+                originX: x, 
+                originZ: z, 
+                rightArmGroup: rightArmGroup,
+                leftArmGroup: leftArmGroup,
+                isPitcher: isPitcher 
+            };
+
+            scene.add(character);
+            return character;
+        }
+
+        function createBase(x, z, rotY = 0) {
+            const baseGeo = new THREE.BoxGeometry(0.4, 0.04, 0.4);
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const base = new THREE.Mesh(baseGeo, baseMat);
+            base.position.set(x, 0.02, z);
+            base.rotation.y = rotY;
+            scene.add(base);
+        }
+
+        function createStrikeZone() {
+            const zoneGeo = new THREE.PlaneGeometry(0.7, 0.9);
+            const zoneMat = new THREE.MeshBasicMaterial({ 
+                color: 0x58a6ff, 
+                wireframe: true, 
+                transparent: true, 
+                opacity: 0.6 
+            });
+            const zone = new THREE.Mesh(zoneGeo, zoneMat);
+            zone.position.set(0, 1.25, 0);
+            scene.add(zone);
         }
 
         function resetFielderPositions() {
@@ -227,6 +295,12 @@ html_code = """
                 f.position.x = f.userData.originX;
                 f.position.z = f.userData.originZ;
             });
+            assignedFielder = null;
+        }
+
+        function resetCamera() {
+            camera.position.copy(defaultCamPos);
+            camera.lookAt(defaultCamLook);
         }
 
         function init3D() {
@@ -235,7 +309,7 @@ html_code = """
             scene.fog = new THREE.FogExp2(0x0a1118, 0.012);
 
             camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0.6, 1.4, 1.8);
+            resetCamera();
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -247,7 +321,7 @@ html_code = """
             scene.add(mainLight);
             scene.add(new THREE.AmbientLight(0x404854));
 
-            // 잔디 및 흙
+            // 야구장 경기장 잔디 및 내야 흙
             const fieldGeo = new THREE.PlaneGeometry(120, 120);
             const fieldMat = new THREE.MeshStandardMaterial({ color: 0x1e5631, roughness: 0.8 });
             const field = new THREE.Mesh(fieldGeo, fieldMat);
@@ -262,21 +336,34 @@ html_code = """
             dirt.position.set(0, 0.01, -8);
             scene.add(dirt);
 
-            // 야수배치
-            createFielder(-5, -6, "3루수");
-            createFielder(-3, -12, "유격수");
-            createFielder(3, -12, "2루수");
-            createFielder(5, -6, "1루수");
-            createFielder(-18, -25, "좌익수");
-            createFielder(0, -32, "중견수");
-            createFielder(18, -25, "우익수");
+            // 베이스배치 (본루, 1루, 2루, 3루)
+            createBase(0, 0, Math.PI / 4);     // 홈베이스
+            createBase(6, -6, Math.PI / 4);    // 1루
+            createBase(0, -12, Math.PI / 4);   // 2루
+            createBase(-6, -6, Math.PI / 4);   // 3루
 
-            // 공 & 배트
+            // 스트라이크 존 렌더링
+            createStrikeZone();
+
+            // 야수(팔다리 구조 적용)
+            fielders.push(createHumanoidModel(-5, -6, 0x1d4ed8));   // 3루수
+            fielders.push(createHumanoidModel(-3, -12, 0x1d4ed8));  // 유격수
+            fielders.push(createHumanoidModel(3, -12, 0x1d4ed8));   // 2루수
+            fielders.push(createHumanoidModel(5, -6, 0x1d4ed8));    // 1루수
+            fielders.push(createHumanoidModel(-18, -25, 0x1d4ed8)); // 좌익수
+            fielders.push(createHumanoidModel(0, -32, 0x1d4ed8));   // 중견수
+            fielders.push(createHumanoidModel(18, -25, 0x1d4ed8));  // 우익수
+
+            // 투수
+            pitcherMesh = createHumanoidModel(0, -18.4, 0xda3633, true);
+
+            // 야구공
             const ballGeo = new THREE.SphereGeometry(0.08, 16, 16);
             const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
             ball = new THREE.Mesh(ballGeo, ballMat);
             scene.add(ball);
 
+            // 배트
             const batGeo = new THREE.CylinderGeometry(0.035, 0.018, 0.9);
             const batMat = new THREE.MeshStandardMaterial({ color: 0xc49a45 });
             bat = new THREE.Mesh(batGeo, batMat);
@@ -291,6 +378,7 @@ html_code = """
             if (outs >= 3) return;
 
             resetFielderPositions();
+            resetCamera();
             isHitInFlight = false;
 
             const trajectories = [
@@ -308,9 +396,15 @@ html_code = """
         function animate() {
             requestAnimationFrame(animate);
 
-            // 1. 투구 중일 때
+            // 1. 투구 동작 및 투구 궤적 연산
             if (isPitching) {
                 pitchProgress += currentPitch.spd;
+                
+                // 투수 와인드업 팔 흔들기 모션
+                if (pitcherMesh && pitcherMesh.userData.rightArmGroup) {
+                    pitcherMesh.userData.rightArmGroup.rotation.x = -Math.sin(pitchProgress * Math.PI) * 2.5;
+                }
+
                 ball.position.z = -18.4 + (18.6 * pitchProgress);
                 ball.position.x = currentPitch.cx * Math.pow(pitchProgress, 2);
                 ball.position.y = 1.6 + (currentPitch.cy * pitchProgress) - (0.1 * Math.pow(pitchProgress, 2));
@@ -321,23 +415,26 @@ html_code = """
                 }
             }
 
-            // 2. 공을 타격하여 날아가는 중일 때 (공 뻗음 및 야수 추적)
+            // 2. 컴투스프로야구V26 스타일 타구 추적 카메라 연출 & 1명 야수 수비
             if (isHitInFlight) {
-                hitFlightProgress += 0.015;
+                hitFlightProgress += 0.012;
 
-                // 포물선 궤적 연산
+                // 포물선 궤적
                 ball.position.x = THREE.MathUtils.lerp(hitStartPos.x, hitTargetPos.x, hitFlightProgress);
                 ball.position.z = THREE.MathUtils.lerp(hitStartPos.z, hitTargetPos.z, hitFlightProgress);
                 ball.position.y = hitStartPos.y + Math.sin(hitFlightProgress * Math.PI) * hitMaxHeight;
 
-                // 야수들이 낙구 지점으로 추적 이동
-                fielders.forEach(f => {
-                    const dist = f.position.distanceTo(hitTargetPos);
-                    if (dist < 25) { // 가까운 야수들이 공 쪽으로 이동
-                        f.position.x = THREE.MathUtils.lerp(f.position.x, hitTargetPos.x, 0.02);
-                        f.position.z = THREE.MathUtils.lerp(f.position.z, hitTargetPos.z, 0.02);
-                    }
-                });
+                // 하늘 위에서 공을 추적하는 방송용 패닝 스카이 카메라 뷰
+                camera.position.x = THREE.MathUtils.lerp(camera.position.x, ball.position.x * 0.4, 0.05);
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, ball.position.y + 12, 0.05);
+                camera.position.z = THREE.MathUtils.lerp(camera.position.z, ball.position.z + 15, 0.05);
+                camera.lookAt(ball.position);
+
+                // 단 1명의 전담 야수만 공의 낙구 지점으로 이동
+                if (assignedFielder) {
+                    assignedFielder.position.x = THREE.MathUtils.lerp(assignedFielder.position.x, hitTargetPos.x, 0.025);
+                    assignedFielder.position.z = THREE.MathUtils.lerp(assignedFielder.position.z, hitTargetPos.z, 0.025);
+                }
 
                 if (hitFlightProgress >= 1.0) {
                     isHitInFlight = false;
@@ -355,7 +452,7 @@ html_code = """
             bat.rotation.y = -Math.PI / 2;
             setTimeout(() => { bat.rotation.y = 0; }, 200);
 
-            const diff = pitchProgress - 0.90; // 타이밍 오차
+            const diff = pitchProgress - 0.90;
             let timingType = "";
 
             if (Math.abs(diff) < 0.03) timingType = "PERFECT";
@@ -370,31 +467,24 @@ html_code = """
             const rand = Math.random() * 100;
             let result = "";
 
-            // 퍼펙트: 30% 홈런, 50% 안타, 10% 플라이, 10% 파울
             if (timing === "PERFECT") {
                 showFeedback("🔥 PERFECT!", "#f85149");
                 if (rand < 30) result = "HOMERUN";
                 else if (rand < 80) result = "HIT";
                 else if (rand < 90) result = "FLY";
                 else result = "FOUL";
-            }
-            // 약간 빠름/약간 늦음: 10% 홈런, 50% 안타, 25% 플라이, 15% 파울
-            else if (timing === "SLIGHT_EARLY" || timing === "SLIGHT_LATE") {
+            } else if (timing === "SLIGHT_EARLY" || timing === "SLIGHT_LATE") {
                 showFeedback(timing === "SLIGHT_EARLY" ? "⚡ SLIGHT EARLY" : "⏳ SLIGHT LATE", "#58a6ff");
                 if (rand < 10) result = "HOMERUN";
                 else if (rand < 60) result = "HIT";
                 else if (rand < 85) result = "FLY";
                 else result = "FOUL";
-            }
-            // 큼직하게 빠른/늦은 타이밍: 60% 파울, 30% 플라이, 10% 안타
-            else if (timing === "EARLY" || timing === "LATE") {
+            } else if (timing === "EARLY" || timing === "LATE") {
                 showFeedback(timing === "EARLY" ? "EARLY (파울)" : "LATE (파울)", "#d29922");
                 if (rand < 60) result = "FOUL";
                 else if (rand < 90) result = "FLY";
                 else result = "HIT";
-            }
-            // 헛스윙
-            else {
+            } else {
                 showFeedback("LATE (헛스윙)", "#8b949e");
                 addStrike();
                 return;
@@ -408,20 +498,29 @@ html_code = """
             hitFlightProgress = 0;
             hitStartPos.copy(ball.position);
 
-            // 결과별 공 목표지점 및 최고 고도 설정 (공이 뻗어감)
             if (result === "HOMERUN") {
-                hitTargetPos.set((Math.random() - 0.5) * 30, 0, -45);
-                hitMaxHeight = 18;
+                hitTargetPos.set((Math.random() - 0.5) * 30, 0, -50);
+                hitMaxHeight = 22;
             } else if (result === "HIT") {
                 hitTargetPos.set((Math.random() - 0.5) * 35, 0, -22);
-                hitMaxHeight = 6;
+                hitMaxHeight = 7;
             } else if (result === "FLY") {
                 hitTargetPos.set((Math.random() - 0.5) * 20, 0, -18);
-                hitMaxHeight = 14;
+                hitMaxHeight = 15;
             } else if (result === "FOUL") {
                 hitTargetPos.set(Math.random() > 0.5 ? 25 : -25, 0, -5);
                 hitMaxHeight = 8;
             }
+
+            // 타구 낙구 지점과 가장 가까운 단 1명의 야수만 선정
+            let minDistance = Infinity;
+            fielders.forEach(f => {
+                const d = f.position.distanceTo(hitTargetPos);
+                if (d < minDistance) {
+                    minDistance = d;
+                    assignedFielder = f;
+                }
+            });
 
             isHitInFlight = true;
         }
@@ -432,19 +531,19 @@ html_code = """
                 userScore += 1;
                 document.getElementById('user-score').innerText = userScore;
                 resetCount();
-                setTimeout(nextBatter, 2000);
+                setTimeout(nextBatter, 2500);
             } else if (currentResultType === "HIT") {
                 showFeedback("⚾ 안타 성공 (HIT)!", "#58a6ff");
                 resetCount();
-                setTimeout(nextBatter, 2000);
+                setTimeout(nextBatter, 2500);
             } else if (currentResultType === "FLY") {
-                showFeedback("OUT (야수 플라이 플라이)", "#d29922");
+                showFeedback("OUT (플라이 포수/야수 아웃)", "#d29922");
                 outs++;
                 resetCount();
                 updateBSOHUD();
-                setTimeout(nextBatter, 2000);
+                setTimeout(nextBatter, 2500);
             } else if (currentResultType === "FOUL") {
-                showFeedback("FAUL (파울)", "#8b949e");
+                showFeedback("FOUL (파울)", "#8b949e");
                 if (strikes < 2) strikes++;
                 updateBSOHUD();
                 setTimeout(startPitchSequence, 1500);
