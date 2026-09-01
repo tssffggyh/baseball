@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 자폭 무라사키 & 게이지 밸런스 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 무라사키 추가 & 메커니즘 개편")
 
 st.markdown("""
     <style>
@@ -178,11 +178,11 @@ game_html = """
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • 좌클릭: 주력 탄환 (+2% ULT)<br>
-                    • E: 술식 반전 「아카」 (+8% ULT)<br>
-                    • R: 술식 순전 「아오」 (+12% ULT)<br>
-                    • T: 무하한 결계 (+15% ULT)<br>
+                    • E: 술식 반전 「아카」 (딜 220, +8% ULT)<br>
+                    • R: 술식 순전 「아오」 (적 사망해도 잔상 유지)<br>
+                    • <strong>T: 허식 「무라사키」 (딜 660, 쿨 10초)</strong><br>
                     • <strong>★히든: 아오(R)에 아카(E) 적중 시 자폭 무라사키 (피 -80%, 맵 전체 일격필살)</strong><br>
-                    • <strong>X: 영역전개 「무량처공」</strong>
+                    • <strong>X: 영역전개 「무량처공」 (전범위 적 완전 정지)</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
@@ -245,13 +245,13 @@ let player = {
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { E: 3, R: 5, T: 6, X: 0 },
+    Gojo: { E: 3, R: 5, T: 10, X: 0 }, // 무라사키 쿨타임 10초
     Sukuna: { E: 2, R: 4, T: 6, X: 0 },
     Megumi: { E: 3, R: 5, T: 6, X: 0 }
 };
 
 let dialogues = {
-    Gojo: { E: '술식 반전 「아카」', R: '술식 순전 「아오」', T: '무하한', X: '영역전개 「무량처공」' },
+    Gojo: { E: '술식 반전 「아카」', R: '술식 순전 「아오」', T: '허식 「무라사키」', X: '영역전개 「무량처공」' },
     Sukuna: { E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
     Megumi: { E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '팔지검 이계신장 강대마허라' }
 };
@@ -264,7 +264,7 @@ let projectiles = [];
 let enemyProjectiles = [];
 let slashes = [];
 let explosions = [];
-let blackHoles = []; // 아오 구체
+let blackHoles = [];
 let enemies = [];
 
 window.addEventListener('mousemove', e => {
@@ -309,7 +309,7 @@ function selectChar(type) {
     document.getElementById('class-select').style.display = 'none';
     
     let skNames = {
-        'Gojo': ['아카', '아오', '무하한', '무량처공'],
+        'Gojo': ['아카', '아오', '무라사키', '무량처공'],
         'Sukuna': ['해(解)', '팔(捌)', '푸가', '복마어주자'],
         'Megumi': ['누에', '옥견', '그림자', '마허라']
     };
@@ -323,14 +323,13 @@ function selectChar(type) {
     gameLoop();
 }
 
-// 좌클릭 기본 공격 (+2% ULT)
 function basicAttack() {
     if(isGameOver) return;
     let now = Date.now();
     if(now - player.lastAttack < 180) return;
     player.lastAttack = now;
 
-    addUlt(2.0); // 평타 시 2% 충전
+    addUlt(2.0);
 
     let ang = Math.atan2(mouseWorld.y - player.y, mouseWorld.x - player.x);
 
@@ -356,7 +355,7 @@ function castSkill(key) {
 
     if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
-        addUlt(8.0); // E스킬 +8% ULT
+        addUlt(8.0);
         
         if(player.charType === 'Gojo') {
             triggerVibration(18);
@@ -379,12 +378,11 @@ function castSkill(key) {
         }
     } else if(key === 'R') {
         cooldowns.R = maxCooldowns[player.charType].R;
-        addUlt(12.0); // R스킬 +12% ULT
+        addUlt(12.0);
         
         if(player.charType === 'Gojo') {
             triggerVibration(14);
-            // 아오 블랙홀 생성
-            blackHoles.push({x: targetX, y: targetY, radius: 180, life: 120, damage: 180});
+            blackHoles.push({x: targetX, y: targetY, radius: 180, life: 140, damage: 180});
         } else if(player.charType === 'Sukuna') {
             triggerVibration(20);
             for(let i=0; i<12; i++) {
@@ -400,19 +398,23 @@ function castSkill(key) {
         }
     } else if(key === 'T') {
         cooldowns.T = maxCooldowns[player.charType].T;
-        addUlt(15.0); // T스킬 +15% ULT
-        triggerVibration(12);
-
+        
         if(player.charType === 'Gojo') {
-            enemies.forEach(e => {
-                if(Math.hypot(e.x - player.x, e.y - player.y) < 280) {
-                    let pushAng = Math.atan2(e.y - player.y, e.x - player.x);
-                    e.x += Math.cos(pushAng)*220; e.y += Math.sin(pushAng)*220; e.hp -= 60;
-                }
+            // 고죠 3번 스킬: 무라사키 (아카 220의 3배 = 660 데미지)
+            addUlt(20.0);
+            triggerVibration(28);
+            projectiles.push({
+                x: player.x, y: player.y,
+                vx: Math.cos(ang)*22, vy: Math.sin(ang)*22,
+                damage: 660, radius: 35, color: '#8e44ad', type: 'murasaki'
             });
         } else if(player.charType === 'Sukuna') {
+            addUlt(15.0);
+            triggerVibration(12);
             explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 300});
         } else {
+            addUlt(15.0);
+            triggerVibration(12);
             enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 300) e.speed = 0.5; });
         }
     } else if(key === 'X') {
@@ -429,27 +431,21 @@ function castSkill(key) {
     }
 }
 
-// 자폭 무라사키 발동
 function triggerPurpleExplosion(x, y) {
     showDialogue('허식 「무라사키」 (자폭)');
     triggerVibration(45);
 
-    // 시전자 피 -80% 차감 (단 죽지는 않고 최소 HP 1 남김)
     let hpDeduct = player.hp * 0.8;
     player.hp = Math.max(1, player.hp - hpDeduct);
 
-    // 초대형 보라색 무라사키 폭발 이펙트 생성
     explosions.push({
         x: x, y: y,
         radius: 2000, maxRadius: 2000,
-        color: 'rgba(155, 89, 182, 0.85)',
+        color: 'rgba(142, 68, 173, 0.85)',
         life: 40, damage: 9999
     });
 
-    // 맵 전체 적 즉사 레벨 데미지
-    enemies.forEach(e => {
-        e.hp -= 9999;
-    });
+    enemies.forEach(e => { e.hp -= 9999; });
 }
 
 function spawnCurse() {
@@ -514,12 +510,12 @@ function update() {
     if(enemies.filter(e => !e.isBoss).length < 18) spawnCurse();
     if(killCount >= 10 && !bossMonster) spawnBoss();
 
-    // 영역전개
+    // 고죠 궁극기(무량처공): 데미지 없이 영역 내 적 완전 정지(스턴)
     if(activeDomain) {
         activeDomain.timer--;
         triggerVibration(5);
         if(activeDomain.type === 'Gojo') {
-            enemies.forEach(e => { e.speed = 0; e.hp -= 2.5; });
+            enemies.forEach(e => { e.speed = 0; }); // 완전 멈춤
         } else if(activeDomain.type === 'Sukuna') {
             if(activeDomain.timer % 3 === 0) {
                 slashes.push({
@@ -543,7 +539,7 @@ function update() {
         if(mahoraga.life <= 0) mahoraga = null;
     }
 
-    // 아오(R) 구체 및 끌어당김 연출 (보스를 죽여도 아오 구체는 파괴되지 않고 유지됨)
+    // 아오(R) 구체: 적 사망 여부와 무관하게 제자리에 완벽 유지
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
         enemies.forEach(e => {
@@ -561,12 +557,11 @@ function update() {
         }
     });
 
-    // 투사체 (아카 처리 및 자폭 무라사키 적중 판정)
+    // 투사체 (아카 & 무라사키)
     projectiles.forEach((p, pi) => {
         p.x += p.vx; p.y += p.vy;
 
         if(p.type === 'aka') {
-            // 아카(E)가 아오(R) 구체에 명중했는지 확인 -> 자폭 무라사키 발동!
             for(let bhi = 0; bhi < blackHoles.length; bhi++) {
                 let bh = blackHoles[bhi];
                 if(Math.hypot(p.x - bh.x, p.y - bh.y) < bh.radius) {
@@ -622,16 +617,20 @@ function update() {
 
     // 주령 및 보스 AI
     enemies.forEach((e, ei) => {
-        if(!activeDomain || activeDomain.type !== 'Gojo') {
+        // 무량처공 안에서는 움직일 수 없음
+        if(activeDomain && activeDomain.type === 'Gojo') {
+            e.speed = 0;
+        } else {
             e.speed = e.isBoss ? 1.4 : 2.2;
         }
+
         let ang = Math.atan2(player.y - e.y, player.x - e.x);
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
         e.x += Math.cos(ang) * e.speed;
         e.y += Math.sin(ang) * e.speed;
 
-        if(e.isBoss) {
+        if(e.isBoss && e.speed > 0) { // 멈춰있지 않을 때만 공격
             e.attackCd++;
             if(e.attackCd > 90) {
                 for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
@@ -642,7 +641,7 @@ function update() {
             document.getElementById('boss-hp-bar').style.width = Math.max(0, (e.hp / e.maxHp * 100)) + '%';
         }
 
-        if(dist < e.radius + 12) player.hp -= e.isBoss ? 1.5 : 0.4;
+        if(dist < e.radius + 12 && e.speed > 0) player.hp -= e.isBoss ? 1.5 : 0.4;
 
         if(e.hp <= 0) {
             if(e.isBoss) {
@@ -650,7 +649,7 @@ function update() {
                 document.getElementById('boss-hud').style.display = 'none';
             }
             killCount++;
-            addUlt(3.0); // 적 제령 시 기본 궁극기 +3%
+            addUlt(3.0);
             enemies.splice(ei, 1);
         }
     });
@@ -699,7 +698,7 @@ function draw() {
     for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
     for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
-    // 아오 구체 시각 연출
+    // 아오 구체
     blackHoles.forEach(bh => {
         ctx.fillStyle = 'rgba(55, 66, 250, 0.35)';
         ctx.beginPath(); ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI*2); ctx.fill();
@@ -724,13 +723,13 @@ function draw() {
         ctx.stroke();
     });
 
-    // 폭발 (자폭 무라사키 포함)
+    // 폭발
     explosions.forEach(ex => {
         ctx.fillStyle = ex.color;
         ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.radius, 0, Math.PI*2); ctx.fill();
     });
 
-    // 투사체
+    // 투사체 (무라사키 포함)
     projectiles.forEach(p => {
         ctx.fillStyle = p.color || (p.type === 'aka' ? '#ff4757' : '#3742fa');
         ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
