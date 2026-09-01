@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 타겟팅 스킬 & 보스전")
+st.set_page_config(layout="wide", page_title="주술회전: 좌클릭 공격 & 광범위 연출")
 
 st.markdown("""
     <style>
@@ -56,7 +56,6 @@ game_html = """
     .bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ff6b81); transition: width 0.1s; }
     .bar-ult { width: 0%; height: 100%; background: linear-gradient(90deg, #a855f7, #e056fd); transition: width 0.1s; }
     
-    /* 보스 체력바 */
     #boss-hud {
         position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
         width: 500px; background: rgba(15, 5, 5, 0.9);
@@ -66,18 +65,18 @@ game_html = """
     .boss-bar-outer { width: 100%; height: 16px; background: rgba(255,255,255,0.1); border-radius: 8px; overflow: hidden; margin-top: 5px; }
     .boss-bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ff6b81); transition: width 0.1s; }
 
-    .skill-container { display: flex; gap: 12px; margin-top: 8px; }
+    .skill-container { display: flex; gap: 10px; margin-top: 8px; }
     .skill-icon {
         position: relative;
-        width: 60px; height: 60px; background: rgba(255,255,255,0.08);
+        width: 55px; height: 55px; background: rgba(255,255,255,0.08);
         border: 1px solid #a855f7; border-radius: 10px;
         display: flex; flex-direction: column; justify-content: center; align-items: center;
-        font-size: 11px; font-weight: bold; color: #fff; overflow: hidden;
+        font-size: 10px; font-weight: bold; color: #fff; overflow: hidden;
     }
-    .skill-key { font-size: 14px; color: #e056fd; }
+    .skill-key { font-size: 13px; color: #e056fd; }
     .cooldown-overlay {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.75); color: #ff4757; font-size: 16px; font-weight: bold;
+        background: rgba(0, 0, 0, 0.75); color: #ff4757; font-size: 15px; font-weight: bold;
         display: flex; justify-content: center; align-items: center; display: none;
     }
 
@@ -138,6 +137,9 @@ game_html = """
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
                 
                 <div class="skill-container">
+                    <div class="skill-icon" style="border-color:#3498db;">
+                        <span class="skill-key" style="color:#3498db;">L-Click</span><span>기본공격</span>
+                    </div>
                     <div class="skill-icon">
                         <span class="skill-key">E</span><span id="sk-e">스킬1</span>
                         <div id="cd-e" class="cooldown-overlay">0</div>
@@ -158,7 +160,7 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 WASD 이동 | E,R,T,X 마우스 타겟팅 스킬</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 WASD | 좌클릭 기본공격 | E,R,T,X 스킬</div>
                 <div id="kill-status" style="font-size:14px; color:#aaa; margin-top:6px;">제령한 주령: 0마리</div>
             </div>
         </div>
@@ -175,28 +177,31 @@ game_html = """
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • E: 술식 반전 「아카」 (마우스 위치 폭발)<br>
-                    • R: 술식 순전 「아오」 (적 끌어당긴 후 폭발)<br>
-                    • T: 무하한 결계 (주변 밀쳐내기)<br>
-                    • <strong>X [궁극기]: 영역전개 「무량처공」 (전체 마비)</strong>
+                    • 좌클릭: 주력 탄환 발사<br>
+                    • E: 술식 반전 「아카」 (강력 폭발 & 진동)<br>
+                    • R: 술식 순전 「아오」 (끌어당기는 블랙홀)<br>
+                    • T: 무하한 결계 (충격파 밀쳐내기)<br>
+                    • <strong>X: 영역전개 「무량처공」</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • E: 참격 「해(解)」 (마우스 방향 연속 참격)<br>
-                    • R: 참격 「팔(捌)」 (근접 대상 절단)<br>
-                    • T: 신화 「푸가」 (마우스 위치 화염 폭발)<br>
-                    • <strong>X [궁극기]: 영역전개 「복마어주자」</strong>
+                    • 좌클릭: 근거리 참격 발사<br>
+                    • E: 광범위 참격 「해(解)」 (대형 Wave 5연발)<br>
+                    • R: 광역 절단 「팔(捌)」 (범위 난도질)<br>
+                    • T: 신화 「푸가(🔥)」 (초대형 화염 폭발)<br>
+                    • <strong>X: 영역전개 「복마어주자」</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Megumi')">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • E: 십종영법술 「누에」 (마우스 위치 뇌격)<br>
+                    • 좌클릭: 그림자 탄환 발사<br>
+                    • E: 십종영법술 「누에」 (지정위치 뇌격)<br>
                     • R: 십종영법술 「옥견」 (추적 돌진)<br>
                     • T: 그림자 속박 (적 이속 저하)<br>
-                    • <strong>X [궁극기]: 강대마허라 소환</strong>
+                    • <strong>X: 강대마허라 소환</strong>
                 </p>
             </div>
         </div>
@@ -234,7 +239,7 @@ let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
     speed: 5.8, hp: 250, maxHp: 250,
     ultEnergy: 0, maxUlt: 100,
-    charType: 'Gojo', facing: 1
+    charType: 'Gojo', facing: 1, lastAttack: 0
 };
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
@@ -250,19 +255,24 @@ let dialogues = {
     Megumi: { E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '팔지검 이계신장 강대마허라' }
 };
 
-let activeDomain = null; // 영역전개 효과 제어
+let activeDomain = null;
 let bossMonster = null;
 let mahoraga = null;
 let keys = {};
 let projectiles = [];
 let enemyProjectiles = [];
-let slashes = []; // 참격 효과
-let explosions = []; // 아카/아오 폭발 VFX
+let slashes = [];
+let explosions = [];
+let blackHoles = []; // 아오 블랙홀 연출용
 let enemies = [];
 
 window.addEventListener('mousemove', e => {
     mouseWorld.x = e.clientX + camera.x;
     mouseWorld.y = e.clientY + camera.y;
+});
+
+window.addEventListener('mousedown', e => {
+    if(e.button === 0) basicAttack(); // 좌클릭 공격
 });
 
 window.addEventListener('keydown', e => {
@@ -304,8 +314,26 @@ function selectChar(type) {
     document.getElementById('sk-r').innerText = skNames[type][1];
     document.getElementById('sk-t').innerText = skNames[type][2];
 
-    for(let i=0; i<15; i++) spawnCurse(); // 몬스터 개체수 감소 (쾌적함 유지)
+    for(let i=0; i<15; i++) spawnCurse();
     gameLoop();
+}
+
+// 좌클릭 기본 공격
+function basicAttack() {
+    if(isGameOver) return;
+    let now = Date.now();
+    if(now - player.lastAttack < 180) return; // 공격 속도 제한
+    player.lastAttack = now;
+
+    let ang = Math.atan2(mouseWorld.y - player.y, mouseWorld.x - player.x);
+
+    if(player.charType === 'Gojo') {
+        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, damage: 35, radius: 8, color: '#70a1ff', type:'normal'});
+    } else if(player.charType === 'Sukuna') {
+        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 45});
+    } else {
+        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 30, radius: 7, color: '#2ecc71', type:'normal'});
+    }
 }
 
 function castSkill(key) {
@@ -321,71 +349,73 @@ function castSkill(key) {
 
     if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
-        triggerVibration(8);
-
+        
         if(player.charType === 'Gojo') {
-            // 아카: 마우스 지정 장소로 날아가 폭발
-            projectiles.push({
-                x: player.x, y: player.y, targetX: targetX, targetY: targetY,
-                vx: Math.cos(ang)*16, vy: Math.sin(ang)*16,
-                type: 'aka', damage: 150, radius: 12
-            });
-        } else if(player.charType === 'Sukuna') {
-            // 해(解): 마우스 방향 참격
-            for(let i=-1; i<=1; i++) {
-                slashes.push({
-                    x: player.x, y: player.y, ang: ang + i*0.15,
-                    length: 120, life: 12, damage: 70
-                });
-            }
-        } else {
-            explosions.push({x: targetX, y: targetY, radius: 60, maxRadius: 60, color: '#f1c40f', life: 15, damage: 100});
-        }
-    } else if(key === 'R') {
-        cooldowns.R = maxCooldowns[player.charType].R;
-        triggerVibration(12);
-
-        if(player.charType === 'Gojo') {
-            // 아오: 마우스 위치로 발사 후 적을 끌어당기고 폭발
+            triggerVibration(18); // 강력한 진동
             projectiles.push({
                 x: player.x, y: player.y, targetX: targetX, targetY: targetY,
                 vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
-                type: 'ao', damage: 180, radius: 14
+                type: 'aka', damage: 220, radius: 14
             });
         } else if(player.charType === 'Sukuna') {
-            // 팔(捌): 근접 최적화 즉시 강력 절단
-            slashes.push({
-                x: player.x + Math.cos(ang)*40, y: player.y + Math.sin(ang)*40,
-                ang: ang, length: 180, life: 15, damage: 280
-            });
+            triggerVibration(15);
+            // 해(解): 광범위 5연발 대형 참격 Wave
+            for(let i=-2; i<=2; i++) {
+                slashes.push({
+                    x: player.x, y: player.y, ang: ang + i*0.2,
+                    length: 220, life: 14, damage: 95
+                });
+            }
         } else {
-            projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, type:'normal', damage: 90, radius: 10, color: '#2ecc71'});
+            triggerVibration(8);
+            explosions.push({x: targetX, y: targetY, radius: 70, maxRadius: 70, color: '#f1c40f', life: 15, damage: 120});
+        }
+    } else if(key === 'R') {
+        cooldowns.R = maxCooldowns[player.charType].R;
+        
+        if(player.charType === 'Gojo') {
+            triggerVibration(14);
+            // 아오: 마우스 위치에 끌어당기는 블랙홀 생성
+            blackHoles.push({x: targetX, y: targetY, radius: 180, life: 70, damage: 180});
+        } else if(player.charType === 'Sukuna') {
+            triggerVibration(20);
+            // 팔(捌): 지정 위치 광범위 난도질
+            for(let i=0; i<12; i++) {
+                slashes.push({
+                    x: targetX + (Math.random()-0.5)*200,
+                    y: targetY + (Math.random()-0.5)*200,
+                    ang: Math.random()*Math.PI*2, length: 160, life: 12, damage: 130
+                });
+            }
+        } else {
+            triggerVibration(10);
+            projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, type:'normal', damage: 100, radius: 10, color: '#2ecc71'});
         }
     } else if(key === 'T') {
         cooldowns.T = maxCooldowns[player.charType].T;
-        triggerVibration(10);
+        triggerVibration(12);
 
         if(player.charType === 'Gojo') {
             enemies.forEach(e => {
-                if(Math.hypot(e.x - player.x, e.y - player.y) < 260) {
+                if(Math.hypot(e.x - player.x, e.y - player.y) < 280) {
                     let pushAng = Math.atan2(e.y - player.y, e.x - player.x);
-                    e.x += Math.cos(pushAng)*200; e.y += Math.sin(pushAng)*200; e.hp -= 50;
+                    e.x += Math.cos(pushAng)*220; e.y += Math.sin(pushAng)*220; e.hp -= 60;
                 }
             });
         } else if(player.charType === 'Sukuna') {
-            // 푸가(🔥): 지정 위치 화염 폭발
-            explosions.push({x: targetX, y: targetY, radius: 110, maxRadius: 110, color: '#e67e22', life: 25, damage: 220});
+            // 푸가: 초대형 화염 폭발
+            explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 300});
         } else {
             enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 300) e.speed = 0.5; });
         }
     } else if(key === 'X') {
         player.ultEnergy = 0;
-        triggerVibration(25);
+        triggerVibration(30);
 
         if(player.charType === 'Gojo') {
-            activeDomain = { type: 'Gojo', timer: 200 };
+            activeDomain = { type: 'Gojo', timer: 220 };
         } else if(player.charType === 'Sukuna') {
-            activeDomain = { type: 'Sukuna', timer: 180 };
+            activeDomain = { type: 'Sukuna', timer: 200 };
         } else {
             mahoraga = { x: player.x, y: player.y - 50, life: 600 };
         }
@@ -399,7 +429,7 @@ function spawnCurse() {
 
     enemies.push({
         x: x, y: y, radius: 16,
-        hp: 100, maxHp: 100, speed: 2.2, isBoss: false
+        hp: 120, maxHp: 120, speed: 2.2, isBoss: false
     });
 }
 
@@ -407,7 +437,7 @@ function spawnBoss() {
     if(bossMonster) return;
     bossMonster = {
         x: player.x + 400, y: player.y, radius: 45,
-        hp: 2500, maxHp: 2500, speed: 1.4, isBoss: true, attackCd: 0
+        hp: 3000, maxHp: 3000, speed: 1.4, isBoss: true, attackCd: 0
     };
     enemies.push(bossMonster);
     document.getElementById('boss-hud').style.display = 'block';
@@ -451,27 +481,27 @@ function update() {
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
-    // 필드 몬스터 개체수 제어 (최대 18마리로 적절히 유지)
     if(enemies.filter(e => !e.isBoss).length < 18) spawnCurse();
     if(killCount >= 10 && !bossMonster) spawnBoss();
 
-    // 영역전개 처리
+    // 영역전개
     if(activeDomain) {
         activeDomain.timer--;
+        triggerVibration(5);
         if(activeDomain.type === 'Gojo') {
-            enemies.forEach(e => { e.speed = 0; e.hp -= 2; }); // 무량처공 마비 + 데미지
+            enemies.forEach(e => { e.speed = 0; e.hp -= 2.5; });
         } else if(activeDomain.type === 'Sukuna') {
-            if(activeDomain.timer % 5 === 0) {
+            if(activeDomain.timer % 3 === 0) {
                 slashes.push({
-                    x: player.x + (Math.random()-0.5)*400, y: player.y + (Math.random()-0.5)*400,
-                    ang: Math.random()*Math.PI*2, length: 140, life: 8, damage: 45
+                    x: player.x + (Math.random()-0.5)*600, y: player.y + (Math.random()-0.5)*600,
+                    ang: Math.random()*Math.PI*2, length: 220, life: 6, damage: 50
                 });
             }
         }
         if(activeDomain.timer <= 0) activeDomain = null;
     }
 
-    // 마하라도 보스 타겟팅 지원
+    // 마하라
     if(mahoraga) {
         mahoraga.life--;
         let target = bossMonster || enemies[0];
@@ -483,26 +513,48 @@ function update() {
         if(mahoraga.life <= 0) mahoraga = null;
     }
 
-    // 투사체 (아카 / 아오 포함)
-    projectiles.forEach((p, pi) => {
-        p.x += p.vx; p.y += p.vy;
-        let distToTarget = Math.hypot(p.targetX - p.x, p.targetY - p.y);
-
-        if(p.type === 'aka' && distToTarget < 20) {
-            explosions.push({x: p.x, y: p.y, radius: 90, maxRadius: 90, color: '#ff4757', life: 18, damage: p.damage});
-            projectiles.splice(pi, 1);
-        } else if(p.type === 'ao' && distToTarget < 20) {
-            enemies.forEach(e => {
-                if(Math.hypot(e.x - p.x, e.y - p.y) < 250) {
-                    e.x = p.x; e.y = p.y; // 중앙 흡입
-                }
-            });
-            explosions.push({x: p.x, y: p.y, radius: 100, maxRadius: 100, color: '#3742fa', life: 20, damage: p.damage});
-            projectiles.splice(pi, 1);
+    // 블랙홀(아오) 처리
+    blackHoles.forEach((bh, bhi) => {
+        bh.life--;
+        enemies.forEach(e => {
+            let d = Math.hypot(bh.x - e.x, bh.y - e.y);
+            if(d < bh.radius) {
+                // 적 끌어당김 연출
+                let pullAng = Math.atan2(bh.y - e.y, bh.x - e.x);
+                e.x += Math.cos(pullAng) * 7;
+                e.y += Math.sin(pullAng) * 7;
+                e.hp -= 1.5;
+            }
+        });
+        if(bh.life <= 0) {
+            explosions.push({x: bh.x, y: bh.y, radius: 120, maxRadius: 120, color: '#3742fa', life: 15, damage: bh.damage});
+            blackHoles.splice(bhi, 1);
         }
     });
 
-    // 폭발 효과 처리
+    // 투사체 (아카 포함)
+    projectiles.forEach((p, pi) => {
+        p.x += p.vx; p.y += p.vy;
+
+        if(p.type === 'aka') {
+            let distToTarget = Math.hypot(p.targetX - p.x, p.targetY - p.y);
+            if(distToTarget < 20) {
+                triggerVibration(22); // 아카 폭발 시 강한 진동
+                explosions.push({x: p.x, y: p.y, radius: 130, maxRadius: 130, color: '#ff4757', life: 20, damage: p.damage});
+                projectiles.splice(pi, 1);
+                return;
+            }
+        }
+
+        enemies.forEach((e, ei) => {
+            if(Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
+                e.hp -= p.damage;
+                if(p.type === 'normal') projectiles.splice(pi, 1);
+            }
+        });
+    });
+
+    // 폭발
     explosions.forEach((ex, exi) => {
         ex.life--;
         enemies.forEach(e => {
@@ -511,16 +563,16 @@ function update() {
         if(ex.life <= 0) explosions.splice(exi, 1);
     });
 
-    // 참격 처리
+    // 참격
     slashes.forEach((s, si) => {
         s.life--;
         enemies.forEach(e => {
-            if(Math.hypot(e.x - s.x, e.y - s.y) < s.length / 2) e.hp -= s.damage / 5;
+            if(Math.hypot(e.x - s.x, e.y - s.y) < s.length / 2) e.hp -= s.damage / 4;
         });
         if(s.life <= 0) slashes.splice(si, 1);
     });
 
-    // 적 투사체 처리
+    // 적 투사체
     enemyProjectiles.forEach((ep, epi) => {
         ep.x += ep.vx; ep.y += ep.vy;
         if(Math.hypot(player.x - ep.x, player.y - ep.y) < ep.radius + 10) {
@@ -539,7 +591,6 @@ function update() {
         e.x += Math.cos(ang) * e.speed;
         e.y += Math.sin(ang) * e.speed;
 
-        // 보스 공격 패턴 (원형 탄막)
         if(e.isBoss) {
             e.attackCd++;
             if(e.attackCd > 90) {
@@ -581,7 +632,7 @@ function drawPlayerSprite(p) {
     } else if(p.charType === 'Sukuna') {
         ctx.fillStyle = '#222'; ctx.fillRect(-8, -12, 16, 26);
         ctx.fillStyle = '#ffdfc4'; ctx.fillRect(-6, -18, 12, 6);
-        ctx.fillStyle = '#ff4757'; ctx.fillRect(-7, -20, 14, 2); // 붉은 문신
+        ctx.fillStyle = '#ff4757'; ctx.fillRect(-7, -20, 14, 2);
         ctx.fillStyle = '#ff7675'; ctx.fillRect(-8, -26, 16, 7);
     } else {
         ctx.fillStyle = '#0a192f'; ctx.fillRect(-8, -12, 16, 26);
@@ -598,9 +649,8 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.translate(-camera.x, -camera.y);
 
-    // 영역전개 배경 연출
     if(activeDomain) {
-        ctx.fillStyle = activeDomain.type === 'Gojo' ? 'rgba(10, 10, 35, 0.6)' : 'rgba(40, 5, 5, 0.6)';
+        ctx.fillStyle = activeDomain.type === 'Gojo' ? 'rgba(10, 10, 35, 0.65)' : 'rgba(40, 5, 5, 0.65)';
         ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
     }
 
@@ -609,7 +659,14 @@ function draw() {
     for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
     for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
-    // 몬스터 및 보스
+    // 블랙홀(아오) 시각 효과
+    blackHoles.forEach(bh => {
+        ctx.fillStyle = 'rgba(55, 66, 250, 0.35)';
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#5352ed'; ctx.lineWidth = 3; ctx.stroke();
+    });
+
+    // 몬스터
     enemies.forEach(e => {
         ctx.fillStyle = e.isBoss ? '#ff4757' : '#57606f';
         ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); ctx.fill();
@@ -618,16 +675,16 @@ function draw() {
         }
     });
 
-    // 참격 연출 (스쿠나)
+    // 참격 (스쿠나)
     slashes.forEach(s => {
-        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 4;
+        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.moveTo(s.x - Math.cos(s.ang)*s.length/2, s.y - Math.sin(s.ang)*s.length/2);
         ctx.lineTo(s.x + Math.cos(s.ang)*s.length/2, s.y + Math.sin(s.ang)*s.length/2);
         ctx.stroke();
     });
 
-    // 폭발 VFX
+    // 폭발
     explosions.forEach(ex => {
         ctx.fillStyle = ex.color;
         ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.radius, 0, Math.PI*2); ctx.fill();
@@ -635,7 +692,7 @@ function draw() {
 
     // 투사체
     projectiles.forEach(p => {
-        ctx.fillStyle = p.type === 'aka' ? '#ff4757' : '#3742fa';
+        ctx.fillStyle = p.color || (p.type === 'aka' ? '#ff4757' : '#3742fa');
         ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
     });
 
