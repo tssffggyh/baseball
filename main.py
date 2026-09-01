@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 아오 회전 및 잔해 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 아오 크기 확장 패치")
 
 st.markdown("""
     <style>
@@ -167,7 +167,7 @@ game_html = """
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • E: 술식 반전 「아카」(데미지 500)<br>
-                    • R: 술식 순전 「아오」(3초 회전 후 파란 잔해 생성)<br>
+                    • R: 술식 순전 「아오」(대형 아오 3초 회전 후 파란 잔해 생성)<br>
                     • T: 허식 「무라사키」<br>
                     • <strong>★잔해에 아카 맞추면 자폭 무라사키 (최소 HP 1 보장)</strong>
                 </p>
@@ -416,14 +416,14 @@ function castSkill(key) {
         addUlt(12.0);
         
         if(player.charType === 'Gojo') {
-            triggerVibration(16);
-            // 아오: 플레이어 주변을 3초(180프레임)간 회전하는 블랙홀
+            triggerVibration(20);
+            // 아오: 대형 크기로 플레이어 주변을 3초간 회전
             blackHoles.push({
                 orbitAngle: ang,
-                orbitRadius: 180,
-                radius: 250,
-                life: 180, // 3초 (60fps 기준)
-                damage: 180,
+                orbitRadius: 240, // 궤도 확장
+                radius: 400,      // 흡입 및 타격 범위 대폭 확대
+                life: 180,        // 3초 (60fps)
+                damage: 220,
                 x: player.x,
                 y: player.y
             });
@@ -639,12 +639,12 @@ function update() {
         if(mahoraga.life <= 0) mahoraga = null;
     }
 
-    // 아오(회전 블랙홀) 업뎃 로직
+    // 대형 아오(회전 블랙홀) 업뎃 로직
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
-        bh.orbitAngle += 0.08; // 플레이어 주변 회전 속도
+        bh.orbitAngle += 0.06; // 회전 속도
 
-        // 위치 업데이트: 플레이어 주위를 회전
+        // 위치 업데이트: 플레이어 주위를 더 넓은 궤도로 회전
         bh.x = player.x + Math.cos(bh.orbitAngle) * bh.orbitRadius;
         bh.y = player.y + Math.sin(bh.orbitAngle) * bh.orbitRadius;
 
@@ -652,16 +652,16 @@ function update() {
             let d = Math.hypot(bh.x - e.x, bh.y - e.y);
             if(d < bh.radius) {
                 let pullAng = Math.atan2(bh.y - e.y, bh.x - e.x);
-                e.x += Math.cos(pullAng) * 11;
-                e.y += Math.sin(pullAng) * 11;
-                e.hp -= 3.0;
+                e.x += Math.cos(pullAng) * 13;
+                e.y += Math.sin(pullAng) * 13;
+                e.hp -= 4.0;
             }
         });
 
-        // 3초 회전 종료 후 그 자리에 파란색 잔해 구체 생성
+        // 3초 회전 종료 후 그 자리에 더 큰 파란색 잔해 구체 생성
         if(bh.life <= 0) {
-            blueOrbs.push({ x: bh.x, y: bh.y, radius: 65, life: 350 });
-            explosions.push({x: bh.x, y: bh.y, radius: 180, maxRadius: 180, color: '#3742fa', life: 15, damage: bh.damage});
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 95, life: 350 });
+            explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 260, color: '#3742fa', life: 18, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
     });
@@ -920,19 +920,19 @@ function draw() {
     for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
     blackHoles.forEach(bh => {
-        ctx.shadowBlur = 30; ctx.shadowColor = '#3742fa';
-        ctx.fillStyle = 'rgba(10, 10, 50, 0.85)';
-        ctx.beginPath(); ctx.arc(bh.x, bh.y, 45, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 4; ctx.stroke();
+        ctx.shadowBlur = 45; ctx.shadowColor = '#3742fa';
+        ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, 85, 0, Math.PI*2); ctx.fill(); // 아오 본체 시각 크기 확대
+        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 6; ctx.stroke();
         ctx.shadowBlur = 0;
     });
 
     blueOrbs.forEach(bo => {
         let alpha = bo.life / 350;
-        ctx.shadowBlur = 40; ctx.shadowColor = '#0026ff';
+        ctx.shadowBlur = 50; ctx.shadowColor = '#0026ff';
         ctx.fillStyle = `rgba(0, 38, 255, ${alpha})`;
         ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 6; ctx.stroke();
+        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 8; ctx.stroke();
         ctx.shadowBlur = 0;
     });
 
