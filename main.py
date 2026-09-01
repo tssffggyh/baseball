@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 고죠 사토루 완성판")
+st.set_page_config(layout="wide", page_title="주술회전: 최종 밸런스 & 보스 개편 패치")
 
 st.markdown("""
     <style>
@@ -163,14 +163,14 @@ game_html = """
         <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오.</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
-                <h2 style="color:#70a1ff;">👁️ 고죠 사토루 (리뉴얼)</h2>
+                <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • 좌클릭: 주력 응축 탄환<br>
-                    • E: 술식 반전 「아카」(충격파)<br>
-                    • R: 술식 순전 「아오」(인력 블랙홀)<br>
-                    • T: 허식 「무라사키」(소멸 빔)<br>
-                    • <strong>★자폭 무라사키 (아오+아카 결합)</strong><br>
-                    • <strong>X: 영역전개 「무량처공」</strong>
+                    • E: 술식 반전 「아카」<br>
+                    • R: 술식 순전 「아오」<br>
+                    • T: 허식 「무라사키」<br>
+                    • <strong>★아오+아카 자폭시 아오 소멸!</strong><br>
+                    • <strong>★영역 3연속 사용 시 20초 쿨타임</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
@@ -229,6 +229,9 @@ let lastHitTime = Date.now();
 let bossRespawnTimer = null;
 let respawnCountdown = 0;
 
+// 고죠 영역 연속 사용 제약 변수
+let gojoDomainCount = 0;
+
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
     speed: 6.2, hp: 300, maxHp: 300,
@@ -253,6 +256,7 @@ let activeDomain = null;
 let mahoraga = null;
 let keys = {};
 let projectiles = [];
+let enemyProjectiles = [];
 let slashes = [];
 let explosions = [];
 let blackHoles = [];     
@@ -262,31 +266,37 @@ let laserBeams = [];
 let meleeAttacks = [];
 let enemies = [];
 
-// 100단계 보스 이름 프리셋 생성기
+// 레벨별 색상 및 가시 모양 생성을 위한 색상 배열
+const BOSS_COLORS = [
+    { bg: '#e74c3c', aura: '#ff7675', spikes: 4 },
+    { bg: '#8e44ad', aura: '#a855f7', spikes: 6 },
+    { bg: '#2980b9', aura: '#3498db', spikes: 8 },
+    { bg: '#d35400', aura: '#e67e22', spikes: 10 },
+    { bg: '#27ae60', aura: '#2ecc71', spikes: 12 },
+    { bg: '#f1c40f', aura: '#f39c12', spikes: 14 },
+    { bg: '#2c3e50', aura: '#bdc3c7', spikes: 16 }
+];
+
 const BOSS_NAMES = ["화곤", "다라", "죠고", "하나미", "마히토", "두면사신", "바르바토스", "아스타로트", "루시퍼", "황혼의 주령"];
+
 function getBossData(lvl) {
     let baseHp = 1500;
-    // 100단계까지 체력이 비선형적으로 증가
     let scaledHp = Math.floor(baseHp * Math.pow(lvl, 1.65));
     let nameIdx = (lvl - 1) % BOSS_NAMES.length;
-    let title = lvl > 80 ? "신화급 주령" : (lvl > 50 ? "재앙급 주령" : (lvl > 20 ? "상급 특급주령" : "특급주령"));
+    let colorStyle = BOSS_COLORS[(lvl - 1) % BOSS_COLORS.length];
     
-    let color = '#e74c3c';
-    let aura = '#ff7675';
-    if(lvl > 25) { color = '#9b59b6'; aura = '#a855f7'; }
-    if(lvl > 50) { color = '#f1c40f'; aura = '#f39c12'; }
-    if(lvl > 75) { color = '#e84118'; aura = '#c23616'; }
-    if(lvl === 100) { color = '#000000'; aura = '#a855f7'; }
+    let title = lvl > 80 ? "신화급 주령" : (lvl > 50 ? "재앙급 주령" : (lvl > 20 ? "상급 특급주령" : "특급주령"));
 
     return {
         level: lvl,
         name: `${title} - ${BOSS_NAMES[nameIdx]} [${lvl}/100]`,
         hp: scaledHp,
-        radius: Math.min(120, 45 + Math.floor(lvl * 0.75)),
+        radius: Math.min(125, 50 + Math.floor(lvl * 0.7)),
         speed: Math.min(4.5, 2.0 + (lvl * 0.025)),
-        dmg: 20 + Math.floor(lvl * 2.5),
-        color: color,
-        aura: aura
+        dmg: 25 + Math.floor(lvl * 2.8),
+        color: colorStyle.bg,
+        aura: colorStyle.aura,
+        spikes: colorStyle.spikes
     };
 }
 
@@ -322,7 +332,7 @@ function showDialogue(text) {
     elem.innerText = text;
     box.style.opacity = '1';
     if(dialogueTimeout) clearTimeout(dialogueTimeout);
-    dialogueTimeout = setTimeout(() => box.style.opacity = '0', 1500);
+    dialogueTimeout = setTimeout(() => box.style.opacity = '0', 1600);
 }
 
 function triggerVibration(intensity) {
@@ -345,9 +355,8 @@ function selectChar(type) {
     document.getElementById('sk-r').innerText = skNames[type][1];
     document.getElementById('sk-t').innerText = skNames[type][2];
 
-    for(let i=0; i<15; i++) spawnCurse();
+    for(let i=0; i<18; i++) spawnCurse();
 
-    // 시작 시 보스 즉시 스폰
     spawnBoss();
     gameLoop();
 }
@@ -364,7 +373,7 @@ function basicAttack() {
     if(player.charType === 'Gojo') {
         projectiles.push({
             x: player.x, y: player.y, vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
-            damage: 45, radius: 10, color: '#70a1ff', type:'gojo_basic', trail: []
+            damage: 45, radius: 10, color: '#70a1ff', type:'gojo_basic'
         });
     } else if(player.charType === 'Sukuna') {
         slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 45});
@@ -381,6 +390,18 @@ function castSkill(key) {
     let targetX = mouseWorld.x;
     let targetY = mouseWorld.y;
     let ang = Math.atan2(targetY - player.y, targetX - player.x);
+
+    if(key === 'X' && player.charType === 'Gojo') {
+        gojoDomainCount++;
+        if(gojoDomainCount >= 3) {
+            showDialogue('더 이상 쓸 수가 없어...');
+            cooldowns.X = 20; // 20초 과열 쿨타임
+            player.ultEnergy = 0;
+            gojoDomainCount = 0;
+            triggerVibration(40);
+            return;
+        }
+    }
 
     showDialogue(dialogues[player.charType][key]);
 
@@ -450,10 +471,12 @@ function castSkill(key) {
     }
 }
 
+// 자폭 무라사키 사용 시 아오(R) 구체를 소멸시키는 로직 추가
 function triggerPurpleExplosion(x, y, boIndex) {
     showDialogue('허식 「무라사키」 (합체 소멸)');
     triggerVibration(70);
 
+    // 자폭에 반응한 아오(R) 구체 즉시 필드에서 제거
     if(boIndex !== undefined && boIndex !== null && boIndex >= 0 && boIndex < blueOrbs.length) {
         blueOrbs.splice(boIndex, 1);
     }
@@ -477,18 +500,22 @@ function triggerPurpleExplosion(x, y, boIndex) {
     enemies.forEach(e => { e.hp -= 15000; });
 }
 
+// 근거리/원거리 잡몹 소환
 function spawnCurse() {
     let x = Math.random() * WORLD_WIDTH;
     let y = Math.random() * WORLD_HEIGHT;
     if(Math.hypot(x - player.x, y - player.y) < 400) return;
 
+    let isRanged = Math.random() < 0.4; // 40% 확률로 원거리 주령
+
     enemies.push({
-        x: x, y: y, radius: 20,
-        hp: 150, maxHp: 150, speed: 2.5, isBoss: false, attackCd: 0
+        x: x, y: y, radius: isRanged ? 18 : 22,
+        hp: isRanged ? 120 : 180, maxHp: isRanged ? 120 : 180,
+        speed: isRanged ? 2.0 : 2.8,
+        isBoss: false, isRanged: isRanged, attackCd: 0
     });
 }
 
-// 보스 사망 후 5초 뒤 스폰 로직
 function startBossRespawnTimer() {
     respawnCountdown = 5;
     let statusElem = document.getElementById('boss-status');
@@ -524,8 +551,8 @@ function spawnBoss() {
         level: cfg.level, name: cfg.name,
         hp: cfg.hp, maxHp: cfg.hp,
         radius: cfg.radius, speed: cfg.speed, dmg: cfg.dmg,
-        color: cfg.color, aura: cfg.aura,
-        isBoss: true, attackCd: 0
+        color: cfg.color, aura: cfg.aura, spikes: cfg.spikes,
+        isBoss: true, attackCd: 0, skillCd: 0
     };
     
     enemies.push(boss);
@@ -578,7 +605,7 @@ function update() {
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
-    if(enemies.filter(e => !e.isBoss).length < 20) spawnCurse();
+    if(enemies.filter(e => !e.isBoss).length < 22) spawnCurse();
 
     if(activeDomain) {
         activeDomain.timer--;
@@ -586,7 +613,7 @@ function update() {
         if(activeDomain.type === 'Gojo') {
             enemies.forEach(e => {
                 e.speed = 0;
-                e.hp -= 2.5; // 무량처공 지속 피해
+                e.hp -= 2.5;
             });
         } else if(activeDomain.type === 'Sukuna') {
             if(activeDomain.timer % 3 === 0) {
@@ -631,7 +658,7 @@ function update() {
                 e.y += Math.sin(pullAng) * 9;
                 e.hp -= 2.0;
                 if(e.hp <= 0 && !blueOrbs.some(bo => Math.hypot(bo.x - bh.x, bo.y - bh.y) < 50)) {
-                    blueOrbs.push({ x: bh.x, y: bh.y, radius: 50, life: 350 });
+                    blueOrbs.push({ x: bh.x, y: bh.y, radius: 55, life: 350 });
                 }
             }
         });
@@ -649,7 +676,6 @@ function update() {
     laserBeams.forEach((lb, lbi) => {
         lb.life--;
         enemies.forEach(e => {
-            // 레이저 선분-원 충돌 감지
             let endX = lb.x + Math.cos(lb.ang) * lb.length;
             let endY = lb.y + Math.sin(lb.ang) * lb.length;
             let d = Math.abs((endY - lb.y)*e.x - (endX - lb.x)*e.y + endX*lb.y - endY*lb.x) / Math.hypot(endY - lb.y, endX - lb.x);
@@ -658,6 +684,16 @@ function update() {
             }
         });
         if(lb.life <= 0) laserBeams.splice(lbi, 1);
+    });
+
+    // 적 탄환 업데이트
+    enemyProjectiles.forEach((ep, epi) => {
+        ep.x += ep.vx; ep.y += ep.vy;
+        if(Math.hypot(player.x - ep.x, player.y - ep.y) < ep.radius + 15) {
+            takeDamage(ep.damage);
+            triggerVibration(8);
+            enemyProjectiles.splice(epi, 1);
+        }
     });
 
     meleeAttacks.forEach((ma, mai) => {
@@ -713,20 +749,54 @@ function update() {
 
     enemies.forEach((e, ei) => {
         if(activeDomain && activeDomain.type === 'Gojo') e.speed = 0;
-        else e.speed = e.isBoss ? e.speed : 2.5;
+        else e.speed = e.isBoss ? e.speed : (e.isRanged ? 2.0 : 2.8);
 
         let ang = Math.atan2(player.y - e.y, player.x - e.x);
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
-        e.x += Math.cos(ang) * e.speed;
-        e.y += Math.sin(ang) * e.speed;
+        // 이동 알고리즘: 원거리 주령은 거리 유지
+        if(e.isRanged && dist < 280) {
+            e.x -= Math.cos(ang) * e.speed;
+            e.y -= Math.sin(ang) * e.speed;
+        } else {
+            e.x += Math.cos(ang) * e.speed;
+            e.y += Math.sin(ang) * e.speed;
+        }
 
         e.attackCd = (e.attackCd || 0) + 1;
+        e.skillCd = (e.skillCd || 0) + 1;
 
-        if(dist < e.radius + 30 && e.speed > 0) {
+        // 원거리 잡몹 공격
+        if(e.isRanged && e.attackCd >= 80 && dist < 500 && e.speed > 0) {
+            e.attackCd = 0;
+            enemyProjectiles.push({
+                x: e.x, y: e.y, vx: Math.cos(ang)*8, vy: Math.sin(ang)*8,
+                damage: 18, radius: 6
+            });
+        }
+
+        // 보스 특수 스킬 사용
+        if(e.isBoss && e.skillCd >= 120 && e.speed > 0) {
+            e.skillCd = 0;
+            if(e.level % 2 === 1) {
+                // 보스 원거리 탄막 사격
+                for(let i=-2; i<=2; i++) {
+                    enemyProjectiles.push({
+                        x: e.x, y: e.y, vx: Math.cos(ang + i*0.25)*10, vy: Math.sin(ang + i*0.25)*10,
+                        damage: e.dmg * 0.8, radius: 9
+                    });
+                }
+            } else {
+                // 보스 충격파
+                explosions.push({x: e.x, y: e.y, radius: 180, maxRadius: 180, color: 'rgba(231, 76, 60, 0.6)', life: 20, damage: e.dmg});
+            }
+        }
+
+        // 근접 공격
+        if(!e.isRanged && dist < e.radius + 30 && e.speed > 0) {
             if(e.attackCd >= (e.isBoss ? 20 : 40)) {
                 e.attackCd = 0;
-                let dmg = e.isBoss ? e.dmg : 12;
+                let dmg = e.isBoss ? e.dmg : 14;
                 takeDamage(dmg);
                 triggerVibration(e.isBoss ? 15 : 6);
 
@@ -789,33 +859,50 @@ function drawEnemySprite(e) {
     ctx.translate(e.x, e.y);
 
     if(e.isBoss) {
+        // 보스 레벨별 오라 및 동적 그래픽
         ctx.shadowBlur = 25 + Math.floor(e.level / 4); ctx.shadowColor = e.aura;
         ctx.fillStyle = e.color;
         ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
         
-        ctx.fillStyle = '#ffffff';
-        let eyeCount = Math.min(8, 2 + Math.floor(e.level / 15));
-        for(let i=0; i<eyeCount; i++) {
-            let eyeAng = (Math.PI * 2 / eyeCount) * i;
+        // 레벨별 가시/뿔 장식 렌더링
+        ctx.fillStyle = e.aura;
+        for(let i=0; i<e.spikes; i++) {
+            let spikeAng = (Math.PI * 2 / e.spikes) * i;
+            let sx = Math.cos(spikeAng) * (e.radius + 12);
+            let sy = Math.sin(spikeAng) * (e.radius + 12);
             ctx.beginPath();
-            ctx.arc(Math.cos(eyeAng) * (e.radius * 0.55), Math.sin(eyeAng) * (e.radius * 0.55), 6, 0, Math.PI*2);
+            ctx.arc(sx, sy, 7, 0, Math.PI*2);
             ctx.fill();
         }
-        ctx.shadowBlur = 0;
 
+        ctx.shadowBlur = 0;
         ctx.fillStyle = '#ff4757';
         ctx.font = 'bold 16px Consolas';
         ctx.textAlign = 'center';
-        ctx.fillText(`[LV.${e.level}]`, 0, -e.radius - 14);
+        ctx.fillText(`[LV.${e.level}]`, 0, -e.radius - 18);
     } else {
-        ctx.fillStyle = '#1e272e';
-        ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#57606f'; ctx.lineWidth = 2; ctx.stroke();
-        
-        ctx.fillStyle = '#e74c3c';
-        ctx.beginPath(); ctx.arc(-6, -4, 4, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(6, -4, 4, 0, Math.PI*2); ctx.fill();
+        if(e.isRanged) {
+            // 원거리 주령: 다이아몬드/삼각형 외형
+            ctx.fillStyle = '#8e44ad';
+            ctx.beginPath();
+            ctx.moveTo(0, -e.radius);
+            ctx.lineTo(e.radius, 0);
+            ctx.lineTo(0, e.radius);
+            ctx.lineTo(-e.radius, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#e056fd'; ctx.lineWidth = 2; ctx.stroke();
+        } else {
+            // 근거리 주령: 원형 외형
+            ctx.fillStyle = '#1e272e';
+            ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#57606f'; ctx.lineWidth = 2; ctx.stroke();
+            
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath(); ctx.arc(-6, -4, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(6, -4, 4, 0, Math.PI*2); ctx.fill();
+        }
     }
     ctx.restore();
 }
@@ -831,7 +918,6 @@ function draw() {
         if(activeDomain.type === 'Gojo') {
             ctx.fillStyle = 'rgba(5, 5, 20, 0.85)';
             ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
-            // 무량처공 별빛 이펙트
             ctx.fillStyle = '#70a1ff';
             for(let i=0; i<30; i++) {
                 let sx = camera.x + (Math.sin(i * 99 + Date.now()*0.002) * 0.5 + 0.5) * canvas.width;
@@ -891,6 +977,11 @@ function draw() {
     }
 
     enemies.forEach(e => drawEnemySprite(e));
+
+    enemyProjectiles.forEach(ep => {
+        ctx.fillStyle = '#ff4757';
+        ctx.beginPath(); ctx.arc(ep.x, ep.y, ep.radius, 0, Math.PI*2); ctx.fill();
+    });
 
     meleeAttacks.forEach(ma => {
         ctx.save();
