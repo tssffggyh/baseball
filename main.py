@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# 1. Full-Width 화면 최적화
+# 1. Full-Width Layout CSS
 st.markdown("""
     <style>
         .main .block-container {
@@ -12,10 +12,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ 기가 수행평가: 사이버 서바이버 (핵앤슬래시)")
-st.caption("🎮 이동: WASD / 방향키 | 무기 자동 발사 | 무적 대시: SPACEBAR")
+st.title("☯️ 기가 수행평가: 주술회전 X 영역전개 서바이버")
+st.caption("🎮 이동: WASD / 방향키 | 무적 대시: SPACEBAR | 영역 전개(특수기): automatic")
 
-# 2. 게임 엔진
+# 2. 주술회전 그래픽 & 액션 게임 엔진
 game_html = """
 <!DOCTYPE html>
 <html>
@@ -23,7 +23,7 @@ game_html = """
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-        background-color: #050508;
+        background-color: #030305;
         color: #fff;
         font-family: 'Consolas', monospace;
         display: flex; justify-content: center; align-items: center;
@@ -32,13 +32,13 @@ game_html = """
     #game-container {
         position: relative;
         width: 1400px; height: 750px;
-        border: 2px solid #ff0055;
+        border: 2px solid #9b59b6;
         border-radius: 12px;
-        box-shadow: 0 0 40px rgba(ff, 0, 85, 0.3);
+        box-shadow: 0 0 40px rgba(155, 89, 182, 0.4);
         overflow: hidden;
-        background: #0a0a10;
+        background: #08080f;
     }
-    canvas { display: block; background: #07070c; }
+    canvas { display: block; background: #05050a; }
     #ui-layer {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         pointer-events: none; padding: 20px;
@@ -46,29 +46,32 @@ game_html = """
     }
     .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
     .bar-box {
-        width: 320px; background: rgba(10, 10, 16, 0.85);
-        padding: 12px; border-radius: 8px; border: 1px solid #ff0055;
+        width: 340px; background: rgba(5, 5, 10, 0.85);
+        padding: 12px; border-radius: 8px; border: 1px solid #9b59b6;
     }
     .bar-outer {
         width: 100%; height: 12px; background: #1a1a24;
         border-radius: 6px; overflow: hidden; margin-top: 4px; margin-bottom: 8px;
     }
-    .bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0055, #ff5500); transition: width 0.1s; }
-    .bar-exp { width: 0%; height: 100%; background: linear-gradient(90deg, #00f0ff, #7000ff); transition: width 0.1s; }
+    .bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #e74c3c, #ff7675); transition: width 0.1s; }
+    .bar-curse { width: 0%; height: 100%; background: linear-gradient(90deg, #a29bfe, #6c5ce7); transition: width 0.1s; }
     
-    #game-over-screen {
+    #class-select {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(5, 5, 8, 0.9);
-        display: none; flex-direction: column;
+        background: rgba(3, 3, 5, 0.95);
+        display: flex; flex-direction: column;
         justify-content: center; align-items: center;
         z-index: 100;
     }
-    .btn-restart {
-        background: #ff0055; color: white; border: none;
-        padding: 15px 35px; font-size: 18px; font-weight: bold;
-        border-radius: 8px; cursor: pointer; margin-top: 20px;
-        box-shadow: 0 0 15px #ff0055;
+    .card-group { display: flex; gap: 30px; margin-top: 30px; }
+    .card {
+        background: #0f0f18; border: 2px solid #9b59b6;
+        border-radius: 12px; padding: 25px; width: 280px;
+        text-align: center; cursor: pointer; transition: 0.3s;
     }
+    .card:hover { transform: translateY(-10px); box-shadow: 0 0 30px #9b59b6; }
+    .card h2 { color: #a29bfe; margin-bottom: 10px; font-size: 24px; }
+    .card p { font-size: 13px; color: #aaa; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -79,23 +82,32 @@ game_html = """
     <div id="ui-layer">
         <div class="hud-top">
             <div class="bar-box">
-                <div style="font-size:11px; color:#aaa;">HEALTH</div>
+                <div style="font-size:11px; color:#aaa;">주력 체력 (HP)</div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
-                <div style="font-size:11px; color:#aaa;">EXP (NEXT LEVEL)</div>
-                <div class="bar-outer"><div id="exp-bar" class="bar-exp"></div></div>
-                <div id="level-txt" style="color:#00f0ff; font-weight:bold; font-size:14px;">Lv.1 사이버 닌자</div>
+                <div style="font-size:11px; color:#aaa;">주력 게이지 (EXP)</div>
+                <div class="bar-outer"><div id="exp-bar" class="bar-curse"></div></div>
+                <div id="level-txt" style="color:#a29bfe; font-weight:bold; font-size:14px;">주술사 등급</div>
             </div>
-            <div style="text-align:right; background:rgba(10,10,16,0.85); padding:10px 20px; border-radius:8px; border:1px solid #00f0ff;">
-                <div id="time-txt" style="font-size:24px; font-weight:bold; color:#00f0ff;">00:00</div>
-                <div id="kill-txt" style="font-size:12px; color:#aaa;">처치 수: 0</div>
+            <div style="text-align:right; background:rgba(5,5,10,0.85); padding:10px 20px; border-radius:8px; border:1px solid #a29bfe;">
+                <div id="domain-txt" style="font-size:20px; font-weight:bold; color:#a29bfe;">영역 전개 대기 중</div>
+                <div id="kill-txt" style="font-size:12px; color:#aaa;">퇴치한 주령: 0</div>
             </div>
         </div>
     </div>
 
-    <div id="game-over-screen">
-        <h1 style="color:#ff0055; font-size:48px;">MISSION FAILED</h1>
-        <p id="final-stats" style="color:#aaa; margin-top:10px; font-size:18px;"></p>
-        <button class="btn-restart" onclick="location.reload()">다시 시작</button>
+    <div id="class-select">
+        <h1 style="color:#a29bfe; font-size:40px; text-shadow:0 0 15px #9b59b6;">주술사 캐릭터 선택</h1>
+        <p style="color:#aaa; margin-top:8px;">자신의 주령 술식을 사용해 주령들을 퇴치하세요.</p>
+        <div class="card-group">
+            <div class="card" onclick="selectChar('Yuji')">
+                <h2>👊 이타도리 유우지</h2>
+                <p><strong>술식: 경정권 & 흑섬</strong><br>근접 전투 특화. 일정 확률로 강력한 크리티컬 흑섬 폭발 발동</p>
+            </div>
+            <div class="card" onclick="selectChar('Gojo')">
+                <h2>👁️ 고죠 사토루</h2>
+                <p><strong>술식: 무하한 & 허식 「무라사키」</strong><br>자동 유도 술식 사격 및 대형 관통 구체 발사</p>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -104,283 +116,265 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 let killCount = 0;
-let survivalTime = 0;
 let gameOver = false;
 let screenShake = 0;
+let domainActive = false;
+let domainTimer = 0;
 
 let player = {
-    x: 700, y: 375, radius: 14,
-    hp: 120, maxHp: 120, exp: 0, maxExp: 30, level: 1,
+    x: 700, y: 375, width: 32, height: 40,
+    hp: 150, maxHp: 150, exp: 0, maxExp: 40, level: 1,
     speed: 4.5, dashCd: 0, isDashing: false,
-    bladeAngle: 0
+    charType: 'Yuji'
 };
 
 let keys = {};
 let projectiles = [];
 let enemies = [];
 let particles = [];
-let gems = [];
 let floatTexts = [];
 
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// 타이머
-setInterval(() => {
-    if(!gameOver) {
-        survivalTime++;
-        let m = Math.floor(survivalTime / 60).toString().padStart(2, '0');
-        let s = (survivalTime % 60).toString().padStart(2, '0');
-        document.getElementById('time-txt').innerText = `${m}:${s}`;
-    }
-}, 1000);
+function selectChar(type) {
+    player.charType = type;
+    if(type === 'Gojo') { player.hp = player.maxHp = 120; player.speed = 4.8; }
+    document.getElementById('class-select').style.display = 'none';
+    gameLoop();
+}
 
-// 안전한 영역 안에서 몬스터 스폰 (맵 밖 스폰 버그 해결)
-function spawnEnemy() {
-    if(gameOver) return;
-    
-    // 맵 테두리 내부에서 안전하게 스폰 (안쪽 여백 40px 확보)
-    let margin = 40;
-    let x, y;
-    
-    if(Math.random() < 0.5) {
-        x = Math.random() < 0.5 ? margin : canvas.width - margin;
-        y = Math.random() * (canvas.height - margin * 2) + margin;
+// 픽셀 캐릭터 드로잉 (동그라미 대신 사람 모양 캐릭터)
+function drawPlayerSprite(x, y, type) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    if(type === 'Yuji') {
+        // 유우지 (분홍 머리 + 주술고전 유니폼)
+        ctx.fillStyle = '#11111a'; // 몸통
+        ctx.fillRect(-10, -5, 20, 25);
+        ctx.fillStyle = '#e74c3c'; // 후드 후드집업
+        ctx.fillRect(-8, -8, 16, 6);
+        ctx.fillStyle = '#ffb8b8'; // 얼굴
+        ctx.fillRect(-8, -20, 16, 12);
+        ctx.fillStyle = '#ff7675'; // 머리카락
+        ctx.fillRect(-10, -25, 20, 8);
     } else {
-        x = Math.random() * (canvas.width - margin * 2) + margin;
-        y = Math.random() < 0.5 ? margin : canvas.height - margin;
+        // 고죠 사토루 (백발 + 안대 + 검은 코트)
+        ctx.fillStyle = '#0f0f15'; // 몸통 코트
+        ctx.fillRect(-10, -5, 20, 25);
+        ctx.fillStyle = '#222'; // 안대
+        ctx.fillRect(-8, -16, 16, 5);
+        ctx.fillStyle = '#ffb8b8'; // 얼굴
+        ctx.fillRect(-8, -20, 16, 12);
+        ctx.fillStyle = '#ffffff'; // 은발/백발
+        ctx.fillRect(-10, -26, 20, 8);
     }
 
-    let isElite = Math.random() < 0.1;
+    ctx.restore();
+}
+
+// 주령(적) 픽셀 아트 드로잉
+function drawCurseEnemy(x, y, radius, isElite) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    ctx.fillStyle = isElite ? '#8e44ad' : '#27ae60';
+    let s = radius;
+    // 기형적인 주령 형태
+    ctx.beginPath();
+    ctx.moveTo(-s, -s);
+    ctx.lineTo(s, -s/2);
+    ctx.lineTo(s/2, s);
+    ctx.lineTo(-s/2, s);
+    ctx.closePath();
+    ctx.fill();
+
+    // 붉은 눈동자
+    ctx.fillStyle = '#ff0055';
+    ctx.fillRect(-s/3, -s/3, 4, 4);
+    if(isElite) ctx.fillRect(s/4, -s/3, 4, 4);
+
+    ctx.restore();
+}
+
+function spawnCurse() {
+    if(gameOver) return;
+    let margin = 50;
+    let x = Math.random() < 0.5 ? margin : canvas.width - margin;
+    let y = Math.random() * (canvas.height - margin * 2) + margin;
+
+    let isElite = Math.random() < 0.12;
     enemies.push({
         x: x, y: y,
-        radius: isElite ? 22 : 12,
-        hp: isElite ? 150 : 25 + Math.floor(survivalTime * 0.5),
-        maxHp: isElite ? 150 : 25 + Math.floor(survivalTime * 0.5),
-        speed: isElite ? 1.8 : 2.2 + Math.random() * 0.8,
-        color: isElite ? '#ff0055' : '#7000ff',
+        radius: isElite ? 20 : 12,
+        hp: isElite ? 180 : 30 + killCount * 0.5,
+        maxHp: isElite ? 180 : 30 + killCount * 0.5,
+        speed: isElite ? 1.6 : 2.2 + Math.random(),
         isElite: isElite
     });
 }
 
-// 자동 무기 발사 (가장 가까운 적 추적)
-let autoAttackTimer = 0;
-function autoShoot() {
+let attackTimer = 0;
+function autoSkill() {
     if(enemies.length === 0) return;
 
-    // 가장 가까운 적 검색
-    let nearest = null;
-    let minDist = 99999;
-    enemies.forEach(e => {
-        let d = Math.hypot(e.x - player.x, e.y - player.y);
-        if(d < minDist) { minDist = d; nearest = e; }
-    });
-
-    if(nearest && minDist < 600) {
-        let ang = Math.atan2(nearest.y - player.y, nearest.x - player.x);
-        projectiles.push({
-            x: player.x, y: player.y,
-            vx: Math.cos(ang) * 12, vy: Math.sin(ang) * 12,
-            damage: 20 + player.level * 3, radius: 5, color: '#00f0ff'
+    if(player.charType === 'Yuji') {
+        // 경정권 / 흑섬 공격
+        let nearest = null; let minDist = 9999;
+        enemies.forEach(e => {
+            let d = Math.hypot(e.x - player.x, e.y - player.y);
+            if(d < minDist) { minDist = d; nearest = e; }
         });
-    }
-}
 
-function addParticles(x, y, color, count) {
-    for(let i=0; i<count; i++) {
-        particles.push({
-            x: x, y: y,
-            vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
-            color: color, life: 1.0
+        if(nearest && minDist < 180) {
+            let isBlackFlash = Math.random() < 0.25; // 25% 확률 흑섬
+            let ang = Math.atan2(nearest.y - player.y, nearest.x - player.x);
+            projectiles.push({
+                x: player.x, y: player.y,
+                vx: Math.cos(ang) * 14, vy: Math.sin(ang) * 14,
+                damage: isBlackFlash ? 120 : 35,
+                radius: isBlackFlash ? 16 : 8,
+                color: isBlackFlash ? '#000000' : '#e74c3c',
+                isBlackFlash: isBlackFlash
+            });
+            if(isBlackFlash) screenShake = 8;
+        }
+    } else {
+        // 고죠: 무하한/무라사키
+        let nearest = null; let minDist = 9999;
+        enemies.forEach(e => {
+            let d = Math.hypot(e.x - player.x, e.y - player.y);
+            if(d < minDist) { minDist = d; nearest = e; }
         });
+
+        if(nearest) {
+            let ang = Math.atan2(nearest.y - player.y, nearest.x - player.x);
+            projectiles.push({
+                x: player.x, y: player.y,
+                vx: Math.cos(ang) * 10, vy: Math.sin(ang) * 10,
+                damage: 40, radius: 7, color: '#a29bfe'
+            });
+        }
     }
 }
 
 function update() {
     if(gameOver) return;
 
-    // 대시
     if(player.dashCd > 0) player.dashCd--;
     if(screenShake > 0) screenShake--;
 
+    // 대시
     if(keys[' '] && player.dashCd === 0) {
-        player.isDashing = true;
-        player.dashCd = 50;
-        screenShake = 4;
+        player.isDashing = true; player.dashCd = 45;
         setTimeout(() => player.isDashing = false, 150);
     }
 
-    // 플레이어 이동
-    let speed = player.isDashing ? player.speed * 2.5 : player.speed;
-    let dx = 0, dy = 0;
-    if(keys['a'] || keys['arrowleft']) dx -= 1;
-    if(keys['d'] || keys['arrowright']) dx += 1;
-    if(keys['w'] || keys['arrowup']) dy -= 1;
-    if(keys['s'] || keys['arrowdown']) dy += 1;
+    // 이동
+    let spd = player.isDashing ? player.speed * 2.4 : player.speed;
+    if(keys['a'] || keys['arrowleft']) player.x = Math.max(20, player.x - spd);
+    if(keys['d'] || keys['arrowright']) player.x = Math.min(canvas.width - 20, player.x + spd);
+    if(keys['w'] || keys['arrowup']) player.y = Math.max(20, player.y - spd);
+    if(keys['s'] || keys['arrowdown']) player.y = Math.min(canvas.height - 20, player.y + spd);
 
-    if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
-    player.x = Math.max(player.radius + 10, Math.min(canvas.width - player.radius - 10, player.x + dx * speed));
-    player.y = Math.max(player.radius + 10, Math.min(canvas.height - player.radius - 10, player.y + dy * speed));
+    attackTimer++;
+    if(attackTimer > 18) { autoSkill(); attackTimer = 0; }
 
-    // 회전 블레이드 각도
-    player.bladeAngle += 0.08;
+    if(Math.random() < 0.08) spawnCurse();
 
-    // 자동 공격 쿨타임
-    autoAttackTimer++;
-    if(autoAttackTimer > Math.max(10, 25 - player.level)) {
-        autoAttackTimer = 0;
-        autoShoot();
+    // 영역 전개 활성화 체크 (레벨 5 달성 시)
+    if(player.level >= 5 && !domainActive) {
+        domainActive = true;
+        domainTimer = 300; // 300 프레임 동안 영역 전개
     }
 
-    // 주기적 스폰 (시간에 따라 점점 빨라짐)
-    if(Math.random() < 0.05 + Math.min(0.1, survivalTime * 0.001)) {
-        spawnEnemy();
+    if(domainActive) {
+        domainTimer--;
+        if(domainTimer <= 0) { domainActive = false; }
     }
 
-    // 회전 블레이드 충돌 판정
-    let bladeX = player.x + Math.cos(player.bladeAngle) * 55;
-    let bladeY = player.y + Math.sin(player.bladeAngle) * 55;
-
-    enemies.forEach((e, ei) => {
-        // 블레이드 타격
-        let bDist = Math.hypot(e.x - bladeX, e.y - bladeY);
-        if(bDist < e.radius + 12) {
-            e.hp -= 2;
-            addParticles(bladeX, bladeY, '#ff0055', 2);
-        }
-
-        // 이동 AI
-        let ang = Math.atan2(player.y - e.y, player.x - e.x);
-        e.x += Math.cos(ang) * e.speed;
-        e.y += Math.sin(ang) * e.speed;
-
-        // 플레이어 충돌
-        let pDist = Math.hypot(player.x - e.x, player.y - e.y);
-        if(pDist < player.radius + e.radius && !player.isDashing) {
-            player.hp -= 0.5;
-            screenShake = 3;
-            if(player.hp <= 0) {
-                gameOver = true;
-                document.getElementById('final-stats').innerText = `생존 시간: ${survivalTime}초 | 처치 수: ${killCount}마리`;
-                document.getElementById('game-over-screen').style.display = 'flex';
-            }
-        }
-    });
-
-    // 투사체 이동 & 충돌
+    // 투사체 처리
     projectiles.forEach((p, pi) => {
         p.x += p.vx; p.y += p.vy;
 
         enemies.forEach((e, ei) => {
-            let dist = Math.hypot(e.x - p.x, e.y - p.y);
-            if(dist < e.radius + p.radius) {
+            let d = Math.hypot(e.x - p.x, e.y - p.y);
+            if(d < e.radius + p.radius) {
                 e.hp -= p.damage;
-                addParticles(p.x, p.y, p.color, 4);
                 projectiles.splice(pi, 1);
 
                 if(e.hp <= 0) {
                     killCount++;
-                    gems.push({ x: e.x, y: e.y, exp: e.isElite ? 40 : 10 });
-                    addParticles(e.x, e.y, e.color, 8);
+                    player.exp += e.isElite ? 35 : 12;
                     enemies.splice(ei, 1);
+
+                    if(player.exp >= player.maxExp) {
+                        player.level++;
+                        player.exp -= player.maxExp;
+                        player.maxExp = Math.floor(player.maxExp * 1.3);
+                        player.hp = player.maxHp;
+                    }
                 }
             }
         });
-
-        if(p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
-            projectiles.splice(pi, 1);
-        }
     });
 
-    // 경험치 보석 습득 (자동 끌림)
-    gems.forEach((g, gi) => {
-        let dist = Math.hypot(player.x - g.x, player.y - g.y);
-        if(dist < 150) {
-            let ang = Math.atan2(player.y - g.y, player.x - g.x);
-            g.x += Math.cos(ang) * 8;
-            g.y += Math.sin(ang) * 8;
-        }
-        if(dist < player.radius + 8) {
-            player.exp += g.exp;
-            gems.splice(gi, 1);
+    // 적 이동 및 충돌
+    enemies.forEach(e => {
+        let ang = Math.atan2(player.y - e.y, player.x - e.x);
+        let currentSpeed = domainActive ? e.speed * 0.2 : e.speed; // 영역 전개 시 적 속도 격감
+        e.x += Math.cos(ang) * currentSpeed;
+        e.y += Math.sin(ang) * currentSpeed;
 
-            // 레벨업
-            if(player.exp >= player.maxExp) {
-                player.level++;
-                player.exp -= player.maxExp;
-                player.maxExp = Math.floor(player.maxExp * 1.3);
-                player.maxHp += 15;
-                player.hp = player.maxHp;
-                screenShake = 10;
-                addParticles(player.x, player.y, '#00f0ff', 25);
+        let d = Math.hypot(player.x - e.x, player.y - e.y);
+        if(d < e.radius + 15 && !player.isDashing) {
+            player.hp -= 0.4;
+            if(player.hp <= 0) {
+                alert(`퇴치 실패! 최종 등급: Lv.${player.level} | 퇴치한 주령: ${killCount}마리`);
+                location.reload();
             }
         }
-    });
-
-    // 파티클
-    particles.forEach((pt, pti) => {
-        pt.x += pt.vx; pt.y += pt.vy; pt.life -= 0.05;
-        if(pt.life <= 0) particles.splice(pti, 1);
     });
 
     // UI
     document.getElementById('hp-bar').style.width = Math.max(0, (player.hp / player.maxHp * 100)) + '%';
     document.getElementById('exp-bar').style.width = Math.min(100, (player.exp / player.maxExp * 100)) + '%';
-    document.getElementById('level-txt').innerText = `Lv.${player.level} 사이버 닌자`;
-    document.getElementById('kill-txt').innerText = `처치 수: ${killCount}`;
+    document.getElementById('level-txt').innerText = `Lv.${player.level} ${player.charType === 'Yuji' ? '이타도리' : '고죠'}`;
+    document.getElementById('domain-txt').innerText = domainActive ? '☯️ 영역 전개 중!' : '영역 전개 준비 중';
+    document.getElementById('kill-txt').innerText = `퇴치한 주령: ${killCount}`;
 }
 
 function draw() {
     ctx.save();
-    if(screenShake > 0) {
-        ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
-    }
+    if(screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 네온 그리드 배경
-    ctx.strokeStyle = 'rgba(255, 0, 85, 0.05)';
-    ctx.lineWidth = 1;
-    for(let x=0; x<canvas.width; x+=50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
-    for(let y=0; y<canvas.height; y+=50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+    // 영역 전개 백그라운드 연출
+    if(domainActive) {
+        ctx.fillStyle = 'rgba(108, 92, 231, 0.15)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
-    // 경험치 보석
-    gems.forEach(g => {
-        ctx.fillStyle = '#00f0ff';
-        ctx.beginPath(); ctx.arc(g.x, g.y, 4, 0, Math.PI * 2); ctx.fill();
-    });
+    // 격자 배경
+    ctx.strokeStyle = 'rgba(155, 89, 182, 0.08)';
+    for(let x=0; x<canvas.width; x+=60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+    for(let y=0; y<canvas.height; y+=60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
 
-    // 플레이어
-    ctx.fillStyle = '#00f0ff';
-    ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = player.isDashing ? '#ffffff' : '#7000ff'; ctx.lineWidth = 3; ctx.stroke();
+    // 캐릭터 그리기
+    drawPlayerSprite(player.x, player.y, player.charType);
 
-    // 회전 블레이드
-    let bladeX = player.x + Math.cos(player.bladeAngle) * 55;
-    let bladeY = player.y + Math.sin(player.bladeAngle) * 55;
-    ctx.fillStyle = '#ff0055';
-    ctx.beginPath(); ctx.arc(bladeX, bladeY, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,0,85,0.3)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(player.x, player.y, 55, 0, Math.PI * 2); ctx.stroke();
+    // 적 그리기
+    enemies.forEach(e => drawCurseEnemy(e.x, e.y, e.radius, e.isElite));
 
     // 투사체
     projectiles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill();
-    });
-
-    // 적
-    enemies.forEach(e => {
-        ctx.fillStyle = e.color;
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2); ctx.fill();
-    });
-
-    // 파티클
-    particles.forEach(pt => {
-        ctx.fillStyle = pt.color;
-        ctx.globalAlpha = pt.life;
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1.0;
+        if(p.isBlackFlash) {
+            ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3; ctx.stroke();
+        }
     });
 
     ctx.restore();
@@ -391,8 +385,6 @@ function gameLoop() {
     draw();
     requestAnimationFrame(gameLoop);
 }
-
-gameLoop();
 </script>
 </body>
 </html>
