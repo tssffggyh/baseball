@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 무라사키 추가 & 메커니즘 개편")
+st.set_page_config(layout="wide", page_title="주술회전: 자폭 무라사키 원작 연출 패치")
 
 st.markdown("""
     <style>
@@ -179,9 +179,9 @@ game_html = """
                 <p>
                     • 좌클릭: 주력 탄환 (+2% ULT)<br>
                     • E: 술식 반전 「아카」 (딜 220, +8% ULT)<br>
-                    • R: 술식 순전 「아오」 (적 사망해도 잔상 유지)<br>
-                    • <strong>T: 허식 「무라사키」 (딜 660, 쿨 10초)</strong><br>
-                    • <strong>★히든: 아오(R)에 아카(E) 적중 시 자폭 무라사키 (피 -80%, 맵 전체 일격필살)</strong><br>
+                    • R: 술식 순전 「아오」<br>
+                    • T: 허식 「무라사키」 (딜 660, 쿨 10초)<br>
+                    • <strong>★히든: 아오로 적 처치 시 5초간 짙은 아오 구체 생성 $\rightarrow$ 5초 내 아카 적중 시 화려한 자폭 무라사키!</strong><br>
                     • <strong>X: 영역전개 「무량처공」 (전범위 적 완전 정지)</strong>
                 </p>
             </div>
@@ -245,7 +245,7 @@ let player = {
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { E: 3, R: 5, T: 10, X: 0 }, // 무라사키 쿨타임 10초
+    Gojo: { E: 3, R: 5, T: 10, X: 0 },
     Sukuna: { E: 2, R: 4, T: 6, X: 0 },
     Megumi: { E: 3, R: 5, T: 6, X: 0 }
 };
@@ -264,7 +264,9 @@ let projectiles = [];
 let enemyProjectiles = [];
 let slashes = [];
 let explosions = [];
-let blackHoles = [];
+let blackHoles = [];      // 일반 아오
+let blueOrbs = [];        // 처치 시 생성되는 5초 유지 짙은 파란색 구체
+let purpleEffects = [];   // 무라사키 이펙트 파티클
 let enemies = [];
 
 window.addEventListener('mousemove', e => {
@@ -382,7 +384,7 @@ function castSkill(key) {
         
         if(player.charType === 'Gojo') {
             triggerVibration(14);
-            blackHoles.push({x: targetX, y: targetY, radius: 180, life: 140, damage: 180});
+            blackHoles.push({x: targetX, y: targetY, radius: 180, life: 120, damage: 180});
         } else if(player.charType === 'Sukuna') {
             triggerVibration(20);
             for(let i=0; i<12; i++) {
@@ -400,7 +402,6 @@ function castSkill(key) {
         cooldowns.T = maxCooldowns[player.charType].T;
         
         if(player.charType === 'Gojo') {
-            // 고죠 3번 스킬: 무라사키 (아카 220의 3배 = 660 데미지)
             addUlt(20.0);
             triggerVibration(28);
             projectiles.push({
@@ -431,18 +432,38 @@ function castSkill(key) {
     }
 }
 
+// 원작 스타일 자폭 무라사키 연출
 function triggerPurpleExplosion(x, y) {
     showDialogue('허식 「무라사키」 (자폭)');
-    triggerVibration(45);
+    triggerVibration(60);
 
+    // HP 80% 차감 (사망은 방지)
     let hpDeduct = player.hp * 0.8;
     player.hp = Math.max(1, player.hp - hpDeduct);
 
+    // 보라색 소용돌이 입자 생성
+    for (let i = 0; i < 120; i++) {
+        let pAng = Math.random() * Math.PI * 2;
+        let pDist = Math.random() * 400 + 50;
+        let pSpeed = Math.random() * 12 + 6;
+        purpleEffects.push({
+            x: x + Math.cos(pAng) * pDist,
+            y: y + Math.sin(pAng) * pDist,
+            targetX: x, targetY: y,
+            vx: -Math.cos(pAng) * pSpeed,
+            vy: -Math.sin(pAng) * pSpeed,
+            radius: Math.random() * 8 + 4,
+            life: 45, maxLife: 45,
+            color: i % 2 === 0 ? '#a855f7' : '#e056fd'
+        });
+    }
+
+    // 대형 무라사키 충격파 폭발
     explosions.push({
         x: x, y: y,
-        radius: 2000, maxRadius: 2000,
-        color: 'rgba(142, 68, 173, 0.85)',
-        life: 40, damage: 9999
+        radius: 2500, maxRadius: 2500,
+        color: 'rgba(168, 85, 247, 0.9)',
+        life: 50, damage: 9999
     });
 
     enemies.forEach(e => { e.hp -= 9999; });
@@ -510,12 +531,12 @@ function update() {
     if(enemies.filter(e => !e.isBoss).length < 18) spawnCurse();
     if(killCount >= 10 && !bossMonster) spawnBoss();
 
-    // 고죠 궁극기(무량처공): 데미지 없이 영역 내 적 완전 정지(스턴)
+    // 영역전개 무량처공 (적 스턴)
     if(activeDomain) {
         activeDomain.timer--;
         triggerVibration(5);
         if(activeDomain.type === 'Gojo') {
-            enemies.forEach(e => { e.speed = 0; }); // 완전 멈춤
+            enemies.forEach(e => { e.speed = 0; });
         } else if(activeDomain.type === 'Sukuna') {
             if(activeDomain.timer % 3 === 0) {
                 slashes.push({
@@ -527,7 +548,7 @@ function update() {
         if(activeDomain.timer <= 0) activeDomain = null;
     }
 
-    // 마하라
+    // 마허라
     if(mahoraga) {
         mahoraga.life--;
         let target = bossMonster || enemies[0];
@@ -539,7 +560,7 @@ function update() {
         if(mahoraga.life <= 0) mahoraga = null;
     }
 
-    // 아오(R) 구체: 적 사망 여부와 무관하게 제자리에 완벽 유지
+    // 아오(R) 끌어당김 로직
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
         enemies.forEach(e => {
@@ -549,6 +570,12 @@ function update() {
                 e.x += Math.cos(pullAng) * 7;
                 e.y += Math.sin(pullAng) * 7;
                 e.hp -= 1.5;
+
+                // 아오 스킬로 적/보스를 죽였는지 체크!
+                if(e.hp <= 0) {
+                    // 5초(300프레임) 동안 유지되는 짙은 파란색 구체 생성!
+                    blueOrbs.push({ x: bh.x, y: bh.y, radius: 45, life: 300 });
+                }
             }
         });
         if(bh.life <= 0) {
@@ -557,16 +584,23 @@ function update() {
         }
     });
 
-    // 투사체 (아카 & 무라사키)
+    // 5초 유지 짙은 파란 구체 카운트다운
+    blueOrbs.forEach((bo, boi) => {
+        bo.life--;
+        if(bo.life <= 0) blueOrbs.splice(boi, 1);
+    });
+
+    // 투사체 (아카 & 무라사키 연계 판정)
     projectiles.forEach((p, pi) => {
         p.x += p.vx; p.y += p.vy;
 
         if(p.type === 'aka') {
-            for(let bhi = 0; bhi < blackHoles.length; bhi++) {
-                let bh = blackHoles[bhi];
-                if(Math.hypot(p.x - bh.x, p.y - bh.y) < bh.radius) {
-                    triggerPurpleExplosion(bh.x, bh.y);
-                    blackHoles.splice(bhi, 1);
+            // 짙은 파란 구체(blueOrbs)에 아카(E)가 맞으면 자폭 무라사키 발동!
+            for(let boi = 0; boi < blueOrbs.length; boi++) {
+                let bo = blueOrbs[boi];
+                if(Math.hypot(p.x - bo.x, p.y - bo.y) < bo.radius + 20) {
+                    triggerPurpleExplosion(bo.x, bo.y);
+                    blueOrbs.splice(boi, 1);
                     projectiles.splice(pi, 1);
                     return;
                 }
@@ -587,6 +621,13 @@ function update() {
                 if(p.type === 'normal') projectiles.splice(pi, 1);
             }
         });
+    });
+
+    // 보라색 무라사키 연출 파티클 업데이트
+    purpleEffects.forEach((pe, pei) => {
+        pe.x += pe.vx; pe.y += pe.vy;
+        pe.life--;
+        if(pe.life <= 0) purpleEffects.splice(pei, 1);
     });
 
     // 폭발
@@ -617,7 +658,6 @@ function update() {
 
     // 주령 및 보스 AI
     enemies.forEach((e, ei) => {
-        // 무량처공 안에서는 움직일 수 없음
         if(activeDomain && activeDomain.type === 'Gojo') {
             e.speed = 0;
         } else {
@@ -630,7 +670,7 @@ function update() {
         e.x += Math.cos(ang) * e.speed;
         e.y += Math.sin(ang) * e.speed;
 
-        if(e.isBoss && e.speed > 0) { // 멈춰있지 않을 때만 공격
+        if(e.isBoss && e.speed > 0) {
             e.attackCd++;
             if(e.attackCd > 90) {
                 for(let a=0; a<Math.PI*2; a+=Math.PI/4) {
@@ -698,11 +738,21 @@ function draw() {
     for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
     for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
-    // 아오 구체
+    // 일반 아오 구체
     blackHoles.forEach(bh => {
         ctx.fillStyle = 'rgba(55, 66, 250, 0.35)';
         ctx.beginPath(); ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#5352ed'; ctx.lineWidth = 3; ctx.stroke();
+    });
+
+    // ★ 처치 후 생성되는 짙은 파란색 구체 (5초간 유지)
+    blueOrbs.forEach(bo => {
+        let alpha = bo.life / 300;
+        ctx.shadowBlur = 35; ctx.shadowColor = '#0026ff';
+        ctx.fillStyle = `rgba(0, 38, 255, ${alpha})`;
+        ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 5; ctx.stroke();
+        ctx.shadowBlur = 0;
     });
 
     // 몬스터
@@ -714,7 +764,7 @@ function draw() {
         }
     });
 
-    // 참격 (스쿠나)
+    // 참격
     slashes.forEach(s => {
         ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 5;
         ctx.beginPath();
@@ -723,13 +773,19 @@ function draw() {
         ctx.stroke();
     });
 
+    // 보라색 자폭 무라사키 이펙트 파티클
+    purpleEffects.forEach(pe => {
+        ctx.fillStyle = pe.color;
+        ctx.beginPath(); ctx.arc(pe.x, pe.y, pe.radius, 0, Math.PI*2); ctx.fill();
+    });
+
     // 폭발
     explosions.forEach(ex => {
         ctx.fillStyle = ex.color;
         ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.radius, 0, Math.PI*2); ctx.fill();
     });
 
-    // 투사체 (무라사키 포함)
+    // 투사체
     projectiles.forEach(p => {
         ctx.fillStyle = p.color || (p.type === 'aka' ? '#ff4757' : '#3742fa');
         ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
