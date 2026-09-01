@@ -1,665 +1,846 @@
-import streamlit as st
-import streamlit.components.v1 as components
+import math
+import os
+import random
+import sys
+import pygame
 
-st.set_page_config(
-    page_title="2026 KBO 3D Real Baseball",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
+# Pygame 및 믹서 초기화
+pygame.init()
+pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
 
-html_code = """
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>2026 KBO 3D Baseball</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-        body { background-color: #0b0e14; font-family: 'Pretendard', -apple-system, sans-serif; color: #fff; overflow: hidden; }
-        #game-container { width: 100vw; height: 100vh; position: relative; }
+# ==========================================
+# 1. 상수 및 설정 (CONSTANTS & CONFIG)
+# ==========================================
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
+FPS = 60
+
+# 색상 정의
+BLACK = (15, 15, 20)
+WHITE = (240, 240, 240)
+RED = (220, 50, 50)
+GREEN = (50, 205, 50)
+BLUE = (65, 105, 225)
+YELLOW = (255, 215, 0)
+PURPLE = (147, 112, 219)
+CYAN = (0, 255, 255)
+ORANGE = (255, 140, 0)
+DARK_GRAY = (40, 40, 50)
+LIGHT_GRAY = (180, 180, 200)
+WALL_COLOR = (60, 60, 80)
+FLOOR_COLOR = (25, 25, 35)
+
+# 폰트 설정
+FONT_LARGE = pygame.font.SysFont("malgungothic", 48, bold=True)
+FONT_MEDIUM = pygame.font.SysFont("malgungothic", 28, bold=True)
+FONT_SMALL = pygame.font.SysFont("malgungothic", 18)
+
+# ==========================================
+# 2. 사운드 제너레이터 (절차적 합성 음향)
+# ==========================================
+class SoundEffectGenerator:
+    """외부 음악 파일 없이 수학적 파형으로 효과음을 생성합니다."""
+    @staticmethod
+    def generate_sound(freq=441, duration=0.1, wave_type='square'):
+        sample_rate = 44100
+        n_samples = int(sample_rate * duration)
+        buf = bytearray()
         
-        #team-modal { position: absolute; inset: 0; z-index: 100; background: rgba(11, 14, 20, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .modal-card { background: #161b22; border: 1px solid #30363d; border-radius: 16px; padding: 32px; width: 480px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.6); }
-        .modal-title { font-size: 28px; font-weight: 800; color: #58a6ff; margin-bottom: 8px; }
-        .modal-sub { font-size: 14px; color: #8b949e; margin-bottom: 24px; }
-        select { width: 100%; padding: 12px 16px; font-size: 16px; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 20px; outline: none; }
-        .start-btn { width: 100%; padding: 14px; font-size: 18px; font-weight: 700; background: #238636; color: #fff; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; }
-        .start-btn:hover { background: #2ea043; }
+        for i in range(n_samples):
+            t = float(i) / sample_rate
+            if wave_type == 'square':
+                val = 32767 if (math.sin(2 * math.pi * freq * t) > 0) else -32768
+            elif wave_type == 'saw':
+                val = int((2 * (t * freq - math.floor(0.5 + t * freq))) * 32767)
+            else: # noise
+                val = random.randint(-32768, 32767)
+            
+            # 감쇠(Fade Out) 적용
+            attenuation = (1.0 - (i / n_samples))
+            val = int(val * attenuation * 0.3)
+            
+            buf.extend(val.to_bytes(2, byteorder='little', signed=True))
+            buf.extend(val.to_bytes(2, byteorder='little', signed=True)) # 스테레오
+            
+        return pygame.mixer.Sound(buffer=bytes(buf))
 
-        #hud-top { position: absolute; top: 16px; left: 16px; right: 16px; z-index: 10; display: flex; justify-content: space-between; pointer-events: none; }
-        .scoreboard { background: rgba(22, 27, 34, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 20px; display: flex; gap: 24px; align-items: center; }
-        .score-team { text-align: center; }
-        .team-name { font-size: 12px; color: #8b949e; font-weight: 600; }
-        .team-score { font-size: 24px; font-weight: 800; }
-        .bso-box { display: flex; gap: 12px; font-size: 14px; font-weight: 700; border-left: 1px solid #30363d; padding-left: 16px; }
-        .bso-dots { display: flex; gap: 4px; align-items: center; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; background: #30363d; }
-        .dot.b { background: #58a6ff; }
-        .dot.s { background: #f85149; }
-        .dot.o { background: #d29922; }
+class SoundManager:
+    def __init__(self):
+        try:
+            self.sounds = {
+                'hit': SoundEffectGenerator.generate_sound(150, 0.08, 'saw'),
+                'shoot': SoundEffectGenerator.generate_sound(600, 0.1, 'square'),
+                'slash': SoundEffectGenerator.generate_sound(300, 0.05, 'noise'),
+                'item': SoundEffectGenerator.generate_sound(880, 0.15, 'square'),
+                'skill': SoundEffectGenerator.generate_sound(440, 0.25, 'saw')
+            }
+            self.enabled = True
+        except Exception as e:
+            print(f"사운드 생성 실패 (무음 모드로 실행): {e}")
+            self.enabled = False
 
-        .batter-card { background: rgba(22, 27, 34, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 20px; text-align: right; }
-        .batter-order { font-size: 12px; color: #2f81f7; font-weight: 700; }
-        .batter-name { font-size: 20px; font-weight: 800; }
-        .batter-stats { font-size: 12px; color: #8b949e; }
+    def play(self, sound_name):
+        if self.enabled and sound_name in self.sounds:
+            self.sounds[sound_name].play()
 
-        #timing-feedback { position: absolute; top: 25%; left: 50%; transform: translate(-50%, -50%); z-index: 20; font-size: 42px; font-weight: 900; text-shadow: 0 4px 12px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: 0.1s; }
+SOUND_SYS = SoundManager()
+
+# ==========================================
+# 3. 파티클 및 비주얼 이펙트 시스템
+# ==========================================
+class Particle:
+    def __init__(self, x, y, color, vel_x, vel_y, lifetime, size_start, size_end=0):
+        self.x = x
+        self.y = y
+        self.color = color
+        self.vel_x = vel_x
+        self.vel_y = vel_y
+        self.lifetime = lifetime
+        self.max_lifetime = lifetime
+        self.size_start = size_start
+        self.size_end = size_end
+
+    def update(self, dt):
+        self.x += self.vel_x * dt * 60
+        self.y += self.vel_y * dt * 60
+        self.lifetime -= dt
+
+    def draw(self, surface, camera):
+        if self.lifetime <= 0:
+            return
+        progress = max(0, self.lifetime / self.max_lifetime)
+        current_size = self.size_end + (self.size_start - self.size_end) * progress
+        screen_pos = camera.apply_pos((self.x, self.y))
+        pygame.draw.circle(surface, self.color, (int(screen_pos[0]), int(screen_pos[1])), int(current_size))
+
+class ParticleManager:
+    def __init__(self):
+        self.particles = []
+
+    def create_burst(self, x, y, color, count=10, speed=3):
+        for _ in range(count):
+            angle = random.uniform(0, math.pi * 2)
+            sp = random.uniform(0.5, speed)
+            vx = math.cos(angle) * sp
+            vy = math.sin(angle) * sp
+            life = random.uniform(0.2, 0.5)
+            size = random.uniform(3, 7)
+            self.particles.append(Particle(x, y, color, vx, vy, life, size))
+
+    def update(self, dt):
+        for p in self.particles:
+            p.update(dt)
+        self.particles = [p for p in self.particles if p.lifetime > 0]
+
+    def draw(self, surface, camera):
+        for p in self.particles:
+            p.draw(surface, camera)
+
+# ==========================================
+# 4. 카메라 및 맵 시스템
+# ==========================================
+class Camera:
+    def __init__(self, width, height):
+        self.rect = pygame.Rect(0, 0, width, height)
+        self.width = width
+        self.height = height
+        self.shake_time = 0
+        self.shake_intensity = 0
+
+    def apply(self, entity):
+        return entity.rect.move(self.rect.topleft)
+
+    def apply_pos(self, pos):
+        shake_x = random.uniform(-self.shake_intensity, self.shake_intensity) if self.shake_time > 0 else 0
+        shake_y = random.uniform(-self.shake_intensity, self.shake_intensity) if self.shake_time > 0 else 0
+        return (pos[0] + self.rect.x + shake_x, pos[1] + self.rect.y + shake_y)
+
+    def apply_rect(self, rect):
+        shake_x = random.uniform(-self.shake_intensity, self.shake_intensity) if self.shake_time > 0 else 0
+        shake_y = random.uniform(-self.shake_intensity, self.shake_intensity) if self.shake_time > 0 else 0
+        return rect.move(self.rect.x + shake_x, self.rect.y + shake_y)
+
+    def update(self, target, dt):
+        # 타겟 중앙 추적
+        x = -target.rect.centerx + int(SCREEN_WIDTH / 2)
+        y = -target.rect.centery + int(SCREEN_HEIGHT / 2)
         
-        #controls { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-        .swing-btn { padding: 16px 48px; font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #f85149, #da3633); color: #fff; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 8px 24px rgba(218, 54, 51, 0.4); transition: transform 0.1s; }
-        .swing-btn:active { transform: scale(0.95); }
-    </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-</head>
-<body>
-    <div id="game-container">
-        <div id="team-modal">
-            <div class="modal-card">
-                <div class="modal-title">⚾ 2026 KBO 3D REAL</div>
-                <div class="modal-sub">구단을 선택하여 경기를 시작하세요</div>
-                <select id="team-select">
-                    <option value="DOOSAN">두산 베어스 (박찬호)</option>
-                    <option value="KIA">KIA 타이거즈 (김도영)</option>
-                    <option value="SAMSUNG">삼성 라이온즈 (구자욱)</option>
-                    <option value="LG">LG 트윈스 (오스틴)</option>
-                    <option value="KT">KT 위즈 (강백호)</option>
-                    <option value="SSG">SSG 랜더스 (최정)</option>
-                    <option value="LOTTE">롯데 자이언츠 (레이예스)</option>
-                    <option value="HANWHA">한화 이글스 (노시환)</option>
-                    <option value="NC">NC 다이노스 (박건우)</option>
-                    <option value="KIWOOM">키움 히어로즈 (송성문)</option>
-                </select>
-                <button class="start-btn" onclick="initGame()">PLAY GAME</button>
-            </div>
-        </div>
+        # 맵 경계 제한 (소프트 추적)
+        self.rect.x += (x - self.rect.x) * 0.1
+        self.rect.y += (y - self.rect.y) * 0.1
 
-        <div id="hud-top">
-            <div class="scoreboard">
-                <div class="score-team">
-                    <div class="team-name" id="user-team-label">USER</div>
-                    <div class="team-score" id="user-score">0</div>
-                </div>
-                <div style="font-size: 18px; font-weight: 700; color: #484f58;">VS</div>
-                <div class="score-team">
-                    <div class="team-name">COM</div>
-                    <div class="team-score" id="com-score">0</div>
-                </div>
-                <div class="bso-box">
-                    <div>
-                        <div style="color:#8b949e; font-size:10px;">BALL</div>
-                        <div class="bso-dots" id="b-dots">
-                            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div style="color:#8b949e; font-size:10px;">STRIKE</div>
-                        <div class="bso-dots" id="s-dots">
-                            <div class="dot"></div><div class="dot"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div style="color:#8b949e; font-size:10px;">OUT</div>
-                        <div class="bso-dots" id="o-dots">
-                            <div class="dot"></div><div class="dot"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        if self.shake_time > 0:
+            self.shake_time -= dt
 
-            <div class="batter-card">
-                <div class="batter-order" id="batter-order-txt">1번 타자</div>
-                <div class="batter-name" id="batter-name-txt">-</div>
-                <div class="batter-stats" id="batter-stat-txt">컨택 90 | 파워 85</div>
-            </div>
-        </div>
+    def shake(self, intensity=5, duration=0.2):
+        self.shake_intensity = intensity
+        self.shake_time = duration
 
-        <div id="timing-feedback">PERFECT!</div>
+class DungeonGenerator:
+    """무작위 던전 방과 복도를 생성합니다."""
+    def __init__(self, map_width_tiles=60, map_height_tiles=60, tile_size=64):
+        self.grid_w = map_width_tiles
+        self.grid_h = map_height_tiles
+        self.tile_size = tile_size
+        self.grid = [[1 for _ in range(self.grid_h)] for _ in range(self.grid_w)] # 1: Wall, 0: Floor
+        self.rooms = []
+        self.generate()
 
-        <div id="controls">
-            <button class="swing-btn" onclick="swing()">SWING</button>
-        </div>
-    </div>
+    def generate(self):
+        min_room_size = 6
+        max_room_size = 12
+        max_rooms = 15
 
-    <script>
-        const kboData = {
-            'DOOSAN': { name: '두산 베어스', roster: [{n:'박찬호', c:88, p:70}, {n:'정수빈', c:87, p:66}, {n:'양의지', c:93, p:89}, {n:'김재환', c:80, p:91}, {n:'양석환', c:79, p:88}] },
-            'KIA': { name: 'KIA 타이거즈', roster: [{n:'최원준', c:85, p:74}, {n:'소크라테스', c:85, p:86}, {n:'김도영', c:95, p:94}, {n:'최형우', c:90, p:92}, {n:'나성범', c:86, p:90}] },
-            'SAMSUNG': { name: '삼성 라이온즈', roster: [{n:'김지찬', c:88, p:65}, {n:'윤정빈', c:80, p:78}, {n:'구자욱', c:94, p:90}, {n:'디아즈', c:83, p:92}, {n:'강민호', c:86, p:88}] },
-            'LG': { name: 'LG 트윈스', roster: [{n:'홍창기', c:94, p:70}, {n:'신민재', c:86, p:62}, {n:'오스틴', c:92, p:93}, {n:'문보경', c:88, p:85}, {n:'오지환', c:82, p:83}] },
-            'KT': { name: 'KT 위즈', roster: [{n:'로하스', c:90, p:93}, {n:'강백호', c:89, p:90}, {n:'장성우', c:84, p:82}, {n:'문상철', c:81, p:85}, {n:'황재균', c:82, p:80}] },
-            'SSG': { name: 'SSG 랜더스', roster: [{n:'최지훈', c:84, p:72}, {n:'박성한', c:87, p:76}, {n:'최정', c:89, p:96}, {n:'에레디아', c:93, p:86}, {n:'한유섬', c:78, p:89}] },
-            'LOTTE': { name: '롯데 자이언츠', roster: [{n:'황성빈', c:86, p:60}, {n:'윤동희', c:88, p:82}, {n:'전준우', c:90, p:86}, {n:'레이예스', c:94, p:85}, {n:'나승엽', c:85, p:81}] },
-            'HANWHA': { name: '한화 이글스', roster: [{n:'최인호', c:82, p:72}, {n:'페라자', c:86, p:91}, {n:'노시환', c:84, p:93}, {n:'채은성', c:85, p:86}, {n:'안치홍', c:86, p:80}] },
-            'NC': { name: 'NC 다이노스', roster: [{n:'박민우', c:92, p:68}, {n:'권희동', c:85, p:80}, {n:'박건우', c:91, p:85}, {n:'데이비드슨', c:82, p:95}, {n:'손아섭', c:89, p:76}] },
-            'KIWOOM': { name: '키움 히어로즈', roster: [{n:'이주형', c:86, p:80}, {n:'도슨', c:89, p:84}, {n:'송성문', c:90, p:86}, {n:'최주환', c:81, p:85}, {n:'김혜성', c:92, p:78}] }
-        };
+        for _ in range(max_rooms):
+            w = random.randint(min_room_size, max_room_size)
+            h = random.randint(min_room_size, max_room_size)
+            x = random.randint(1, self.grid_w - w - 1)
+            y = random.randint(1, self.grid_h - h - 1)
 
-        let currentTeam = null;
-        let batterIdx = 0;
-        let balls = 0, strikes = 0, outs = 0;
-        let userScore = 0;
+            new_room = pygame.Rect(x, y, w, h)
+            failed = False
+            for other_room in self.rooms:
+                if new_room.colliderect(other_room.inflate(2, 2)):
+                    failed = True
+                    break
 
-        let scene, camera, renderer, ball, bat;
-        let fielders = [];
-        let pitcherMesh = null;
-        let isPitching = false;
-        let isHitInFlight = false;
-        let pitchProgress = 0;
-        let currentPitch = { cx: 0, cy: 0, spd: 0.012 };
+            if not failed:
+                self.create_room(new_room)
+                if self.rooms:
+                    # 이전 방과 복도로 연결
+                    prev_x, prev_y = self.rooms[-1].center
+                    new_x, new_y = new_room.center
+                    if random.randint(0, 1) == 1:
+                        self.create_h_tunnel(prev_x, new_x, prev_y)
+                        self.create_v_tunnel(prev_y, new_y, new_x)
+                    else:
+                        self.create_v_tunnel(prev_y, new_y, prev_x)
+                        self.create_h_tunnel(prev_x, new_x, new_y)
 
-        const defaultCamPos = new THREE.Vector3(0, 1.8, 2.8);
-        const defaultCamLook = new THREE.Vector3(0, 1.2, -22);
+                self.rooms.append(new_room)
 
-        let hitFlightProgress = 0;
-        let flightSpeed = 0.0035;
-        let hitStartPos = new THREE.Vector3();
-        let hitTargetPos = new THREE.Vector3();
-        let hitMaxHeight = 0;
-        let currentResultType = "";
-        let assignedFielder = null;
-        let isDiving = false;
+    def create_room(self, room):
+        for x in range(room.left, room.right):
+            for y in range(room.top, room.bottom):
+                self.grid[x][y] = 0
 
-        const STADIUM_CENTER_Z = -15;
-        const OUTFIELD_WALL_RADIUS = 78; // 야수 통과 방지 경계선 반경
+    def create_h_tunnel(self, x1, x2, y):
+        for x in range(min(x1, x2), max(x1, x2) + 1):
+            self.grid[x][y] = 0
+            self.grid[x][y+1] = 0
 
-        function initGame() {
-            const teamKey = document.getElementById('team-select').value;
-            currentTeam = kboData[teamKey];
-            document.getElementById('user-team-label').innerText = currentTeam.name.split(' ')[0];
-            document.getElementById('team-modal').style.display = 'none';
+    def create_v_tunnel(self, y1, y2, x):
+        for y in range(min(y1, y2), max(y1, y2) + 1):
+            self.grid[x][y] = 0
+            self.grid[x+1][y] = 0
 
-            init3D();
-            updateBatterHUD();
-            startPitchSequence();
-        }
+    def draw(self, surface, camera):
+        start_x = max(0, int(-camera.rect.x // self.tile_size) - 1)
+        end_x = min(self.grid_w, start_x + (SCREEN_WIDTH // self.tile_size) + 3)
+        start_y = max(0, int(-camera.rect.y // self.tile_size) - 1)
+        end_y = min(self.grid_h, start_y + (SCREEN_HEIGHT // self.tile_size) + 3)
 
-        function createHumanoidModel(x, y, z, colorHex) {
-            const character = new THREE.Group();
-            const mat = new THREE.MeshStandardMaterial({ color: colorHex });
-            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-
-            const torsoGeo = new THREE.BoxGeometry(0.5, 0.75, 0.3);
-            const torso = new THREE.Mesh(torsoGeo, mat);
-            torso.position.y = 1.0;
-            character.add(torso);
-
-            const headGeo = new THREE.SphereGeometry(0.2, 12, 12);
-            const head = new THREE.Mesh(headGeo, skinMat);
-            head.position.y = 1.55;
-            character.add(head);
-
-            const armGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.65);
-            const leftArmGroup = new THREE.Group();
-            leftArmGroup.position.set(-0.35, 1.3, 0);
-            const leftArm = new THREE.Mesh(armGeo, mat);
-            leftArm.position.y = -0.3;
-            leftArmGroup.add(leftArm);
-            character.add(leftArmGroup);
-
-            const rightArmGroup = new THREE.Group();
-            rightArmGroup.position.set(0.35, 1.3, 0);
-            const rightArm = new THREE.Mesh(armGeo, mat);
-            rightArm.position.y = -0.3;
-            rightArmGroup.add(rightArm);
-            character.add(rightArmGroup);
-
-            const legGeo = new THREE.CylinderGeometry(0.09, 0.07, 0.75);
-            const leftLegGroup = new THREE.Group();
-            leftLegGroup.position.set(-0.16, 0.6, 0);
-            const leftLeg = new THREE.Mesh(legGeo, mat);
-            leftLeg.position.y = -0.35;
-            leftLegGroup.add(leftLeg);
-            character.add(leftLegGroup);
-
-            const rightLegGroup = new THREE.Group();
-            rightLegGroup.position.set(0.16, 0.6, 0);
-            const rightLeg = new THREE.Mesh(legGeo, mat);
-            rightLeg.position.y = -0.35;
-            rightLegGroup.add(rightLeg);
-            character.add(rightLegGroup);
-
-            character.position.set(x, y, z);
-            character.userData = { 
-                originX: x, originY: y, originZ: z, 
-                rightArmGroup, leftArmGroup, leftLegGroup, rightLegGroup, torso
-            };
-
-            scene.add(character);
-            return character;
-        }
-
-        function createStrikeZone9Grid() {
-            const zoneGroup = new THREE.Group();
-            const width = 0.6;
-            const height = 0.8;
-            const subW = width / 3;
-            const subH = height / 3;
-
-            for (let r = 0; r < 3; r++) {
-                for (let c = 0; c < 3; c++) {
-                    const gridGeo = new THREE.PlaneGeometry(subW * 0.95, subH * 0.95);
-                    const gridMat = new THREE.MeshBasicMaterial({ 
-                        color: (r === 1 && c === 1) ? 0xff4d4d : 0x58a6ff, 
-                        wireframe: true, 
-                        transparent: true, 
-                        opacity: 0.18
-                    });
-                    const cell = new THREE.Mesh(gridGeo, gridMat);
-                    cell.position.set(-subW + (c * subW), -subH + (r * subH), 0);
-                    zoneGroup.add(cell);
-                }
-            }
-            zoneGroup.position.set(0, 1.2, 0);
-            scene.add(zoneGroup);
-        }
-
-        function createStadiumEnvironment() {
-            const fieldGeo = new THREE.PlaneGeometry(260, 260);
-            const fieldMat = new THREE.MeshStandardMaterial({ color: 0x1e5631, roughness: 0.8 });
-            const field = new THREE.Mesh(fieldGeo, fieldMat);
-            field.rotation.x = -Math.PI / 2;
-            scene.add(field);
-
-            const dirtGeo = new THREE.PlaneGeometry(45, 45);
-            const dirtMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
-            const dirt = new THREE.Mesh(dirtGeo, dirtMat);
-            dirt.rotation.x = -Math.PI / 2;
-            dirt.rotation.z = Math.PI / 4;
-            dirt.position.set(0, 0.01, -15);
-            scene.add(dirt);
-
-            const moundGeo = new THREE.CylinderGeometry(3.5, 4.5, 0.4, 32);
-            const moundMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b });
-            const mound = new THREE.Mesh(moundGeo, moundMat);
-            mound.position.set(0, 0.2, -18.4);
-            scene.add(mound);
-
-            const colors = [0xe74c3c, 0x3498db, 0xf1c40f, 0xecf0f1, 0x9b59b6, 0x1abc9c];
-            for (let i = 0; i < 8; i++) {
-                const radius = 80 + i * 2.5;
-                const standGeo = new THREE.CylinderGeometry(radius, radius, 1.5, 48, 1, true, Math.PI * 0.15, Math.PI * 0.7);
-                const standMat = new THREE.MeshStandardMaterial({ color: 0x22272e, side: THREE.DoubleSide });
-                const stand = new THREE.Mesh(standGeo, standMat);
-                stand.position.set(0, 1 + i * 1.5, STADIUM_CENTER_Z);
-                scene.add(stand);
-
-                for (let j = 0; j < 60; j++) {
-                    const angle = Math.PI * 0.18 + (j / 60) * (Math.PI * 0.64);
-                    const spectatorGeo = new THREE.BoxGeometry(0.6, 0.8, 0.6);
-                    const spectatorMat = new THREE.MeshBasicMaterial({ color: colors[Math.floor(Math.random() * colors.length)] });
-                    const spectator = new THREE.Mesh(spectatorGeo, spectatorMat);
-                    spectator.position.set(
-                        Math.cos(angle) * radius,
-                        2.0 + i * 1.5,
-                        Math.sin(angle) * radius + STADIUM_CENTER_Z
-                    );
-                    scene.add(spectator);
-                }
-            }
-        }
-
-        function resetFielderPositions() {
-            fielders.forEach(f => {
-                f.position.set(f.userData.originX, f.userData.originY, f.userData.originZ);
-                f.rotation.set(0, 0, 0);
-                f.userData.leftArmGroup.rotation.set(0, 0, 0);
-                f.userData.rightArmGroup.rotation.set(0, 0, 0);
-                f.userData.leftLegGroup.rotation.set(0, 0, 0);
-                f.userData.rightLegGroup.rotation.set(0, 0, 0);
-            });
-            assignedFielder = null;
-            isDiving = false;
-        }
-
-        function resetCamera() {
-            camera.position.copy(defaultCamPos);
-            camera.lookAt(defaultCamLook);
-        }
-
-        function init3D() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0a1118);
-            scene.fog = new THREE.FogExp2(0x0a1118, 0.004);
-
-            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
-            resetCamera();
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-            document.getElementById('game-container').appendChild(renderer.domElement);
-
-            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
-            mainLight.position.set(20, 40, 20);
-            scene.add(mainLight);
-            scene.add(new THREE.AmbientLight(0x505864));
-
-            createStrikeZone9Grid();
-            createStadiumEnvironment();
-
-            fielders.push(createHumanoidModel(-12, 0, -12, 0x1d4ed8));  // 3루수
-            fielders.push(createHumanoidModel(-8, 0, -26, 0x1d4ed8));   // 유격수
-            fielders.push(createHumanoidModel(8, 0, -26, 0x1d4ed8));    // 2루수
-            fielders.push(createHumanoidModel(12, 0, -12, 0x1d4ed8));   // 1루수
-            fielders.push(createHumanoidModel(-38, 0, -50, 0x1d4ed8));  // 좌익수
-            fielders.push(createHumanoidModel(0, 0, -65, 0x1d4ed8));    // 중견수
-            fielders.push(createHumanoidModel(38, 0, -50, 0x1d4ed8));   // 우익수
-
-            pitcherMesh = createHumanoidModel(0, 0.4, -18.4, 0xda3633);
-
-            const ballGeo = new THREE.SphereGeometry(0.08, 16, 16);
-            const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            ball = new THREE.Mesh(ballGeo, ballMat);
-            scene.add(ball);
-
-            const batGeo = new THREE.CylinderGeometry(0.035, 0.018, 0.9);
-            const batMat = new THREE.MeshStandardMaterial({ color: 0xc49a45 });
-            bat = new THREE.Mesh(batGeo, batMat);
-            bat.position.set(0.4, 1.1, 0.2);
-            bat.rotation.set(0.2, 0, 0.6);
-            scene.add(bat);
-
-            animate();
-        }
-
-        function startPitchSequence() {
-            if (outs >= 3) return;
-
-            resetFielderPositions();
-            resetCamera();
-            isHitInFlight = false;
-
-            const trajectories = [
-                { cx: 0, cy: -0.05, spd: 0.010 },
-                { cx: -0.15, cy: -0.1, spd: 0.009 },
-                { cx: 0.15, cy: -0.1, spd: 0.009 }
-            ];
-            currentPitch = trajectories[Math.floor(Math.random() * trajectories.length)];
-
-            pitchProgress = 0;
-            ball.position.set(0, 1.7, -18.4);
-            isPitching = true;
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            if (isPitching) {
-                pitchProgress += currentPitch.spd;
+        for x in range(start_x, end_x):
+            for y in range(start_y, end_y):
+                world_x = x * self.tile_size
+                world_y = y * self.tile_size
+                screen_pos = camera.apply_pos((world_x, world_y))
+                rect = pygame.Rect(screen_pos[0], screen_pos[1], self.tile_size, self.tile_size)
                 
-                if (pitcherMesh && pitcherMesh.userData.rightArmGroup) {
-                    pitcherMesh.userData.rightArmGroup.rotation.x = -Math.sin(pitchProgress * Math.PI) * 2.5;
-                }
+                if self.grid[x][y] == 1:
+                    pygame.draw.rect(surface, WALL_COLOR, rect)
+                    pygame.draw.rect(surface, BLACK, rect, 1)
+                else:
+                    pygame.draw.rect(surface, FLOOR_COLOR, rect)
+                    pygame.draw.rect(surface, (35, 35, 45), rect, 1)
 
-                ball.position.z = -18.4 + (18.4 * pitchProgress);
-                ball.position.x = currentPitch.cx * Math.pow(pitchProgress, 1.5);
-                ball.position.y = 1.7 + (currentPitch.cy * pitchProgress) - (0.05 * Math.pow(pitchProgress, 2));
+# ==========================================
+# 5. 게임 오브젝트 Base 클래스 및 투사체
+# ==========================================
+class Projectile:
+    def __init__(self, x, y, target_x, target_y, speed, damage, owner_tag, color=YELLOW, radius=6):
+        self.x = x
+        self.y = y
+        angle = math.atan2(target_y - y, target_x - x)
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+        self.damage = damage
+        self.owner_tag = owner_tag
+        self.color = color
+        self.radius = radius
+        self.rect = pygame.Rect(x - radius, y - radius, radius * 2, radius * 2)
+        self.is_alive = True
 
-                if (pitchProgress >= 1.0) {
-                    isPitching = false;
-                    handleTake();
-                }
-            }
+    def update(self, dt, dungeon):
+        self.x += self.vx * dt * 60
+        self.y += self.vy * dt * 60
+        self.rect.center = (int(self.x), int(self.y))
 
-            if (isHitInFlight) {
-                hitFlightProgress += flightSpeed;
+        # 벽 충돌 체크
+        tile_x = int(self.x // dungeon.tile_size)
+        tile_y = int(self.y // dungeon.tile_size)
+        if 0 <= tile_x < dungeon.grid_w and 0 <= tile_y < dungeon.grid_h:
+            if dungeon.grid[tile_x][tile_y] == 1:
+                self.is_alive = False
 
-                ball.position.x = THREE.MathUtils.lerp(hitStartPos.x, hitTargetPos.x, hitFlightProgress);
-                ball.position.z = THREE.MathUtils.lerp(hitStartPos.z, hitTargetPos.z, hitFlightProgress);
+    def draw(self, surface, camera):
+        pos = camera.apply_pos((self.x, self.y))
+        pygame.draw.circle(surface, self.color, (int(pos[0]), int(pos[1])), self.radius)
+        pygame.draw.circle(surface, WHITE, (int(pos[0]), int(pos[1])), self.radius // 2)
 
-                if (currentResultType === "GROUND") {
-                    ball.position.y = Math.max(0.08, Math.abs(Math.sin(hitFlightProgress * Math.PI * 4)) * (1.2 * (1 - hitFlightProgress)));
-                } else {
-                    ball.position.y = Math.max(0.08, hitStartPos.y + Math.sin(hitFlightProgress * Math.PI) * hitMaxHeight);
-                }
+class Item:
+    def __init__(self, x, y, item_type):
+        self.rect = pygame.Rect(x - 12, y - 12, 24, 24)
+        self.item_type = item_type  # 'health', 'exp', 'stat'
+        self.color = GREEN if item_type == 'health' else (CYAN if item_type == 'exp' else YELLOW)
+        self.hover_offset = 0
 
-                camera.position.x = THREE.MathUtils.lerp(camera.position.x, ball.position.x * 0.3, 0.04);
-                camera.position.y = THREE.MathUtils.lerp(camera.position.y, ball.position.y + 12, 0.04);
-                camera.position.z = THREE.MathUtils.lerp(camera.position.z, ball.position.z + 20, 0.04);
-                camera.lookAt(ball.position);
+    def update(self, dt):
+        self.hover_offset += dt * 5
 
-                if (assignedFielder) {
-                    const runProgress = Math.min(1.0, hitFlightProgress * 0.85);
-                    
-                    let targetX = THREE.MathUtils.lerp(assignedFielder.userData.originX, hitTargetPos.x, runProgress);
-                    let targetZ = THREE.MathUtils.lerp(assignedFielder.userData.originZ, hitTargetPos.z, runProgress);
+    def draw(self, surface, camera):
+        pos = camera.apply_pos((self.rect.x, self.rect.y + math.sin(self.hover_offset) * 4))
+        draw_rect = pygame.Rect(pos[0], pos[1], self.rect.width, self.rect.height)
+        pygame.draw.rect(surface, self.color, draw_rect, border_radius=4)
+        pygame.draw.rect(surface, WHITE, draw_rect, width=2, border_radius=4)
 
-                    // 야수가 외야 관중석 경계선을 넘지 못하도록 충돌 제어 (펜스 관통 차단)
-                    const distFromCenter = Math.hypot(targetX, targetZ - STADIUM_CENTER_Z);
-                    if (distFromCenter > OUTFIELD_WALL_RADIUS) {
-                        const angle = Math.atan2(targetZ - STADIUM_CENTER_Z, targetX);
-                        targetX = Math.cos(angle) * OUTFIELD_WALL_RADIUS;
-                        targetZ = Math.sin(angle) * OUTFIELD_WALL_RADIUS + STADIUM_CENTER_Z;
-                    }
+# ==========================================
+# 6. 엔티티 클래스 (플레이어 & 적)
+# ==========================================
+class Entity:
+    def __init__(self, x, y, size, hp, speed, color):
+        self.rect = pygame.Rect(x, y, size, size)
+        self.hp = hp
+        self.max_hp = hp
+        self.speed = speed
+        self.color = color
+        self.is_alive = True
+        self.vel_x = 0
+        self.vel_y = 0
 
-                    assignedFielder.position.x = targetX;
-                    assignedFielder.position.z = targetZ;
+    def take_damage(self, amount):
+        self.hp -= amount
+        SOUND_SYS.play('hit')
+        if self.hp <= 0:
+            self.hp = 0
+            self.is_alive = False
 
-                    const runLegAngle = Math.sin(hitFlightProgress * 25) * 0.7;
-                    assignedFielder.userData.leftLegGroup.rotation.x = runLegAngle;
-                    assignedFielder.userData.rightLegGroup.rotation.x = -runLegAngle;
-                    assignedFielder.userData.leftArmGroup.rotation.x = -runLegAngle;
-                    assignedFielder.userData.rightArmGroup.rotation.x = runLegAngle;
+    def move_and_collide(self, dungeon, dt):
+        # X축 이동 및 충돌
+        self.rect.x += self.vel_x * self.speed * dt * 60
+        self.check_collision_x(dungeon)
 
-                    if (isDiving && runProgress > 0.5 && runProgress < 0.9) {
-                        assignedFielder.rotation.x = -Math.PI / 2.5;
-                        assignedFielder.position.y = 0.3;
-                    } else if (runProgress >= 0.9) {
-                        assignedFielder.rotation.x = 0;
-                        assignedFielder.position.y = 0;
-                        assignedFielder.userData.leftArmGroup.rotation.x = -Math.PI / 1.8;
-                        assignedFielder.userData.rightArmGroup.rotation.x = -Math.PI / 1.8;
-                    }
-                }
+        # Y축 이동 및 충돌
+        self.rect.y += self.vel_y * self.speed * dt * 60
+        self.check_collision_y(dungeon)
 
-                if (hitFlightProgress >= 1.0) {
-                    isHitInFlight = false;
-                    finishHitEvent();
-                }
-            }
+    def check_collision_x(self, dungeon):
+        for x in range(self.rect.left // dungeon.tile_size, self.rect.right // dungeon.tile_size + 1):
+            for y in range(self.rect.top // dungeon.tile_size, self.rect.bottom // dungeon.tile_size + 1):
+                if 0 <= x < dungeon.grid_w and 0 <= y < dungeon.grid_h:
+                    if dungeon.grid[x][y] == 1:
+                        wall_rect = pygame.Rect(x * dungeon.tile_size, y * dungeon.tile_size, dungeon.tile_size, dungeon.tile_size)
+                        if self.rect.colliderect(wall_rect):
+                            if self.vel_x > 0:
+                                self.rect.right = wall_rect.left
+                            elif self.vel_x < 0:
+                                self.rect.left = wall_rect.right
 
-            renderer.render(scene, camera);
-        }
+    def check_collision_y(self, dungeon):
+        for x in range(self.rect.left // dungeon.tile_size, self.rect.right // dungeon.tile_size + 1):
+            for y in range(self.rect.top // dungeon.tile_size, self.rect.bottom // dungeon.tile_size + 1):
+                if 0 <= x < dungeon.grid_w and 0 <= y < dungeon.grid_h:
+                    if dungeon.grid[x][y] == 1:
+                        wall_rect = pygame.Rect(x * dungeon.tile_size, y * dungeon.tile_size, dungeon.tile_size, dungeon.tile_size)
+                        if self.rect.colliderect(wall_rect):
+                            if self.vel_y > 0:
+                                self.rect.bottom = wall_rect.top
+                            elif self.vel_y < 0:
+                                self.rect.top = wall_rect.bottom
 
-        function swing() {
-            if (!isPitching) return;
-            isPitching = false;
+class Player(Entity):
+    def __init__(self, x, y, char_class):
+        super().__init__(x, y, size=32, hp=100, speed=4.5, color=BLUE)
+        self.char_class = char_class # 'Warrior', 'Mage', 'Ranger'
+        self.level = 1
+        self.exp = 0
+        self.max_exp = 50
+        self.attack_cooldown = 0
+        self.skill_cooldown = 0
+        self.dash_cooldown = 0
+        self.is_dashing = False
+        self.dash_timer = 0
 
-            bat.rotation.y = -Math.PI / 2;
-            setTimeout(() => { bat.rotation.y = 0; }, 200);
+        # 직업별 능력치 조정
+        if char_class == 'Warrior':
+            self.max_hp = 150
+            self.hp = 150
+            self.speed = 4.0
+            self.color = RED
+        elif char_class == 'Mage':
+            self.max_hp = 80
+            self.hp = 80
+            self.speed = 4.5
+            self.color = PURPLE
+        elif char_class == 'Ranger':
+            self.max_hp = 100
+            self.hp = 100
+            self.speed = 5.2
+            self.color = GREEN
 
-            const diff = pitchProgress - 0.90;
-            let timingType = "";
+    def handle_input(self, keys, mouse_pos, camera, projectiles, particle_mgr):
+        self.vel_x = 0
+        self.vel_y = 0
 
-            if (Math.abs(diff) < 0.03) timingType = "PERFECT";
-            else if (Math.abs(diff) < 0.07) timingType = diff < 0 ? "SLIGHT_EARLY" : "SLIGHT_LATE";
-            else if (Math.abs(diff) < 0.11) timingType = diff < 0 ? "EARLY" : "LATE";
-            else timingType = "MISS";
+        if not self.is_dashing:
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]: self.vel_x = -1
+            if keys[pygame.K_d] or keys[pygame.K_RIGHT]: self.vel_x = 1
+            if keys[pygame.K_w] or keys[pygame.K_UP]: self.vel_y = -1
+            if keys[pygame.K_s] or keys[pygame.K_DOWN]: self.vel_y = 1
 
-            processHitOutcome(timingType);
-        }
+            # 대각선 이동 속도 보정
+            if self.vel_x != 0 and self.vel_y != 0:
+                self.vel_x *= 0.7071
+                self.vel_y *= 0.7071
 
-        function processHitOutcome(timing) {
-            const rand = Math.random() * 100;
-            let result = "";
+            # 스페이스바 대시
+            if keys[pygame.K_SPACE] and self.dash_cooldown <= 0:
+                self.is_dashing = True
+                self.dash_timer = 0.15
+                self.dash_cooldown = 1.0
+                SOUND_SYS.play('slash')
 
-            if (timing === "PERFECT") {
-                showFeedback("🔥 PERFECT!", "#f85149");
-                if (rand < 35) result = "HOMERUN";
-                else if (rand < 65) result = "HIT";
-                else if (rand < 85) result = "GROUND";
-                else result = "FLY";
-            } else if (timing === "SLIGHT_EARLY" || timing === "SLIGHT_LATE") {
-                showFeedback(timing === "SLIGHT_EARLY" ? "⚡ SLIGHT EARLY" : "⏳ SLIGHT LATE", "#58a6ff");
-                if (rand < 15) result = "HOMERUN";
-                else if (rand < 45) result = "HIT";
-                else if (rand < 75) result = "GROUND";
-                else if (rand < 90) result = "FLY";
-                else result = "FOUL";
-            } else if (timing === "EARLY" || timing === "LATE") {
-                showFeedback(timing === "EARLY" ? "EARLY (파울)" : "LATE (파울)", "#d29922");
-                if (rand < 60) result = "FOUL";
-                else result = "GROUND";
-            } else {
-                showFeedback("LATE (헛스윙)", "#8b949e");
-                addStrike();
-                return;
-            }
+        # 마우스 월드 좌표 변환
+        world_mouse_x = mouse_pos[0] - camera.rect.x
+        world_mouse_y = mouse_pos[1] - camera.rect.y
 
-            launchBall(result);
-        }
+        # 일반 공격 (마우스 좌클릭)
+        if pygame.mouse.get_pressed()[0] and self.attack_cooldown <= 0:
+            self.attack(world_mouse_x, world_mouse_y, projectiles, particle_mgr)
 
-        function launchBall(result) {
-            currentResultType = result;
-            hitFlightProgress = 0;
-            hitStartPos.copy(ball.position);
+        # 특수 스킬 (마우스 우클릭)
+        if pygame.mouse.get_pressed()[2] and self.skill_cooldown <= 0:
+            self.use_skill(world_mouse_x, world_mouse_y, projectiles, particle_mgr)
 
-            if (result === "HOMERUN") {
-                flightSpeed = 0.0035;
-                hitTargetPos.set((Math.random() - 0.5) * 60, 0, -95);
-                hitMaxHeight = 35;
-            } else if (result === "HIT") {
-                flightSpeed = 0.004;
-                hitTargetPos.set((Math.random() - 0.5) * 55, 0, -48);
-                hitMaxHeight = 12;
-            } else if (result === "GROUND") {
-                flightSpeed = 0.0045;
-                hitTargetPos.set((Math.random() - 0.5) * 40, 0, -28);
-                hitMaxHeight = 0.5;
-            } else if (result === "FLY") {
-                flightSpeed = 0.0035;
-                hitTargetPos.set((Math.random() - 0.5) * 30, 0, -32);
-                hitMaxHeight = 25;
-            } else if (result === "FOUL") {
-                flightSpeed = 0.005;
-                hitTargetPos.set(Math.random() > 0.5 ? 45 : -45, 0, -10);
-                hitMaxHeight = 15;
-            }
+    def attack(self, target_x, target_y, projectiles, particle_mgr):
+        if self.char_class == 'Ranger':
+            projectiles.append(Projectile(self.rect.centerx, self.rect.centery, target_x, target_y, 12, 18, 'player', YELLOW, 5))
+            self.attack_cooldown = 0.25
+            SOUND_SYS.play('shoot')
+        elif self.char_class == 'Mage':
+            projectiles.append(Projectile(self.rect.centerx, self.rect.centery, target_x, target_y, 8, 25, 'player', CYAN, 8))
+            self.attack_cooldown = 0.4
+            SOUND_SYS.play('shoot')
+        else: # Warrior 근접 파동
+            projectiles.append(Projectile(self.rect.centerx, self.rect.centery, target_x, target_y, 10, 35, 'player', ORANGE, 12))
+            self.attack_cooldown = 0.35
+            SOUND_SYS.play('slash')
 
-            let minDistance = Infinity;
-            fielders.forEach(f => {
-                const d = f.position.distanceTo(hitTargetPos);
-                if (d < minDistance) {
-                    minDistance = d;
-                    assignedFielder = f;
-                }
-            });
+    def use_skill(self, target_x, target_y, projectiles, particle_mgr):
+        SOUND_SYS.play('skill')
+        if self.char_class == 'Mage': # 360도 마법탄
+            for i in range(12):
+                angle = (math.pi * 2 / 12) * i
+                tx = self.rect.centerx + math.cos(angle) * 100
+                ty = self.rect.centery + math.sin(angle) * 100
+                projectiles.append(Projectile(self.rect.centerx, self.rect.centery, tx, ty, 7, 20, 'player', PURPLE, 7))
+            self.skill_cooldown = 4.0
 
-            isDiving = (minDistance > 18 && minDistance < 30 && result !== "HOMERUN");
-            isHitInFlight = true;
-        }
+        elif self.char_class == 'Ranger': # 산탄 사격
+            base_angle = math.atan2(target_y - self.rect.centery, target_x - self.rect.centerx)
+            for offset in [-0.2, -0.1, 0, 0.1, 0.2]:
+                ang = base_angle + offset
+                tx = self.rect.centerx + math.cos(ang) * 100
+                ty = self.rect.centery + math.sin(ang) * 100
+                projectiles.append(Projectile(self.rect.centerx, self.rect.centery, tx, ty, 14, 15, 'player', YELLOW, 4))
+            self.skill_cooldown = 3.0
 
-        function finishHitEvent() {
-            let catchDistance = Infinity;
-            if (assignedFielder) {
-                catchDistance = assignedFielder.position.distanceTo(hitTargetPos);
-            }
+        else: # Warrior 충격파
+            particle_mgr.create_burst(self.rect.centerx, self.rect.centery, RED, count=30, speed=8)
+            for i in range(8):
+                angle = (math.pi * 2 / 8) * i
+                tx = self.rect.centerx + math.cos(angle) * 100
+                ty = self.rect.centery + math.sin(angle) * 100
+                projectiles.append(Projectile(self.rect.centerx, self.rect.centery, tx, ty, 6, 40, 'player', RED, 14))
+            self.skill_cooldown = 5.0
 
-            if (currentResultType === "HOMERUN") {
-                showFeedback("🚨 대형 홈런 (HOME RUN)!!", "#f85149");
-                userScore += 1;
-                document.getElementById('user-score').innerText = userScore;
-                resetCount();
-                setTimeout(nextBatter, 2500);
-            } else if (currentResultType === "FOUL") {
-                showFeedback("FOUL (파울)", "#8b949e");
-                if (strikes < 2) strikes++;
-                updateBSOHUD();
-                setTimeout(startPitchSequence, 1500);
-            } else {
-                if (catchDistance <= 3.0) {
-                    showFeedback(currentResultType === "GROUND" ? "OUT (땅볼 포구 아웃)" : "OUT (야수 포구 아웃)", "#d29922");
-                    outs++;
-                    resetCount();
-                    updateBSOHUD();
-                    setTimeout(nextBatter, 2500);
-                } else {
-                    showFeedback("⚾ 안타 성공 (HIT)!", "#58a6ff");
-                    resetCount();
-                    setTimeout(nextBatter, 2500);
-                }
-            }
-        }
+    def update(self, dt, dungeon):
+        # 쿨타임 감소
+        if self.attack_cooldown > 0: self.attack_cooldown -= dt
+        if self.skill_cooldown > 0: self.skill_cooldown -= dt
+        if self.dash_cooldown > 0: self.dash_cooldown -= dt
 
-        function handleTake() {
-            if (Math.abs(ball.position.x) < 0.3 && ball.position.y > 0.8 && ball.position.y < 1.6) {
-                showFeedback("STRIKE!", "#f85149");
-                addStrike();
-            } else {
-                showFeedback("BALL", "#58a6ff");
-                balls++;
-                if (balls >= 4) {
-                    showFeedback("볼넷 출루!", "#2f81f7");
-                    resetCount();
-                    nextBatter();
-                }
-            }
-            updateBSOHUD();
-        }
+        # 대시 처리
+        if self.is_dashing:
+            self.dash_timer -= dt
+            self.speed_multiplier = 3.0
+            if self.dash_timer <= 0:
+                self.is_dashing = False
+        else:
+            self.speed_multiplier = 1.0
 
-        function addStrike() {
-            strikes++;
-            if (strikes >= 3) {
-                showFeedback("삼진 아웃!", "#f85149");
-                outs++;
-                resetCount();
-                setTimeout(nextBatter, 1500);
-            } else {
-                setTimeout(startPitchSequence, 1500);
-            }
-            updateBSOHUD();
-        }
+        # 이동 실행
+        curr_speed = self.speed * self.speed_multiplier
+        self.rect.x += self.vel_x * curr_speed * dt * 60
+        self.check_collision_x(dungeon)
+        self.rect.y += self.vel_y * curr_speed * dt * 60
+        self.check_collision_y(dungeon)
 
-        function resetCount() {
-            balls = 0;
-            strikes = 0;
-            updateBSOHUD();
-        }
+    def add_exp(self, amount):
+        self.exp += amount
+        if self.exp >= self.max_exp:
+            self.level += 1
+            self.exp -= self.max_exp
+            self.max_exp = int(self.max_exp * 1.4)
+            self.max_hp += 15
+            self.hp = self.max_hp
+            SOUND_SYS.play('item')
 
-        function nextBatter() {
-            if (outs >= 3) {
-                showFeedback("3아웃 공수교대", "#d29922");
-                outs = 0;
-                resetCount();
-            }
-            batterIdx = (batterIdx + 1) % currentTeam.roster.length;
-            updateBatterHUD();
-            setTimeout(startPitchSequence, 1000);
-        }
+    def draw(self, surface, camera):
+        pos = camera.apply_rect(self.rect)
+        pygame.draw.rect(surface, self.color, pos, border_radius=6)
+        pygame.draw.rect(surface, WHITE, pos, width=2, border_radius=6)
+        
+        # 방향 표시 선
+        mouse_pos = pygame.mouse.get_pos()
+        angle = math.atan2(mouse_pos[1] - pos.centery, mouse_pos[0] - pos.centerx)
+        end_x = pos.centerx + math.cos(angle) * 20
+        end_y = pos.centery + math.sin(angle) * 20
+        pygame.draw.line(surface, WHITE, pos.center, (end_x, end_y), 3)
 
-        function updateBatterHUD() {
-            const b = currentTeam.roster[batterIdx];
-            document.getElementById('batter-order-txt').innerText = `${batterIdx + 1}번 타자`;
-            document.getElementById('batter-name-txt').innerText = b.n;
-            document.getElementById('batter-stat-txt').innerText = `컨택 ${b.c} | 파워 ${b.p}`;
-        }
+class Enemy(Entity):
+    def __init__(self, x, y, enemy_type):
+        self.enemy_type = enemy_type
+        if enemy_type == 'slime':
+            super().__init__(x, y, size=28, hp=40, speed=2.0, color=GREEN)
+            self.exp_value = 15
+            self.damage = 10
+        elif enemy_type == 'goblin':
+            super().__init__(x, y, size=32, hp=70, speed=3.0, color=ORANGE)
+            self.exp_value = 25
+            self.damage = 15
+            self.shoot_cooldown = 0
+        elif enemy_type == 'boss':
+            super().__init__(x, y, size=64, hp=400, speed=1.5, color=PURPLE)
+            self.exp_value = 150
+            self.damage = 25
+            self.shoot_cooldown = 0
 
-        function updateBSOHUD() {
-            const renderDots = (containerId, count, cssClass) => {
-                const dots = document.getElementById(containerId).children;
-                for (let i = 0; i < dots.length; i++) {
-                    dots[i].className = 'dot' + (i < count ? ' ' + cssClass : '');
-                }
-            };
-            renderDots('b-dots', balls, 'b');
-            renderDots('s-dots', strikes, 's');
-            renderDots('o-dots', outs, 'o');
-        }
+    def update(self, dt, player, dungeon, projectiles):
+        if not self.is_alive:
+            return
 
-        function showFeedback(txt, color) {
-            const el = document.getElementById('timing-feedback');
-            el.innerText = txt;
-            el.style.color = color;
-            el.style.opacity = '1';
-            setTimeout(() => { el.style.opacity = '0'; }, 1000);
-        }
+        # 플레이어 추적 AI
+        dx = player.rect.centerx - self.rect.centerx
+        dy = player.rect.centery - self.rect.centery
+        dist = math.hypot(dx, dy)
 
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') swing();
-        });
-    </script>
-</body>
-</html>
-"""
+        if dist > 0:
+            self.vel_x = dx / dist
+            self.vel_y = dy / dist
+        else:
+            self.vel_x, self.vel_y = 0, 0
 
-components.html(html_code, height=800, scrolling=False)
+        # 고블린 및 보스의 원거리 공격 AI
+        if self.enemy_type in ['goblin', 'boss']:
+            self.shoot_cooldown -= dt
+            if dist < 400 and self.shoot_cooldown <= 0:
+                self.shoot_cooldown = 2.0 if self.enemy_type == 'goblin' else 1.0
+                projectiles.append(Projectile(self.rect.centerx, self.rect.centery, 
+                                             player.rect.centerx, player.rect.centery, 
+                                             6, self.damage, 'enemy', RED, 6))
+
+        # 근접 이동 실행
+        if self.enemy_type == 'slime' or dist > 100:
+            self.move_and_collide(dungeon, dt)
+
+    def draw(self, surface, camera):
+        pos = camera.apply_rect(self.rect)
+        pygame.draw.rect(surface, self.color, pos, border_radius=4)
+        
+        # 체력바 표시
+        if self.hp < self.max_hp:
+            bar_w = self.rect.width
+            bar_h = 4
+            hp_ratio = self.hp / self.max_hp
+            pygame.draw.rect(surface, RED, (pos.x, pos.y - 8, bar_w, bar_h))
+            pygame.draw.rect(surface, GREEN, (pos.x, pos.y - 8, int(bar_w * hp_ratio), bar_h))
+
+# ==========================================
+# 7. UI 매니저 (User Interface)
+# ==========================================
+class UIManager:
+    @staticmethod
+    def draw_hud(surface, player, dungeon_level):
+        # 체력바
+        pygame.draw.rect(surface, DARK_GRAY, (20, 20, 200, 20), border_radius=5)
+        hp_ratio = max(0, player.hp / player.max_hp)
+        pygame.draw.rect(surface, RED, (20, 20, int(200 * hp_ratio), 20), border_radius=5)
+        pygame.draw.rect(surface, WHITE, (20, 20, 200, 20), width=2, border_radius=5)
+        
+        hp_text = FONT_SMALL.render(f"HP: {int(player.hp)} / {player.max_hp}", True, WHITE)
+        surface.blit(hp_text, (25, 21))
+
+        # 경험치바
+        pygame.draw.rect(surface, DARK_GRAY, (20, 48, 200, 12), border_radius=3)
+        exp_ratio = min(1.0, player.exp / player.max_exp)
+        pygame.draw.rect(surface, CYAN, (20, 48, int(200 * exp_ratio), 12), border_radius=3)
+
+        # 레벨 및 던전 층수
+        info_text = FONT_MEDIUM.render(f"Lv.{player.level} {player.char_class}  |  층수: B{dungeon_level}F", True, YELLOW)
+        surface.blit(info_text, (20, 68))
+
+        # 스킬 쿨타임 UI
+        UIManager.draw_cooldown_icon(surface, SCREEN_WIDTH - 120, SCREEN_HEIGHT - 60, "Dash [Space]", player.dash_cooldown, 1.0)
+        UIManager.draw_cooldown_icon(surface, SCREEN_WIDTH - 60, SCREEN_HEIGHT - 60, "Skill [R-Click]", player.skill_cooldown, 4.0)
+
+    @staticmethod
+    def draw_cooldown_icon(surface, x, y, label, cd, max_cd):
+        rect = pygame.Rect(x, y, 48, 48)
+        pygame.draw.rect(surface, DARK_GRAY, rect, border_radius=8)
+        pygame.draw.rect(surface, WHITE, rect, width=2, border_radius=8)
+        
+        if cd > 0:
+            ratio = cd / max_cd
+            cd_h = int(48 * ratio)
+            overlay = pygame.Surface((48, cd_h), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))
+            surface.blit(overlay, (x, y + (48 - cd_h)))
+            
+            cd_text = FONT_SMALL.render(f"{cd:.1f}", True, WHITE)
+            surface.blit(cd_text, (x + 10, y + 14))
+
+# ==========================================
+# 8. 메인 게임 루프 및 씬 매니저
+# ==========================================
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("스트리밋 기가 수행평가 던전 크롤러")
+        self.clock = pygame.time.Clock()
+        self.state = 'MENU' # MENU, CLASS_SELECT, PLAYING, GAME_OVER
+        self.dungeon_level = 1
+        
+        self.particle_mgr = ParticleManager()
+        self.projectiles = []
+        self.enemies = []
+        self.items = []
+        self.selected_class = 'Warrior'
+
+    def start_new_game(self):
+        self.dungeon = DungeonGenerator(50, 50, 64)
+        start_room = self.dungeon.rooms[0]
+        self.player = Player(start_room.centerx * 64, start_room.centery * 64, self.selected_class)
+        self.camera = Camera(SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.spawn_enemies_and_items()
+        self.state = 'PLAYING'
+
+    def next_floor(self):
+        self.dungeon_level += 1
+        self.dungeon = DungeonGenerator(50 + self.dungeon_level * 2, 50 + self.dungeon_level * 2, 64)
+        start_room = self.dungeon.rooms[0]
+        self.player.rect.center = (start_room.centerx * 64, start_room.centery * 64)
+        self.projectiles.clear()
+        self.enemies.clear()
+        self.items.clear()
+        self.spawn_enemies_and_items()
+
+    def spawn_enemies_and_items(self):
+        for room in self.dungeon.rooms[1:]: # 첫번째 방(출발지)은 제외
+            # 적 스폰
+            enemy_count = random.randint(2, 4 + self.dungeon_level)
+            for _ in range(enemy_count):
+                ex = random.randint(room.left + 1, room.right - 2) * 64
+                ey = random.randint(room.top + 1, room.bottom - 2) * 64
+                etype = random.choice(['slime', 'goblin'])
+                self.enemies.append(Enemy(ex, ey, etype))
+
+            # 아이템 스폰
+            if random.random() < 0.6:
+                ix = room.centerx * 64
+                iy = room.centery * 64
+                itype = 'health' if random.random() < 0.5 else 'stat'
+                self.items.append(Item(ix, iy, itype))
+
+        # 마지막 방 보스 스폰
+        boss_room = self.dungeon.rooms[-1]
+        self.enemies.append(Enemy(boss_room.centerx * 64, boss_room.centery * 64, 'boss'))
+
+    def run(self):
+        while True:
+            dt = self.clock.tick(FPS) / 1000.0 # 초 단위 Delta Time
+
+            events = pygame.event.get()
+            for event in events:
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+            if self.state == 'MENU':
+                self.update_menu(events)
+                self.draw_menu()
+            elif self.state == 'CLASS_SELECT':
+                self.update_class_select(events)
+                self.draw_class_select()
+            elif self.state == 'PLAYING':
+                self.update_playing(dt)
+                self.draw_playing()
+            elif self.state == 'GAME_OVER':
+                self.update_game_over(events)
+                self.draw_game_over()
+
+            pygame.display.flip()
+
+    # --- 씬별 업데이트 & 드로우 ---
+    def update_menu(self, events):
+        for event in events:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+                self.state = 'CLASS_SELECT'
+
+    def draw_menu(self):
+        self.screen.fill(BLACK)
+        title = FONT_LARGE.render("기가 수행평가 RPG: 픽셀 던전", True, YELLOW)
+        sub = FONT_MEDIUM.render("[Enter] 키를 눌러 직업 선택으로 이동", True, WHITE)
+        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 250))
+        self.screen.blit(sub, (SCREEN_WIDTH // 2 - sub.get_width() // 2, 400))
+
+    def update_class_select(self, events):
+        for event in events:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    self.selected_class = 'Warrior'
+                    self.start_new_game()
+                elif event.key == pygame.K_2:
+                    self.selected_class = 'Mage'
+                    self.start_new_game()
+                elif event.key == pygame.K_3:
+                    self.selected_class = 'Ranger'
+                    self.start_new_game()
+
+    def draw_class_select(self):
+        self.screen.fill(BLACK)
+        title = FONT_LARGE.render("직업을 선택하세요", True, WHITE)
+        c1 = FONT_MEDIUM.render("1. 전사 (Warrior) - 체력 높음 / 강력한 근접 공격", True, RED)
+        c2 = FONT_MEDIUM.render("2. 마법사 (Mage) - 범위 스킬 / 높은 데미지", True, PURPLE)
+        c3 = FONT_MEDIUM.render("3. 궁수 (Ranger) - 빠른 이동 / 기원거리 공격", True, GREEN)
+        
+        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 150))
+        self.screen.blit(c1, (SCREEN_WIDTH // 2 - c1.get_width() // 2, 280))
+        self.screen.blit(c2, (SCREEN_WIDTH // 2 - c2.get_width() // 2, 350))
+        self.screen.blit(c3, (SCREEN_WIDTH // 2 - c3.get_width() // 2, 420))
+
+    def update_playing(self, dt):
+        keys = pygame.key.get_pressed()
+        mouse_pos = pygame.mouse.get_pos()
+
+        # 플레이어 업데이트
+        self.player.handle_input(keys, mouse_pos, self.camera, self.projectiles, self.particle_mgr)
+        self.player.update(dt, self.dungeon)
+
+        if not self.player.is_alive:
+            self.state = 'GAME_OVER'
+
+        # 카메라 추적
+        self.camera.update(self.player, dt)
+
+        # 파티클 업데이트
+        self.particle_mgr.update(dt)
+
+        # 아이템 획득 체크
+        for item in self.items[:]:
+            item.update(dt)
+            if self.player.rect.colliderect(item.rect):
+                if item.item_type == 'health':
+                    self.player.hp = min(self.player.max_hp, self.player.hp + 30)
+                elif item.item_type == 'stat':
+                    self.player.add_exp(20)
+                SOUND_SYS.play('item')
+                self.items.remove(item)
+
+        # 투사체 업데이트 및 충돌
+        for p in self.projectiles[:]:
+            p.update(dt, self.dungeon)
+            if not p.is_alive:
+                self.projectiles.remove(p)
+                continue
+
+            # 플레이어 투사체 -> 적 타격
+            if p.owner_tag == 'player':
+                for e in self.enemies:
+                    if e.rect.colliderect(p.rect):
+                        e.take_damage(p.damage)
+                        self.particle_mgr.create_burst(p.x, p.y, RED, 6)
+                        p.is_alive = False
+                        self.camera.shake(3, 0.1)
+                        if not e.is_alive:
+                            self.player.add_exp(e.exp_value)
+                        break
+            # 적 투사체 -> 플레이어 타격
+            elif p.owner_tag == 'enemy':
+                if self.player.rect.colliderect(p.rect):
+                    self.player.take_damage(p.damage)
+                    self.particle_mgr.create_burst(p.x, p.y, WHITE, 8)
+                    p.is_alive = False
+                    self.camera.shake(6, 0.15)
+
+        # 적 AI 및 충돌
+        for e in self.enemies[:]:
+            e.update(dt, self.player, self.dungeon, self.projectiles)
+            if not e.is_alive:
+                self.enemies.remove(e)
+                continue
+
+            # 적 플레이어 접촉 데미지
+            if e.rect.colliderect(self.player.rect) and not self.player.is_dashing:
+                self.player.take_damage(e.damage * dt)
+
+        # 모든 적 처치 시 다음 층 이동
+        if len(self.enemies) == 0:
+            self.next_floor()
+
+    def draw_playing(self):
+        self.screen.fill(BLACK)
+
+        # 던전 맵
+        self.dungeon.draw(self.screen, self.camera)
+
+        # 아이템
+        for item in self.items:
+            item.draw(self.screen, self.camera)
+
+        # 적
+        for e in self.enemies:
+            e.draw(self.screen, self.camera)
+
+        # 플레이어
+        self.player.draw(self.screen, self.camera)
+
+        # 투사체
+        for p in self.projectiles:
+            p.draw(self.screen, self.camera)
+
+        # 파티클
+        self.particle_mgr.draw(self.screen, self.camera)
+
+        # UI / HUD
+        UIManager.draw_hud(self.screen, self.player, self.dungeon_level)
+
+    def update_game_over(self, events):
+        for event in events:
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+                self.dungeon_level = 1
+                self.state = 'CLASS_SELECT'
+
+    def draw_game_over(self):
+        self.screen.fill(BLACK)
+        title = FONT_LARGE.render("GAME OVER", True, RED)
+        sub = FONT_MEDIUM.render(f"최종 돌파 층수: B{self.dungeon_level}F | [R] 키를 눌러 재도전", True, WHITE)
+        self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 250))
+        self.screen.blit(sub, (SCREEN_WIDTH // 2 - sub.get_width() // 2, 380))
+
+# ==========================================
+# 실행부
+# ==========================================
+if __name__ == "__main__":
+    game = Game()
+    game.run()
