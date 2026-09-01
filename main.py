@@ -1,17 +1,11 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# [중요] st.set_page_config는 다른 모든 Streamlit 명령어보다 '가장 먼저' 호출되어야 합니다.
-st.set_page_config(
-    page_title="기가 수행평가 - 스트리밋 던전 크롤러",
-    page_layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
+# 제목 출력
 st.title("⚔️ 기가 수행평가: 웹 파이썬 2D 던전 크롤러")
 st.caption("Streamlit 클라우드 환경 완벽 지원 | 방향키/WASD: 이동 | 마우스: 공격/스킬")
 
-# HTML5/JS 기반 게임 임베딩
+# HTML5/JS 기반 게임 임베딩 코드
 game_html = """
 <!DOCTYPE html>
 <html>
