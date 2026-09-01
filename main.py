@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 최종 밸런스 & 보스 개편 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 자폭 피격 및 스킬 밸런스 패치")
 
 st.markdown("""
     <style>
@@ -165,32 +165,29 @@ game_html = """
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 좌클릭: 주력 응축 탄환<br>
-                    • E: 술식 반전 「아카」<br>
-                    • R: 술식 순전 「아오」<br>
+                    • E: 술식 반전 「아카」(데미지 500)<br>
+                    • R: 술식 순전 「아오」(범위 400)<br>
                     • T: 허식 「무라사키」<br>
-                    • <strong>★아오+아카 자폭시 아오 소멸!</strong><br>
-                    • <strong>★영역 3연속 사용 시 20초 쿨타임</strong>
+                    • <strong>★자폭 무라사키 사용시 본인도 HP 50% 피해!</strong><br>
+                    • <strong>★스킬 쿨타임 증가 패치 적용됨</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • 좌클릭: 근거리 참격<br>
                     • E: 광범위 참격 「해(解)」<br>
                     • R: 난사 절단 「팔(捌)」<br>
                     • T: 화염 신화 「푸가(🔥)」<br>
-                    • <strong>X: 영역전개 「복마어주자」</strong>
+                    • X: 영역전개 「복마어주자」
                 </p>
             </div>
             <div class="card" onclick="selectChar('Megumi')">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • 좌클릭: 그림자 탄환<br>
                     • E: 십종영법술 「누에」<br>
                     • R: 십종영법술 「옥견」<br>
                     • T: 그림자 속박<br>
-                    • <strong>X: 마허라 소환</strong>
+                    • X: 마허라 소환
                 </p>
             </div>
         </div>
@@ -228,8 +225,6 @@ let dialogueTimeout = null;
 let lastHitTime = Date.now();
 let bossRespawnTimer = null;
 let respawnCountdown = 0;
-
-// 고죠 영역 연속 사용 제약 변수
 let gojoDomainCount = 0;
 
 let player = {
@@ -240,10 +235,12 @@ let player = {
 };
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
+
+// 스킬 쿨타임 증가 (밸런스 조정)
 let maxCooldowns = {
-    Gojo: { E: 3, R: 5, T: 8, X: 0 },
-    Sukuna: { E: 2, R: 4, T: 6, X: 0 },
-    Megumi: { E: 3, R: 5, T: 6, X: 0 }
+    Gojo: { E: 5, R: 10, T: 16, X: 0 },
+    Sukuna: { E: 4, R: 9, T: 14, X: 0 },
+    Megumi: { E: 5, R: 10, T: 15, X: 0 }
 };
 
 let dialogues = {
@@ -266,7 +263,6 @@ let laserBeams = [];
 let meleeAttacks = [];
 let enemies = [];
 
-// 레벨별 색상 및 가시 모양 생성을 위한 색상 배열
 const BOSS_COLORS = [
     { bg: '#e74c3c', aura: '#ff7675', spikes: 4 },
     { bg: '#8e44ad', aura: '#a855f7', spikes: 6 },
@@ -284,19 +280,13 @@ function getBossData(lvl) {
     let scaledHp = Math.floor(baseHp * Math.pow(lvl, 1.65));
     let nameIdx = (lvl - 1) % BOSS_NAMES.length;
     let colorStyle = BOSS_COLORS[(lvl - 1) % BOSS_COLORS.length];
-    
     let title = lvl > 80 ? "신화급 주령" : (lvl > 50 ? "재앙급 주령" : (lvl > 20 ? "상급 특급주령" : "특급주령"));
 
     return {
-        level: lvl,
-        name: `${title} - ${BOSS_NAMES[nameIdx]} [${lvl}/100]`,
-        hp: scaledHp,
-        radius: Math.min(125, 50 + Math.floor(lvl * 0.7)),
-        speed: Math.min(4.5, 2.0 + (lvl * 0.025)),
-        dmg: 25 + Math.floor(lvl * 2.8),
-        color: colorStyle.bg,
-        aura: colorStyle.aura,
-        spikes: colorStyle.spikes
+        level: lvl, name: `${title} - ${BOSS_NAMES[nameIdx]} [${lvl}/100]`,
+        hp: scaledHp, radius: Math.min(125, 50 + Math.floor(lvl * 0.7)),
+        speed: Math.min(4.5, 2.0 + (lvl * 0.025)), dmg: 25 + Math.floor(lvl * 2.8),
+        color: colorStyle.bg, aura: colorStyle.aura, spikes: colorStyle.spikes
     };
 }
 
@@ -317,9 +307,7 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-function addUlt(amount) {
-    player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + amount);
-}
+function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + amount); }
 
 function takeDamage(damage) {
     player.hp -= damage;
@@ -356,7 +344,6 @@ function selectChar(type) {
     document.getElementById('sk-t').innerText = skNames[type][2];
 
     for(let i=0; i<18; i++) spawnCurse();
-
     spawnBoss();
     gameLoop();
 }
@@ -395,7 +382,7 @@ function castSkill(key) {
         gojoDomainCount++;
         if(gojoDomainCount >= 3) {
             showDialogue('더 이상 쓸 수가 없어...');
-            cooldowns.X = 20; // 20초 과열 쿨타임
+            cooldowns.X = 20;
             player.ultEnergy = 0;
             gojoDomainCount = 0;
             triggerVibration(40);
@@ -414,7 +401,7 @@ function castSkill(key) {
             projectiles.push({
                 x: player.x, y: player.y, targetX: targetX, targetY: targetY,
                 vx: Math.cos(ang)*22, vy: Math.sin(ang)*22,
-                type: 'aka', damage: 350, radius: 18
+                type: 'aka', damage: 500, radius: 18 // 데미지 500으로 상향 (아오 데미지의 2배)
             });
         } else if(player.charType === 'Sukuna') {
             triggerVibration(15);
@@ -431,7 +418,8 @@ function castSkill(key) {
         
         if(player.charType === 'Gojo') {
             triggerVibration(16);
-            blackHoles.push({x: targetX, y: targetY, radius: 240, life: 150, damage: 250});
+            // 아오(R) 범위 400으로 대폭 넓힘
+            blackHoles.push({x: targetX, y: targetY, radius: 400, life: 150, damage: 250});
         } else if(player.charType === 'Sukuna') {
             triggerVibration(20);
             for(let i=0; i<12; i++) {
@@ -471,12 +459,14 @@ function castSkill(key) {
     }
 }
 
-// 자폭 무라사키 사용 시 아오(R) 구체를 소멸시키는 로직 추가
+// 자폭 무라사키 시 자신도 체력 감소 적용
 function triggerPurpleExplosion(x, y, boIndex) {
-    showDialogue('허식 「무라사키」 (합체 소멸)');
-    triggerVibration(70);
+    showDialogue('허식 「무라사키」 (자폭 피격!)');
+    triggerVibration(80);
 
-    // 자폭에 반응한 아오(R) 구체 즉시 필드에서 제거
+    // 나 자신에게도 체력 50%의 자폭 데미지 입힘
+    takeDamage(player.maxHp * 0.5);
+
     if(boIndex !== undefined && boIndex !== null && boIndex >= 0 && boIndex < blueOrbs.length) {
         blueOrbs.splice(boIndex, 1);
     }
@@ -500,14 +490,12 @@ function triggerPurpleExplosion(x, y, boIndex) {
     enemies.forEach(e => { e.hp -= 15000; });
 }
 
-// 근거리/원거리 잡몹 소환
 function spawnCurse() {
     let x = Math.random() * WORLD_WIDTH;
     let y = Math.random() * WORLD_HEIGHT;
     if(Math.hypot(x - player.x, y - player.y) < 400) return;
 
-    let isRanged = Math.random() < 0.4; // 40% 확률로 원거리 주령
-
+    let isRanged = Math.random() < 0.4;
     enemies.push({
         x: x, y: y, radius: isRanged ? 18 : 22,
         hp: isRanged ? 120 : 180, maxHp: isRanged ? 120 : 180,
@@ -547,10 +535,8 @@ function spawnBoss() {
     by = Math.max(150, Math.min(WORLD_HEIGHT - 150, by));
 
     let boss = {
-        x: bx, y: by,
-        level: cfg.level, name: cfg.name,
-        hp: cfg.hp, maxHp: cfg.hp,
-        radius: cfg.radius, speed: cfg.speed, dmg: cfg.dmg,
+        x: bx, y: by, level: cfg.level, name: cfg.name,
+        hp: cfg.hp, maxHp: cfg.hp, radius: cfg.radius, speed: cfg.speed, dmg: cfg.dmg,
         color: cfg.color, aura: cfg.aura, spikes: cfg.spikes,
         isBoss: true, attackCd: 0, skillCd: 0
     };
@@ -611,10 +597,7 @@ function update() {
         activeDomain.timer--;
         triggerVibration(4);
         if(activeDomain.type === 'Gojo') {
-            enemies.forEach(e => {
-                e.speed = 0;
-                e.hp -= 2.5;
-            });
+            enemies.forEach(e => { e.speed = 0; e.hp -= 2.5; });
         } else if(activeDomain.type === 'Sukuna') {
             if(activeDomain.timer % 3 === 0) {
                 slashes.push({
@@ -654,16 +637,16 @@ function update() {
             let d = Math.hypot(bh.x - e.x, bh.y - e.y);
             if(d < bh.radius) {
                 let pullAng = Math.atan2(bh.y - e.y, bh.x - e.x);
-                e.x += Math.cos(pullAng) * 9;
-                e.y += Math.sin(pullAng) * 9;
+                e.x += Math.cos(pullAng) * 11;
+                e.y += Math.sin(pullAng) * 11;
                 e.hp -= 2.0;
                 if(e.hp <= 0 && !blueOrbs.some(bo => Math.hypot(bo.x - bh.x, bo.y - bh.y) < 50)) {
-                    blueOrbs.push({ x: bh.x, y: bh.y, radius: 55, life: 350 });
+                    blueOrbs.push({ x: bh.x, y: bh.y, radius: 65, life: 350 });
                 }
             }
         });
         if(bh.life <= 0) {
-            explosions.push({x: bh.x, y: bh.y, radius: 150, maxRadius: 150, color: '#3742fa', life: 15, damage: bh.damage});
+            explosions.push({x: bh.x, y: bh.y, radius: 180, maxRadius: 180, color: '#3742fa', life: 15, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
     });
@@ -686,7 +669,6 @@ function update() {
         if(lb.life <= 0) laserBeams.splice(lbi, 1);
     });
 
-    // 적 탄환 업데이트
     enemyProjectiles.forEach((ep, epi) => {
         ep.x += ep.vx; ep.y += ep.vy;
         if(Math.hypot(player.x - ep.x, player.y - ep.y) < ep.radius + 15) {
@@ -754,7 +736,6 @@ function update() {
         let ang = Math.atan2(player.y - e.y, player.x - e.x);
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
-        // 이동 알고리즘: 원거리 주령은 거리 유지
         if(e.isRanged && dist < 280) {
             e.x -= Math.cos(ang) * e.speed;
             e.y -= Math.sin(ang) * e.speed;
@@ -766,7 +747,6 @@ function update() {
         e.attackCd = (e.attackCd || 0) + 1;
         e.skillCd = (e.skillCd || 0) + 1;
 
-        // 원거리 잡몹 공격
         if(e.isRanged && e.attackCd >= 80 && dist < 500 && e.speed > 0) {
             e.attackCd = 0;
             enemyProjectiles.push({
@@ -775,11 +755,9 @@ function update() {
             });
         }
 
-        // 보스 특수 스킬 사용
         if(e.isBoss && e.skillCd >= 120 && e.speed > 0) {
             e.skillCd = 0;
             if(e.level % 2 === 1) {
-                // 보스 원거리 탄막 사격
                 for(let i=-2; i<=2; i++) {
                     enemyProjectiles.push({
                         x: e.x, y: e.y, vx: Math.cos(ang + i*0.25)*10, vy: Math.sin(ang + i*0.25)*10,
@@ -787,12 +765,10 @@ function update() {
                     });
                 }
             } else {
-                // 보스 충격파
                 explosions.push({x: e.x, y: e.y, radius: 180, maxRadius: 180, color: 'rgba(231, 76, 60, 0.6)', life: 20, damage: e.dmg});
             }
         }
 
-        // 근접 공격
         if(!e.isRanged && dist < e.radius + 30 && e.speed > 0) {
             if(e.attackCd >= (e.isBoss ? 20 : 40)) {
                 e.attackCd = 0;
@@ -859,21 +835,17 @@ function drawEnemySprite(e) {
     ctx.translate(e.x, e.y);
 
     if(e.isBoss) {
-        // 보스 레벨별 오라 및 동적 그래픽
         ctx.shadowBlur = 25 + Math.floor(e.level / 4); ctx.shadowColor = e.aura;
         ctx.fillStyle = e.color;
         ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
         
-        // 레벨별 가시/뿔 장식 렌더링
         ctx.fillStyle = e.aura;
         for(let i=0; i<e.spikes; i++) {
             let spikeAng = (Math.PI * 2 / e.spikes) * i;
             let sx = Math.cos(spikeAng) * (e.radius + 12);
             let sy = Math.sin(spikeAng) * (e.radius + 12);
-            ctx.beginPath();
-            ctx.arc(sx, sy, 7, 0, Math.PI*2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI*2); ctx.fill();
         }
 
         ctx.shadowBlur = 0;
@@ -883,7 +855,6 @@ function drawEnemySprite(e) {
         ctx.fillText(`[LV.${e.level}]`, 0, -e.radius - 18);
     } else {
         if(e.isRanged) {
-            // 원거리 주령: 다이아몬드/삼각형 외형
             ctx.fillStyle = '#8e44ad';
             ctx.beginPath();
             ctx.moveTo(0, -e.radius);
@@ -894,7 +865,6 @@ function drawEnemySprite(e) {
             ctx.fill();
             ctx.strokeStyle = '#e056fd'; ctx.lineWidth = 2; ctx.stroke();
         } else {
-            // 근거리 주령: 원형 외형
             ctx.fillStyle = '#1e272e';
             ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#57606f'; ctx.lineWidth = 2; ctx.stroke();
