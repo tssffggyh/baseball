@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 완전판 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 보스 무한 침공 패치")
 
 st.markdown("""
     <style>
@@ -59,7 +59,7 @@ game_html = """
     
     #boss-hud {
         position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-        width: 500px; background: rgba(15, 5, 5, 0.9);
+        width: 520px; background: rgba(15, 5, 5, 0.9);
         border: 2px solid #ff4757; border-radius: 10px; padding: 10px 20px;
         text-align: center; display: none; z-index: 15;
     }
@@ -124,7 +124,7 @@ game_html = """
     <canvas id="gameCanvas"></canvas>
     
     <div id="boss-hud">
-        <div id="boss-name" style="color:#ff4757; font-weight:bold; font-size:16px;">특급 주령 - 화곤</div>
+        <div id="boss-name" style="color:#ff4757; font-weight:bold; font-size:16px;">[LV.1] 특급 주령 - 화곤</div>
         <div class="boss-bar-outer"><div id="boss-hp-bar" class="boss-bar-hp"></div></div>
     </div>
 
@@ -179,10 +179,10 @@ game_html = """
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • 좌클릭: 주력 탄환<br>
-                    • E: 술식 반전 「아카」 (적중 폭발)<br>
-                    • R: 술식 순전 「아오」 (끌어당김 & 잔상 생성)<br>
-                    • T: 허식 「무라사키」 (관통 직선 레이저)<br>
-                    • <strong>★특수: 아오 잔상에 아카 적중 시 아오 소멸하며 자폭 무라사키</strong><br>
+                    • E: 술식 반전 「아카」<br>
+                    • R: 술식 순전 「아오」<br>
+                    • T: 허식 「무라사키」<br>
+                    • <strong>★특수: 아오+아카 자폭 무라사키</strong><br>
                     • <strong>★회복: 3초 미피격 시 완만하게 HP 회복</strong>
                 </p>
             </div>
@@ -193,17 +193,17 @@ game_html = """
                     • E: 광범위 참격 「해(解)」<br>
                     • R: 난사 절단 「팔(捌)」<br>
                     • T: 화염 신화 「푸가(🔥)」<br>
-                    • <strong>X: 영역전개 「복마어주자」 (지속 참격)</strong>
+                    • <strong>X: 영역전개 「복마어주자」</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Megumi')">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
                     • 좌클릭: 그림자 탄환<br>
-                    • E: 십종영법술 「누에」 (전격 폭발)<br>
-                    • R: 십종영법술 「옥견」 (추적 공격)<br>
-                    • T: 그림자 속박 (적 감속)<br>
-                    • <strong>X: 팔지검 이계신장 강대마허라 소환</strong>
+                    • E: 십종영법술 「누에」<br>
+                    • R: 십종영법술 「옥견」<br>
+                    • T: 그림자 속박<br>
+                    • <strong>X: 마허라 소환</strong>
                 </p>
             </div>
         </div>
@@ -238,6 +238,7 @@ let mouseWorld = { x: 0, y: 0 };
 let dialogueTimeout = null;
 
 let lastHitTime = Date.now();
+let bossSpawnTimer = null;
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
@@ -260,7 +261,6 @@ let dialogues = {
 };
 
 let activeDomain = null;
-let bossMonster = null;
 let mahoraga = null;
 let keys = {};
 let projectiles = [];
@@ -271,6 +271,16 @@ let blueOrbs = [];
 let purpleEffects = [];   
 let meleeAttacks = [];
 let enemies = [];
+
+// 레벨별 보스 디자인/설정 정의
+const BOSS_CONFIGS = [
+    { level: 1, name: '하급 특급주령 - 화곤', hp: 2000, radius: 45, speed: 1.8, dmg: 25, color: '#e74c3c', aura: '#ff7675' },
+    { level: 2, name: '중급 특급주령 - 다라', hp: 4500, radius: 55, speed: 2.2, dmg: 40, color: '#e67e22', aura: '#f39c12' },
+    { level: 3, name: '상급 특급주령 - 죠고', hp: 9000, radius: 65, speed: 2.6, dmg: 60, color: '#d35400', aura: '#e67e22' },
+    { level: 4, name: '최상급 주령 - 하나미', hp: 16000, radius: 75, speed: 3.0, dmg: 85, color: '#27ae60', aura: '#2ecc71' },
+    { level: 5, name: '재앙의 주령 - 마히토', hp: 28000, radius: 85, speed: 3.4, dmg: 120, color: '#8e44ad', aura: '#9b59b6' },
+    { level: 6, name: '원초의 마왕 - 두면사신', hp: 50000, radius: 100, speed: 3.8, dmg: 160, color: '#c0392b', aura: '#e74c3c' }
+];
 
 window.addEventListener('mousemove', e => {
     mouseWorld.x = e.clientX + camera.x;
@@ -328,6 +338,12 @@ function selectChar(type) {
     document.getElementById('sk-t').innerText = skNames[type][2];
 
     for(let i=0; i<15; i++) spawnCurse();
+
+    // 5초 간격 보스 자동 스폰 타이머 설정
+    bossSpawnTimer = setInterval(() => {
+        if(!isGameOver) spawnBoss();
+    }, 5000);
+
     gameLoop();
 }
 
@@ -426,12 +442,10 @@ function castSkill(key) {
     }
 }
 
-// 자폭 무라사키 발동 + 대상 아오 잔상 즉시 삭제
 function triggerPurpleExplosion(x, y, boIndex) {
     showDialogue('허식 「무라사키」 (자폭)');
     triggerVibration(60);
 
-    // 대상 아오 구체 즉시 소멸
     if(boIndex !== undefined && boIndex !== null && boIndex >= 0 && boIndex < blueOrbs.length) {
         blueOrbs.splice(boIndex, 1);
     }
@@ -469,24 +483,41 @@ function spawnCurse() {
     });
 }
 
+// 레벨별 보스 소환 함수 (5초 간격 자동 실행)
 function spawnBoss() {
-    if(bossMonster) return;
-    bossMonster = {
-        x: player.x + 400, y: player.y, radius: 50,
-        hp: 3200, maxHp: 3200, speed: 1.6, isBoss: true, attackCd: 0
+    let lvlIdx = Math.min(BOSS_CONFIGS.length - 1, Math.floor(killCount / 5));
+    let cfg = BOSS_CONFIGS[lvlIdx];
+
+    let spawnAngle = Math.random() * Math.PI * 2;
+    let spawnDist = 600 + Math.random() * 200;
+    let bx = player.x + Math.cos(spawnAngle) * spawnDist;
+    let by = player.y + Math.sin(spawnAngle) * spawnDist;
+
+    bx = Math.max(100, Math.min(WORLD_WIDTH - 100, bx));
+    by = Math.max(100, Math.min(WORLD_HEIGHT - 100, by));
+
+    let boss = {
+        x: bx, y: by,
+        level: cfg.level, name: cfg.name,
+        hp: cfg.hp, maxHp: cfg.hp,
+        radius: cfg.radius, speed: cfg.speed, dmg: cfg.dmg,
+        color: cfg.color, aura: cfg.aura,
+        isBoss: true, attackCd: 0
     };
-    enemies.push(bossMonster);
-    document.getElementById('boss-hud').style.display = 'block';
+    
+    enemies.push(boss);
+    showDialogue(`⚠️ [LV.${cfg.level}] 보스 출현!`);
+    triggerVibration(15);
 }
 
 function triggerGameOver() {
     isGameOver = true;
+    if(bossSpawnTimer) clearInterval(bossSpawnTimer);
     document.getElementById('ui-layer').style.display = 'none';
     document.getElementById('game-over').style.display = 'flex';
     document.getElementById('final-stats').innerText = `제령한 주령 수: ${killCount}마리`;
 }
 
-// 쿨다운 및 적당한 속도의 비전투 체력 회복 처리 (1초마다 3% 회복)
 setInterval(() => {
     ['E', 'R', 'T', 'X'].forEach(k => {
         if(cooldowns[k] > 0) cooldowns[k] = Math.max(0, cooldowns[k] - 0.1);
@@ -498,7 +529,6 @@ setInterval(() => {
         }
     });
 
-    // 3초 미피격 시 1초마다 최대 체력의 3% 회복 (기존 대비 대폭 하향 조정)
     if(!isGameOver && Date.now() - lastHitTime >= 3000) {
         if(player.hp < player.maxHp) {
             player.hp = Math.min(player.maxHp, player.hp + (player.maxHp * 0.003)); 
@@ -525,7 +555,6 @@ function update() {
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
     if(enemies.filter(e => !e.isBoss).length < 18) spawnCurse();
-    if(killCount >= 10 && !bossMonster) spawnBoss();
 
     if(activeDomain) {
         activeDomain.timer--;
@@ -542,9 +571,20 @@ function update() {
         if(activeDomain.timer <= 0) activeDomain = null;
     }
 
+    let activeBosses = enemies.filter(e => e.isBoss);
+    let bossHud = document.getElementById('boss-hud');
+    if(activeBosses.length > 0) {
+        let topBoss = activeBosses[0];
+        bossHud.style.display = 'block';
+        document.getElementById('boss-name').innerText = `[LV.${topBoss.level}] ${topBoss.name}`;
+        document.getElementById('boss-hp-bar').style.width = Math.max(0, (topBoss.hp / topBoss.maxHp * 100)) + '%';
+    } else {
+        bossHud.style.display = 'none';
+    }
+
     if(mahoraga) {
         mahoraga.life--;
-        let target = bossMonster || enemies[0];
+        let target = activeBosses[0] || enemies[0];
         if(target) {
             let ang = Math.atan2(target.y - mahoraga.y, target.x - mahoraga.x);
             mahoraga.x += Math.cos(ang) * 4.5; mahoraga.y += Math.sin(ang) * 4.5;
@@ -629,7 +669,7 @@ function update() {
 
     enemies.forEach((e, ei) => {
         if(activeDomain && activeDomain.type === 'Gojo') e.speed = 0;
-        else e.speed = e.isBoss ? 1.6 : 2.5;
+        else e.speed = e.isBoss ? e.speed : 2.5;
 
         let ang = Math.atan2(player.y - e.y, player.x - e.x);
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
@@ -642,28 +682,20 @@ function update() {
         if(dist < e.radius + 30 && e.speed > 0) {
             if(e.attackCd >= (e.isBoss ? 25 : 40)) {
                 e.attackCd = 0;
-                let dmg = e.isBoss ? 35 : 12;
+                let dmg = e.isBoss ? e.dmg : 12;
                 takeDamage(dmg);
                 triggerVibration(e.isBoss ? 15 : 6);
 
                 meleeAttacks.push({
                     x: (e.x + player.x) / 2, y: (e.y + player.y) / 2,
-                    ang: ang, radius: e.isBoss ? 45 : 25, life: 10, isBoss: e.isBoss
+                    ang: ang, radius: e.isBoss ? e.radius + 10 : 25, life: 10, isBoss: e.isBoss
                 });
             }
         }
 
-        if(e.isBoss) {
-            document.getElementById('boss-hp-bar').style.width = Math.max(0, (e.hp / e.maxHp * 100)) + '%';
-        }
-
         if(e.hp <= 0) {
-            if(e.isBoss) {
-                bossMonster = null;
-                document.getElementById('boss-hud').style.display = 'none';
-            }
             killCount++;
-            addUlt(3.0);
+            addUlt(e.isBoss ? 15.0 : 3.0);
             enemies.splice(ei, 1);
         }
     });
@@ -695,20 +727,33 @@ function drawPlayerSprite(p) {
     ctx.restore();
 }
 
+// 레벨별 보스 스프라이트 및 머리 위 레벨 텍스트 렌더링
 function drawEnemySprite(e) {
     ctx.save();
     ctx.translate(e.x, e.y);
 
     if(e.isBoss) {
-        ctx.shadowBlur = 20; ctx.shadowColor = '#ff4757';
-        ctx.fillStyle = '#2c0b0e';
+        // 보스 레벨별 오라 및 외형
+        ctx.shadowBlur = 20 + e.level * 5; ctx.shadowColor = e.aura;
+        ctx.fillStyle = e.color;
         ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 4; ctx.stroke();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3 + Math.floor(e.level / 2); ctx.stroke();
         
-        ctx.fillStyle = '#ff4757';
-        ctx.beginPath(); ctx.arc(-15, -10, 8, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(15, -10, 8, 0, Math.PI*2); ctx.fill();
+        // 보스 레벨별 뿔/장식 갯수 증가
+        ctx.fillStyle = '#ffffff';
+        for(let i=0; i<Math.min(e.level, 6); i++) {
+            let eyeAng = (Math.PI * 2 / e.level) * i;
+            ctx.beginPath();
+            ctx.arc(Math.cos(eyeAng) * (e.radius * 0.5), Math.sin(eyeAng) * (e.radius * 0.5), 6, 0, Math.PI*2);
+            ctx.fill();
+        }
         ctx.shadowBlur = 0;
+
+        // 보스 머리 위 레벨 텍스트
+        ctx.fillStyle = '#ff4757';
+        ctx.font = 'bold 16px Consolas';
+        ctx.textAlign = 'center';
+        ctx.fillText(`[LV.${e.level}]`, 0, -e.radius - 12);
     } else {
         ctx.fillStyle = '#1e272e';
         ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
