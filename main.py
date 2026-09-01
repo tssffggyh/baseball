@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 자폭 피격 및 스킬 밸런스 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 아오 회전 및 잔해 패치")
 
 st.markdown("""
     <style>
@@ -59,8 +59,8 @@ game_html = """
     .skill-icon {
         position: relative; width: 55px; height: 55px; background: rgba(255,255,255,0.08);
         border: 1px solid #a855f7; border-radius: 10px;
-        display: flex; flex-direction: column; justify-content: center; align-items: center;
-        font-size: 10px; font-weight: bold; color: #fff; overflow: hidden;
+        display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+        padding: 5px; font-size: 10px; font-weight: bold; color: #fff; overflow: hidden;
     }
     .skill-key { font-size: 13px; color: #e056fd; }
     .cooldown-overlay {
@@ -81,7 +81,8 @@ game_html = """
     #class-select, #game-over {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(3, 3, 6, 0.94); backdrop-filter: blur(15px);
-        display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
+        display: flex; flex-direction: column; justify-content: center; z-index: 100;
+        align-items: center;
     }
     .card-group { display: flex; gap: 30px; margin-top: 40px; }
     .card {
@@ -166,10 +167,9 @@ game_html = """
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • E: 술식 반전 「아카」(데미지 500)<br>
-                    • R: 술식 순전 「아오」(범위 400)<br>
+                    • R: 술식 순전 「아오」(3초 회전 후 파란 잔해 생성)<br>
                     • T: 허식 「무라사키」<br>
-                    • <strong>★자폭 무라사키 사용시 본인도 HP 50% 피해!</strong><br>
-                    • <strong>★스킬 쿨타임 증가 패치 적용됨</strong>
+                    • <strong>★잔해에 아카 맞추면 자폭 무라사키 (최소 HP 1 보장)</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
@@ -236,7 +236,6 @@ let player = {
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
 
-// 스킬 쿨타임 증가 (밸런스 조정)
 let maxCooldowns = {
     Gojo: { E: 5, R: 10, T: 16, X: 0 },
     Sukuna: { E: 4, R: 9, T: 14, X: 0 },
@@ -401,7 +400,7 @@ function castSkill(key) {
             projectiles.push({
                 x: player.x, y: player.y, targetX: targetX, targetY: targetY,
                 vx: Math.cos(ang)*22, vy: Math.sin(ang)*22,
-                type: 'aka', damage: 500, radius: 18 // 데미지 500으로 상향 (아오 데미지의 2배)
+                type: 'aka', damage: 500, radius: 18
             });
         } else if(player.charType === 'Sukuna') {
             triggerVibration(15);
@@ -418,8 +417,16 @@ function castSkill(key) {
         
         if(player.charType === 'Gojo') {
             triggerVibration(16);
-            // 아오(R) 범위 400으로 대폭 넓힘
-            blackHoles.push({x: targetX, y: targetY, radius: 400, life: 150, damage: 250});
+            // 아오: 플레이어 주변을 3초(180프레임)간 회전하는 블랙홀
+            blackHoles.push({
+                orbitAngle: ang,
+                orbitRadius: 180,
+                radius: 250,
+                life: 180, // 3초 (60fps 기준)
+                damage: 180,
+                x: player.x,
+                y: player.y
+            });
         } else if(player.charType === 'Sukuna') {
             triggerVibration(20);
             for(let i=0; i<12; i++) {
@@ -459,13 +466,14 @@ function castSkill(key) {
     }
 }
 
-// 자폭 무라사키 시 자신도 체력 감소 적용
 function triggerPurpleExplosion(x, y, boIndex) {
     showDialogue('허식 「무라사키」 (자폭 피격!)');
     triggerVibration(80);
 
-    // 나 자신에게도 체력 50%의 자폭 데미지 입힘
-    takeDamage(player.maxHp * 0.5);
+    let selfDamage = Math.min(player.hp * 0.5, player.hp - 1);
+    if(selfDamage > 0) {
+        takeDamage(selfDamage);
+    }
 
     if(boIndex !== undefined && boIndex !== null && boIndex >= 0 && boIndex < blueOrbs.length) {
         blueOrbs.splice(boIndex, 1);
@@ -631,21 +639,28 @@ function update() {
         if(mahoraga.life <= 0) mahoraga = null;
     }
 
+    // 아오(회전 블랙홀) 업뎃 로직
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
+        bh.orbitAngle += 0.08; // 플레이어 주변 회전 속도
+
+        // 위치 업데이트: 플레이어 주위를 회전
+        bh.x = player.x + Math.cos(bh.orbitAngle) * bh.orbitRadius;
+        bh.y = player.y + Math.sin(bh.orbitAngle) * bh.orbitRadius;
+
         enemies.forEach(e => {
             let d = Math.hypot(bh.x - e.x, bh.y - e.y);
             if(d < bh.radius) {
                 let pullAng = Math.atan2(bh.y - e.y, bh.x - e.x);
                 e.x += Math.cos(pullAng) * 11;
                 e.y += Math.sin(pullAng) * 11;
-                e.hp -= 2.0;
-                if(e.hp <= 0 && !blueOrbs.some(bo => Math.hypot(bo.x - bh.x, bo.y - bh.y) < 50)) {
-                    blueOrbs.push({ x: bh.x, y: bh.y, radius: 65, life: 350 });
-                }
+                e.hp -= 3.0;
             }
         });
+
+        // 3초 회전 종료 후 그 자리에 파란색 잔해 구체 생성
         if(bh.life <= 0) {
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 65, life: 350 });
             explosions.push({x: bh.x, y: bh.y, radius: 180, maxRadius: 180, color: '#3742fa', life: 15, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
@@ -905,9 +920,9 @@ function draw() {
     for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
     blackHoles.forEach(bh => {
-        ctx.shadowBlur = 25; ctx.shadowColor = '#3742fa';
-        ctx.fillStyle = 'rgba(10, 10, 50, 0.8)';
-        ctx.beginPath(); ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 30; ctx.shadowColor = '#3742fa';
+        ctx.fillStyle = 'rgba(10, 10, 50, 0.85)';
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, 45, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 4; ctx.stroke();
         ctx.shadowBlur = 0;
     });
