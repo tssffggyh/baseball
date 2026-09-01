@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 무량처처")
+st.set_page_config(layout="wide", page_title="주술회전: 대형 필드 & 특수 주령")
 
 st.markdown("""
     <style>
@@ -30,55 +30,69 @@ game_html = """
     #game-container {
         position: relative;
         width: 100vw; height: 100vh;
-        overflow: hidden;
-        background: #000;
+        overflow: hidden; background: #000;
     }
     canvas { display: block; }
     
     #ui-layer {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        pointer-events: none; padding: 25px;
+        pointer-events: none; padding: 20px 30px;
         display: flex; flex-direction: column; justify-content: space-between;
         z-index: 10;
     }
     
     .hud-card {
-        background: rgba(10, 10, 18, 0.75);
+        background: rgba(10, 10, 18, 0.85);
         backdrop-filter: blur(10px);
-        padding: 15px 20px; border-radius: 12px;
-        border: 1px solid rgba(155, 89, 182, 0.4);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        padding: 15px 25px; border-radius: 12px;
+        border: 1px solid rgba(168, 85, 247, 0.4);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
     }
     
     .bar-outer {
-        width: 260px; height: 10px; background: rgba(255,255,255,0.1);
-        border-radius: 5px; overflow: hidden; margin: 5px 0 10px 0;
+        width: 280px; height: 12px; background: rgba(255,255,255,0.1);
+        border-radius: 6px; overflow: hidden; margin: 4px 0 10px 0;
     }
     .bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ff6b81); transition: width 0.1s; }
-    .bar-exp { width: 0%; height: 100%; background: linear-gradient(90deg, #70a1ff, #1e90ff); transition: width 0.1s; }
+    .bar-ult { width: 0%; height: 100%; background: linear-gradient(90deg, #a855f7, #e056fd); transition: width 0.1s; }
     
-    #class-select {
+    .skill-container { display: flex; gap: 10px; margin-top: 8px; }
+    .skill-icon {
+        width: 50px; height: 50px; background: rgba(255,255,255,0.08);
+        border: 1px solid #a855f7; border-radius: 8px;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        font-size: 11px; font-weight: bold; color: #fff;
+    }
+    .skill-key { font-size: 13px; color: #e056fd; }
+
+    #class-select, #game-over {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(3, 3, 6, 0.92); backdrop-filter: blur(15px);
+        background: rgba(3, 3, 6, 0.94); backdrop-filter: blur(15px);
         display: flex; flex-direction: column; justify-content: center; align-items: center;
         z-index: 100;
     }
-    .card-group { display: flex; gap: 40px; margin-top: 40px; }
+    .card-group { display: flex; gap: 30px; margin-top: 40px; }
     .card {
-        background: rgba(20, 20, 35, 0.6);
+        background: rgba(20, 20, 35, 0.7);
         border: 2px solid rgba(168, 85, 247, 0.3);
-        border-radius: 20px; padding: 35px 25px; width: 320px;
-        text-align: center; cursor: pointer; transition: all 0.4s ease;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        border-radius: 20px; padding: 30px 20px; width: 290px;
+        text-align: center; cursor: pointer; transition: all 0.3s ease;
     }
     .card:hover {
-        transform: translateY(-12px) scale(1.03);
+        transform: translateY(-10px);
         border-color: #a855f7;
-        box-shadow: 0 20px 40px rgba(168, 85, 247, 0.4);
-        background: rgba(30, 30, 50, 0.8);
+        box-shadow: 0 15px 35px rgba(168, 85, 247, 0.4);
+        background: rgba(30, 30, 50, 0.9);
     }
-    .card h2 { color: #f3e8ff; margin-bottom: 12px; font-size: 26px; }
-    .card p { font-size: 13px; color: #a1a1aa; line-height: 1.6; }
+    .card h2 { margin-bottom: 12px; font-size: 24px; }
+    .card p { font-size: 12px; color: #a1a1aa; line-height: 1.6; text-align: left; }
+    
+    .restart-btn {
+        margin-top: 30px; padding: 15px 40px; font-size: 20px; font-weight: bold;
+        color: #fff; background: linear-gradient(90deg, #ff4757, #a855f7);
+        border: none; border-radius: 10px; cursor: pointer; transition: 0.2s;
+    }
+    .restart-btn:hover { transform: scale(1.05); }
 </style>
 </head>
 <body>
@@ -89,33 +103,68 @@ game_html = """
     <div id="ui-layer">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
-                <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px; margin-bottom:4px;">주술사</div>
-                <div style="font-size:10px; color:#aaa;">주력 체력 (HP)</div>
+                <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">주력 체력 (HP)</div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
-                <div style="font-size:10px; color:#aaa;">주력 동기화율 (EXP)</div>
-                <div class="bar-outer"><div id="exp-bar" class="bar-exp"></div></div>
+                <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
+                <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
+                
+                <div class="skill-container">
+                    <div class="skill-icon"><span class="skill-key">E</span><span id="sk-e">스킬1</span></div>
+                    <div class="skill-icon"><span class="skill-key">R</span><span id="sk-r">스킬2</span></div>
+                    <div class="skill-icon"><span class="skill-key">T</span><span id="sk-t">스킬3</span></div>
+                    <div class="skill-icon" style="border-color:#ff4757;"><span class="skill-key" style="color:#ff4757;">X</span><span>궁극기</span></div>
+                </div>
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div id="domain-status" style="font-size:18px; font-weight:bold; color:#70a1ff;">영역 전개: 게이지 충전 중</div>
-                <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:4px;">제령한 특급 주령: 0</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 WASD 이동 | E,R,T 스킬 | X 궁극기</div>
+                <div id="kill-status" style="font-size:14px; color:#aaa; margin-top:6px;">제령한 주령: 0마리</div>
             </div>
         </div>
     </div>
 
     <div id="class-select">
-        <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 25px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px; font-size:16px;">주술사를 선택하여 대형 영역 내의 주령들을 퇴치하십시오.</p>
+        <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하세요. (4000x3000 초대형 울트라 맵)</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
-                <p><strong>[특급 주술사]</strong><br><br>• 무하한 바리어로 피해 무효화<br>• 술식 반전 「아카」 자동 난사<br>• 궁극기: 영역 전개 <strong>「무량처처」</strong></p>
+                <p>
+                    <strong>[스킬 구성]</strong><br>
+                    • E: 아카 (혁) - 붉은 유도 탄환<br>
+                    • R: 아오 (창) - 인력으로 끌어당김<br>
+                    • T: 무하한 결계 - 접근 불가 충격파<br>
+                    • <strong>X [궁극기]: 허식 「무라사키」</strong>
+                </p>
             </div>
             <div class="card" onclick="selectChar('Yuji')">
                 <h2 style="color:#ff4757;">👊 이타도리 유우지</h2>
-                <p><strong>[주인공 / 스쿠나의 그릇]</strong><br><br>• 압도적인 이동 속도 및 기동성<br>• 타격 시 칠흑의 불꽃 <strong>「흑섬」</strong> 발동<br>• 궁극기: 영역 전개 <strong>「복마어주자」</strong></p>
+                <p>
+                    <strong>[스킬 구성]</strong><br>
+                    • E: 경정권 - 근접 충격파<br>
+                    • R: 흑섬 - 칠흑 크리티컬 타격<br>
+                    • T: 순보 - 정면 돌발 접근<br>
+                    • <strong>X [궁극기]: 영역전개 「복마어주자」</strong>
+                </p>
+            </div>
+            <div class="card" onclick="selectChar('Megumi')">
+                <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
+                <p>
+                    <strong>[스킬 구성]</strong><br>
+                    • E: 십종영법술 「누에」 - 전방 뇌격<br>
+                    • R: 십종영법술 「옥견」 - 돌진 관통<br>
+                    • T: 그림자 속박 - 몬스터 이속 저하<br>
+                    • <strong>X [궁극기]: 강대마허라 소환</strong>
+                </p>
             </div>
         </div>
+    </div>
+
+    <div id="game-over" style="display:none;">
+        <h1 style="color:#ff4757; font-size:56px; letter-spacing:3px;">YOU DIED</h1>
+        <p style="color:#aaa; margin-top:10px; font-size:18px;" id="final-stats">주령들의 공격으로 사망했습니다.</p>
+        <button class="restart-btn" onclick="location.reload()">다시 도전하기</button>
     </div>
 </div>
 
@@ -130,318 +179,328 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// 메가 맵 크기 정의 (2400 x 1600)
-const WORLD_WIDTH = 2400;
-const WORLD_HEIGHT = 1600;
+// 초대형 맵 크기 (4000 x 3000)
+const WORLD_WIDTH = 4000;
+const WORLD_HEIGHT = 3000;
 
 let killCount = 0;
-let gameOver = false;
+let isGameOver = false;
 let screenShake = 0;
-let domainActive = false;
-let domainTimer = 0;
-
 let camera = { x: 0, y: 0 };
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
-    vx: 0, vy: 0,
-    speed: 5.5, hp: 200, maxHp: 200, exp: 0, maxExp: 50, level: 1,
-    charType: 'Gojo', dashCd: 0, isDashing: false, facing: 1
+    speed: 6.0, hp: 200, maxHp: 200,
+    ultEnergy: 0, maxUlt: 100,
+    charType: 'Gojo', facing: 1
 };
 
+let mahoraga = null;
 let keys = {};
 let projectiles = [];
+let enemyProjectiles = [];
+let poisonPools = [];
 let enemies = [];
-let particles = [];
-let slicedEffects = [];
 
-window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keydown', e => {
+    let k = e.key.toLowerCase();
+    keys[k] = true;
+    if(k === 'e') castSkill('E');
+    if(k === 'r') castSkill('R');
+    if(k === 't') castSkill('T');
+    if(k === 'x') castSkill('X');
+});
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 function selectChar(type) {
     player.charType = type;
-    document.getElementById('char-name').innerText = type === 'Gojo' ? '특급 주술사 : 고죠 사토루' : '숙주 : 이타도리 유우지';
     document.getElementById('class-select').style.display = 'none';
     
-    // 시작 적 생성
-    for(let i=0; i<30; i++) spawnCurse();
+    let skNames = {
+        'Gojo': ['아카', '아오', '무하한', '무라사키'],
+        'Yuji': ['경정권', '흑섬', '순보', '복마어주자'],
+        'Megumi': ['누에', '옥견', '그림자', '마허라']
+    };
+    
+    document.getElementById('char-name').innerText = type;
+    document.getElementById('sk-e').innerText = skNames[type][0];
+    document.getElementById('sk-r').innerText = skNames[type][1];
+    document.getElementById('sk-t').innerText = skNames[type][2];
+
+    for(let i=0; i<60; i++) spawnCurse();
     gameLoop();
 }
 
-// 고품질 도트 스프라이트 렌더러
-function drawPlayerSprite(p) {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.scale(p.facing, 1);
+function castSkill(key) {
+    if(isGameOver) return;
 
-    if(p.charType === 'Gojo') {
-        // 고죠 무하한 쉴드 효과
-        ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, -10, 24, 0, Math.PI*2); ctx.stroke();
-
-        // 도복 (검은 긴 옷)
-        ctx.fillStyle = '#0b0b12';
-        ctx.fillRect(-8, -12, 16, 26);
-        // 안대
-        ctx.fillStyle = '#111';
-        ctx.fillRect(-6, -22, 12, 4);
-        // 피부
-        ctx.fillStyle = '#ffdfc4';
-        ctx.fillRect(-6, -18, 12, 6);
-        // 은발 (풍성한 픽셀 헤어)
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(-8, -27, 16, 7);
-        ctx.fillRect(-10, -24, 4, 6); ctx.fillRect(6, -24, 4, 6);
-    } else {
-        // 유우지 도복 (후드 집업 + 검은 주술고전 바지)
-        ctx.fillStyle = '#0f1016';
-        ctx.fillRect(-8, -6, 16, 20); // 바지
-        ctx.fillStyle = '#ff4757';
-        ctx.fillRect(-8, -14, 16, 10); // 붉은 후드
-        // 피부
-        ctx.fillStyle = '#ffd3b6';
-        ctx.fillRect(-6, -20, 12, 7);
-        // 분홍 가시 머리
-        ctx.fillStyle = '#ff7675';
-        ctx.fillRect(-8, -26, 16, 7);
-        ctx.fillRect(-6, -28, 12, 3);
-    }
-
-    ctx.restore();
-}
-
-function drawCurse(e) {
-    ctx.save();
-    ctx.translate(e.x, e.y);
-
-    if(e.isElite) {
-        // 특급 주령 픽셀
-        ctx.fillStyle = '#2d3436';
-        ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#a855f7';
-        ctx.beginPath(); ctx.arc(0, 0, e.radius * 0.6, 0, Math.PI*2); ctx.fill();
-        // 안구 렌더링
-        ctx.fillStyle = '#ff0055';
-        ctx.fillRect(-6, -4, 4, 4); ctx.fillRect(2, -4, 4, 4);
-    } else {
-        // 일반 주령
-        ctx.fillStyle = '#102a1c';
-        ctx.fillRect(-e.radius, -e.radius, e.radius*2, e.radius*2);
-        ctx.fillStyle = '#2ecc71';
-        ctx.fillRect(-e.radius/2, -e.radius/2, e.radius, e.radius);
-    }
-
-    ctx.restore();
-}
-
-function spawnCurse() {
-    let x = Math.random() * WORLD_WIDTH;
-    let y = Math.random() * WORLD_HEIGHT;
-
-    // 플레이어와 너무 가까운 스폰 방지
-    if(Math.hypot(x - player.x, y - player.y) < 400) return;
-
-    let isElite = Math.random() < 0.15;
-    enemies.push({
-        x: x, y: y,
-        radius: isElite ? 22 : 12,
-        hp: isElite ? 220 : 40,
-        maxHp: isElite ? 220 : 40,
-        speed: isElite ? 2.2 : 3.0 + Math.random(),
-        isElite: isElite
-    });
-}
-
-// 자동 술식 발사
-let attackTimer = 0;
-function autoAttack() {
-    if(enemies.length === 0) return;
-
-    // 가장 가까운 적 찾기
     let nearest = null; let minDist = 9999;
     enemies.forEach(e => {
         let d = Math.hypot(e.x - player.x, e.y - player.y);
         if(d < minDist) { minDist = d; nearest = e; }
     });
+    let ang = nearest ? Math.atan2(nearest.y - player.y, nearest.x - player.x) : 0;
 
-    if(!nearest) return;
-    let ang = Math.atan2(nearest.y - player.y, nearest.x - player.x);
-
-    if(player.charType === 'Gojo') {
-        // 아카 (혁) - 유도 붉은 구체
-        projectiles.push({
-            x: player.x, y: player.y,
-            vx: Math.cos(ang) * 12, vy: Math.sin(ang) * 12,
-            damage: 45, radius: 8, color: '#ff4757', type: 'aka'
-        });
-    } else {
-        // 이타도리 - 흑섬 타격
-        if(minDist < 160) {
-            let isBlackFlash = Math.random() < 0.3;
-            projectiles.push({
-                x: player.x, y: player.y,
-                vx: Math.cos(ang) * 15, vy: Math.sin(ang) * 15,
-                damage: isBlackFlash ? 150 : 40,
-                radius: isBlackFlash ? 18 : 10,
-                color: isBlackFlash ? '#000000' : '#ff6b81',
-                type: 'strike', isBlackFlash: isBlackFlash
+    if(key === 'E') {
+        if(player.charType === 'Gojo') {
+            projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, damage: 60, radius: 10, color: '#ff4757'});
+        } else if(player.charType === 'Yuji') {
+            if(nearest && minDist < 160) nearest.hp -= 90;
+            screenShake = 6;
+        } else {
+            projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*16, vy: Math.sin(ang)*16, damage: 70, radius: 12, color: '#f1c40f'});
+        }
+    } else if(key === 'R') {
+        if(player.charType === 'Gojo') {
+            enemies.forEach(e => {
+                if(Math.hypot(e.x - player.x, e.y - player.y) < 350) {
+                    e.x = player.x + Math.cos(ang)*60; e.y = player.y + Math.sin(ang)*60; e.hp -= 45;
+                }
             });
-            if(isBlackFlash) screenShake = 12;
+        } else if(player.charType === 'Yuji') {
+            if(nearest && minDist < 180) { nearest.hp -= 200; screenShake = 15; }
+        } else {
+            for(let i=0; i<3; i++) projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang + (i-1)*0.2)*13, vy: Math.sin(ang + (i-1)*0.2)*13, damage: 60, radius: 8, color: '#2ecc71'});
+        }
+    } else if(key === 'T') {
+        if(player.charType === 'Gojo') {
+            enemies.forEach(e => {
+                if(Math.hypot(e.x - player.x, e.y - player.y) < 250) { e.x += Math.cos(Math.atan2(e.y-player.y, e.x-player.x))*180; e.hp -= 35; }
+            });
+            screenShake = 8;
+        } else if(player.charType === 'Yuji') {
+            player.x += Math.cos(ang) * 220; player.y += Math.sin(ang) * 220;
+        } else {
+            enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 300) e.speed = 0.5; });
+        }
+    } else if(key === 'X') {
+        if(player.ultEnergy < player.maxUlt) return;
+        player.ultEnergy = 0;
+
+        if(player.charType === 'Gojo') {
+            projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*22, vy: Math.sin(ang)*22, damage: 600, radius: 50, color: '#a855f7'});
+            screenShake = 20;
+        } else if(player.charType === 'Yuji') {
+            enemies.forEach(e => { e.hp -= 350; });
+            screenShake = 25;
+        } else {
+            mahoraga = { x: player.x, y: player.y - 50, life: 600 };
+            screenShake = 18;
         }
     }
 }
 
-function update() {
-    if(gameOver) return;
+// 몬스터 종류 다양화 (돌진형, 원거리형, 독장판형, 일반형)
+function spawnCurse() {
+    let x = Math.random() * WORLD_WIDTH;
+    let y = Math.random() * WORLD_HEIGHT;
+    if(Math.hypot(x - player.x, y - player.y) < 400) return;
 
+    let types = ['normal', 'charger', 'spitter', 'poison'];
+    let type = types[Math.floor(Math.random() * types.length)];
+
+    enemies.push({
+        x: x, y: y, type: type,
+        radius: type === 'charger' ? 18 : (type === 'spitter' ? 14 : 12),
+        hp: type === 'charger' ? 220 : 70, maxHp: type === 'charger' ? 220 : 70,
+        speed: type === 'charger' ? 1.8 : (type === 'poison' ? 2.2 : 2.8),
+        attackCd: 0, chargeTimer: 0
+    });
+}
+
+function triggerGameOver() {
+    isGameOver = true;
+    document.getElementById('ui-layer').style.display = 'none';
+    document.getElementById('game-over').style.display = 'flex';
+    document.getElementById('final-stats').innerText = `제령한 주령 수: ${killCount}마리`;
+}
+
+function update() {
+    if(isGameOver) return;
     if(screenShake > 0) screenShake--;
 
-    // 플레이어 이동 로직
-    let dx = 0, dy = 0;
-    if(keys['a'] || keys['arrowleft']) { dx -= 1; player.facing = -1; }
-    if(keys['d'] || keys['arrowright']) { dx += 1; player.facing = 1; }
-    if(keys['w'] || keys['arrowup']) dy -= 1;
-    if(keys['s'] || keys['arrowdown']) dy += 1;
+    // 사망 체크
+    if(player.hp <= 0) { triggerGameOver(); return; }
 
+    // 이동
+    let dx = 0, dy = 0;
+    if(keys['a']) { dx -= 1; player.facing = -1; }
+    if(keys['d']) { dx += 1; player.facing = 1; }
+    if(keys['w']) dy -= 1;
+    if(keys['s']) dy += 1;
     if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
 
-    player.x += dx * player.speed;
-    player.y += dy * player.speed;
+    player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
+    player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
 
-    // 맵 경계 제한
-    player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x));
-    player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y));
-
-    // 카메라 추적 (Smooth Lerp)
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
-    // 공격 타이머
-    attackTimer++;
-    if(attackTimer > 15) { autoAttack(); attackTimer = 0; }
+    if(enemies.length < 130) spawnCurse();
 
-    // 적 스폰
-    if(enemies.length < 120) spawnCurse();
-
-    // 영역 전개 제어
-    if(player.exp >= player.maxExp && !domainActive) {
-        domainActive = true;
-        domainTimer = 350;
-        player.exp = 0;
-        player.maxExp = Math.floor(player.maxExp * 1.4);
-    }
-
-    if(domainActive) {
-        domainTimer--;
-        if(domainTimer <= 0) domainActive = false;
-
-        // 영역전개 지속 효과
+    // 마허라 AI
+    if(mahoraga) {
+        mahoraga.life--;
+        let nearest = null; let minDist = 9999;
         enemies.forEach(e => {
-            if(player.charType === 'Gojo') {
-                e.speed = 0.2; // 무량처처: 이동 마비
-                e.hp -= 0.5;
-            } else {
-                // 복마어주자: 참격
-                if(Math.random() < 0.2) {
-                    e.hp -= 8;
-                    slicedEffects.push({x: e.x, y: e.y, angle: Math.random()*Math.PI, life: 1.0});
-                }
-            }
+            let d = Math.hypot(e.x - mahoraga.x, e.y - mahoraga.y);
+            if(d < minDist) { minDist = d; nearest = e; }
         });
+        if(nearest) {
+            let ang = Math.atan2(nearest.y - mahoraga.y, nearest.x - mahoraga.x);
+            mahoraga.x += Math.cos(ang) * 5; mahoraga.y += Math.sin(ang) * 5;
+            if(minDist < 60) nearest.hp -= 20;
+        }
+        if(mahoraga.life <= 0) mahoraga = null;
     }
+
+    // 적 투사체 이동 및 충돌
+    enemyProjectiles.forEach((ep, epi) => {
+        ep.x += ep.vx; ep.y += ep.vy;
+        if(Math.hypot(player.x - ep.x, player.y - ep.y) < ep.radius + 10) {
+            player.hp -= ep.damage;
+            enemyProjectiles.splice(epi, 1);
+        }
+    });
+
+    // 독장판 처리
+    poisonPools.forEach((p, pi) => {
+        p.life--;
+        if(Math.hypot(player.x - p.x, player.y - p.y) < p.radius) {
+            player.hp -= 0.4; // 독 피해
+        }
+        if(p.life <= 0) poisonPools.splice(pi, 1);
+    });
 
     // 투사체 이동
     projectiles.forEach((p, pi) => {
         p.x += p.vx; p.y += p.vy;
-
         enemies.forEach((e, ei) => {
             if(Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
                 e.hp -= p.damage;
-                projectiles.splice(pi, 1);
-
                 if(e.hp <= 0) {
                     killCount++;
-                    player.exp += e.isElite ? 25 : 8;
+                    player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + 8);
                     enemies.splice(ei, 1);
                 }
             }
         });
     });
 
-    // 적 이동 및 공격
-    enemies.forEach(e => {
-        if(!domainActive || player.charType !== 'Gojo') {
-            let ang = Math.atan2(player.y - e.y, player.x - e.x);
-            e.x += Math.cos(ang) * e.speed;
-            e.y += Math.sin(ang) * e.speed;
+    // 주령 AI 및 고유 패턴
+    enemies.forEach((e, ei) => {
+        let ang = Math.atan2(player.y - e.y, player.x - e.x);
+        let dist = Math.hypot(player.x - e.x, player.y - e.y);
+
+        if(e.type === 'charger') { // 돌진형
+            e.chargeTimer++;
+            if(e.chargeTimer > 100) {
+                e.x += Math.cos(ang) * 9; e.y += Math.sin(ang) * 9; // 초고속 돌진
+                if(e.chargeTimer > 140) e.chargeTimer = 0;
+            } else {
+                e.x += Math.cos(ang) * e.speed; e.y += Math.sin(ang) * e.speed;
+            }
+        } else if(e.type === 'spitter') { // 원거리 발사형
+            if(dist > 250) { e.x += Math.cos(ang) * e.speed; e.y += Math.sin(ang) * e.speed; }
+            e.attackCd++;
+            if(e.attackCd > 90) {
+                enemyProjectiles.push({x: e.x, y: e.y, vx: Math.cos(ang)*7, vy: Math.sin(ang)*7, damage: 15, radius: 6});
+                e.attackCd = 0;
+            }
+        } else if(e.type === 'poison') { // 독장판형
+            e.x += Math.cos(ang) * e.speed; e.y += Math.sin(ang) * e.speed;
+            if(Math.random() < 0.02) poisonPools.push({x: e.x, y: e.y, radius: 25, life: 200});
+        } else { // 일반형
+            e.x += Math.cos(ang) * e.speed; e.y += Math.sin(ang) * e.speed;
         }
 
-        if(Math.hypot(player.x - e.x, player.y - e.y) < e.radius + 12) {
-            player.hp -= player.charType === 'Gojo' ? 0.1 : 0.4; // 고죠는 무하한 보호로 피해 감쇄
+        // 근접 피격
+        if(dist < e.radius + 12) {
+            player.hp -= (e.type === 'charger' ? 1.2 : 0.5);
         }
     });
 
-    // Sliced Effect update
-    slicedEffects.forEach((s, si) => {
-        s.life -= 0.1;
-        if(s.life <= 0) slicedEffects.splice(si, 1);
-    });
-
-    // UI 업계
+    // UI
     document.getElementById('hp-bar').style.width = Math.max(0, (player.hp / player.maxHp * 100)) + '%';
-    document.getElementById('exp-bar').style.width = Math.min(100, (player.exp / player.maxExp * 100)) + '%';
-    document.getElementById('domain-status').innerText = domainActive ? (player.charType === 'Gojo' ? '☯️ 영역전개 「무량처처」' : '⛩️ 영역전개 「복마어주자」') : '영역 전개 준비 중';
-    document.getElementById('kill-status').innerText = `제령한 특급 주령: ${killCount}마리`;
+    document.getElementById('ult-bar').style.width = Math.min(100, (player.ultEnergy / player.maxUlt * 100)) + '%';
+    document.getElementById('kill-status').innerText = `제령한 주령: ${killCount}마리`;
+}
+
+function drawPlayerSprite(p) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.facing, 1);
+
+    if(p.charType === 'Gojo') {
+        ctx.fillStyle = '#111'; ctx.fillRect(-8, -12, 16, 26);
+        ctx.fillStyle = '#ffdfc4'; ctx.fillRect(-6, -18, 12, 6);
+        ctx.fillStyle = '#fff'; ctx.fillRect(-8, -26, 16, 7);
+    } else if(p.charType === 'Yuji') {
+        ctx.fillStyle = '#111'; ctx.fillRect(-8, -6, 16, 20);
+        ctx.fillStyle = '#ff4757'; ctx.fillRect(-8, -14, 16, 10);
+        ctx.fillStyle = '#ff7675'; ctx.fillRect(-8, -26, 16, 7);
+    } else {
+        ctx.fillStyle = '#0a192f'; ctx.fillRect(-8, -12, 16, 26);
+        ctx.fillStyle = '#ffdfc4'; ctx.fillRect(-6, -18, 12, 6);
+        ctx.fillStyle = '#1e272e'; ctx.fillRect(-10, -28, 20, 10);
+    }
+    ctx.restore();
+}
+
+function drawMahoraga(m) {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(0, -30, 25, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(-16, -20, 32, 45);
+    ctx.fillStyle = '#f1c40f'; ctx.fillRect(16, -35, 8, 50);
+    ctx.restore();
 }
 
 function draw() {
     ctx.save();
-    
-    // 화면 흔들림
-    if(screenShake > 0) {
-        ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
-    }
+    if(screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // [카메라 오프셋 적용]
     ctx.translate(-camera.x, -camera.y);
 
-    // 1. 대형 월드 네온 그리드 배경
-    ctx.strokeStyle = domainActive ? (player.charType === 'Gojo' ? '#a855f7' : '#ff4757') : 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 1;
-    for(let x=0; x<WORLD_WIDTH; x+=80) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
-    for(let y=0; y<WORLD_HEIGHT; y+=80) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
+    // 네온 그리드 월드 (4000 x 3000)
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.06)'; ctx.lineWidth = 1;
+    for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
+    for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
-    // 월드 경계선
-    ctx.strokeStyle = '#a855f7';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+    // 독장판
+    poisonPools.forEach(p => {
+        ctx.fillStyle = 'rgba(46, 204, 113, 0.25)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+    });
 
-    // 2. 주령 (적)
-    enemies.forEach(e => drawCurse(e));
+    // 주령 (종류별 색상 지정)
+    enemies.forEach(e => {
+        if(e.type === 'charger') ctx.fillStyle = '#ff4757'; // 붉은색 돌진형
+        else if(e.type === 'spitter') ctx.fillStyle = '#9b59b6'; // 보라색 원거리형
+        else if(e.type === 'poison') ctx.fillStyle = '#2ecc71'; // 녹색 독장판형
+        else ctx.fillStyle = '#718093'; // 일반 주령
 
-    // 3. 투사체
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); ctx.fill();
+    });
+
+    // 적 투사체
+    enemyProjectiles.forEach(ep => {
+        ctx.fillStyle = '#e056fd';
+        ctx.beginPath(); ctx.arc(ep.x, ep.y, ep.radius, 0, Math.PI*2); ctx.fill();
+    });
+
+    // 플레이어 투사체
     projectiles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
-        if(p.isBlackFlash) {
-            ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 3; ctx.stroke();
-        }
     });
 
-    // 4. 슬라이스 잔상 (복마어주자 연출)
-    slicedEffects.forEach(s => {
-        ctx.save();
-        ctx.translate(s.x, s.y);
-        ctx.rotate(s.angle);
-        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(-20, 0); ctx.lineTo(20, 0); ctx.stroke();
-        ctx.restore();
-    });
+    // 마허라
+    if(mahoraga) drawMahoraga(mahoraga);
 
-    // 5. 플레이어
+    // 플레이어
     drawPlayerSprite(player);
 
     ctx.restore();
@@ -450,7 +509,7 @@ function draw() {
 function gameLoop() {
     update();
     draw();
-    requestAnimationFrame(gameLoop);
+    if(!isGameOver) requestAnimationFrame(gameLoop);
 }
 </script>
 </body>
