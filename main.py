@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# 페이지 기본 설정
+# [중요] st.set_page_config는 다른 모든 Streamlit 명령어보다 '가장 먼저' 호출되어야 합니다.
 st.set_page_config(
     page_title="기가 수행평가 - 스트리밋 던전 크롤러",
     page_layout="wide",
@@ -11,7 +11,7 @@ st.set_page_config(
 st.title("⚔️ 기가 수행평가: 웹 파이썬 2D 던전 크롤러")
 st.caption("Streamlit 클라우드 환경 완벽 지원 | 방향키/WASD: 이동 | 마우스: 공격/스킬")
 
-# HTML5/JS 기반 고퀄리티 게임 엔진 스크립트 (Streamlit 배포 호환)
+# HTML5/JS 기반 게임 임베딩
 game_html = """
 <!DOCTYPE html>
 <html>
@@ -119,9 +119,7 @@ let mouse = { x: 0, y: 0, down: false, rightDown: false };
 let bullets = [];
 let enemies = [];
 let particles = [];
-let items = [];
 
-// 키 및 마우스 이벤트
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 canvas.addEventListener('mousemove', e => {
@@ -186,7 +184,6 @@ function shoot() {
 function update() {
     if(gameState !== 'PLAYING') return;
 
-    // 플레이어 이동
     if(keys['a'] || keys['arrowleft']) player.x = Math.max(player.size, player.x - player.speed);
     if(keys['d'] || keys['arrowright']) player.x = Math.min(canvas.width - player.size, player.x + player.speed);
     if(keys['w'] || keys['arrowup']) player.y = Math.max(player.size, player.y - player.speed);
@@ -194,7 +191,6 @@ function update() {
 
     if(mouse.down) shoot();
 
-    // 총알 이동 및 충돌
     bullets.forEach((b, bi) => {
         b.x += b.vx; b.y += b.vy;
         enemies.forEach((e, ei) => {
@@ -218,7 +214,6 @@ function update() {
         });
     });
 
-    // 적 추적 및 공격
     enemies.forEach(e => {
         let angle = Math.atan2(player.y - e.y, player.x - e.x);
         e.x += Math.cos(angle) * e.speed;
@@ -234,19 +229,16 @@ function update() {
         }
     });
 
-    // 모든 적 제거시 다음 층
     if(enemies.length === 0) {
         dungeonLevel++;
         spawnEnemies();
     }
 
-    // 파티클 업데이트
     particles.forEach((p, i) => {
         p.x += p.vx; p.y += p.vy; p.life -= 0.05;
         if(p.life <= 0) particles.splice(i, 1);
     });
 
-    // UI 업데이트
     document.getElementById('hp').style.width = Math.max(0, (player.hp / player.maxHp * 100)) + '%';
     document.getElementById('exp').style.width = Math.min(100, (player.exp / player.maxExp * 100)) + '%';
     document.getElementById('stats').innerText = `Lv.${player.level} ${player.class} | 층수: B${dungeonLevel}F`;
@@ -266,37 +258,31 @@ function createParticles(x, y, color) {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 격자 배경
     ctx.strokeStyle = '#1a1f26';
     ctx.lineWidth = 1;
     for(let x=0; x<canvas.width; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
     for(let y=0; y<canvas.height; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
 
-    // 플레이어
     ctx.fillStyle = player.class === 'Warrior' ? '#3498db' : (player.class === 'Mage' ? '#9b59b6' : '#2ecc71');
     ctx.beginPath();
     ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
     ctx.fill();
 
-    // 총알
     bullets.forEach(b => {
         ctx.fillStyle = b.color;
         ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
     });
 
-    // 적
     enemies.forEach(e => {
         ctx.fillStyle = e.color;
         ctx.beginPath(); ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2); ctx.fill();
         
-        // 적 체력바
         ctx.fillStyle = '#c0392b';
         ctx.fillRect(e.x - 15, e.y - 25, 30, 4);
         ctx.fillStyle = '#2ecc71';
         ctx.fillRect(e.x - 15, e.y - 25, (e.hp / e.maxHp) * 30, 4);
     });
 
-    // 파티클
     particles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.life;
@@ -315,5 +301,4 @@ function gameLoop() {
 </html>
 """
 
-# Streamlit에 HTML/JS 커스텀 게임 구성요소 출력
 components.html(game_html, height=620)
