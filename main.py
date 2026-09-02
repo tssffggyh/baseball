@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 고죠 무하한 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 무라사키 투사체 패치")
 
 st.markdown("""
     <style>
@@ -169,8 +169,8 @@ game_html = """
                     • 패시브: <strong>무하한 (7초마다 2초간 밀어내기)</strong><br>
                     • E: 아카 「赤」<br>
                     • R: 아오 「蒼」<br>
-                    • T: 무라사키 「허식」<br>
-                    • X: 영역전개 (사운드 제외)
+                    • T: 허식 「茈」 (원형 투사체 발사)<br>
+                    • X: 영역전개
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
@@ -269,7 +269,6 @@ let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
 
-// 무하한 타이머 변수 (7초 주기, 2초 지속)
 let limitlessTimer = 0;
 let limitlessActive = false;
 let limitlessDurationCounter = 0;
@@ -304,6 +303,7 @@ let explosions = [];
 let blackHoles = [];     
 let blueOrbs = [];       
 let purpleEffects = [];   
+let purpleProjectiles = []; // 무라사키 전용 투사체 배열 추가
 let laserBeams = [];
 let meleeAttacks = [];
 let enemies = [];
@@ -493,9 +493,12 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             addUlt(20.0);
             playVoiceAndSound('purple_voice');
-            triggerVibration(35);
-            laserBeams.push({
-                x: player.x, y: player.y, ang: ang, length: 2400, width: 80, life: 30, damage: 1200
+            triggerVibration(45);
+            // 허식 무라사키를 원형 투사체로 발사 (날아가는 투사체 등록)
+            purpleProjectiles.push({
+                x: player.x, y: player.y,
+                vx: Math.cos(ang) * 14, vy: Math.sin(ang) * 14,
+                radius: 45, maxLife: 150, life: 150, damage: 2500
             });
         } else if(player.charType === 'Sukuna') {
             addUlt(15.0);
@@ -519,11 +522,8 @@ function castSkill(key) {
 
 function triggerPurpleExplosion(x, y, boIndex) {
     playVoiceAndSound('purple_voice');
-    showDialogue('허식 「무라사키」 (자폭 피격!)');
+    showDialogue('허식 「무라사키」 대폭발!');
     triggerVibration(80);
-
-    let selfDamage = Math.min(player.hp * 0.5, player.hp - 1);
-    if(selfDamage > 0) takeDamage(selfDamage);
 
     if(boIndex !== undefined && boIndex !== null && boIndex >= 0 && boIndex < blueOrbs.length) {
         blueOrbs.splice(boIndex, 1);
@@ -542,10 +542,10 @@ function triggerPurpleExplosion(x, y, boIndex) {
     }
 
     explosions.push({
-        x: x, y: y, radius: 3500, maxRadius: 3500,
-        color: 'rgba(168, 85, 247, 0.95)', life: 60, damage: 15000
+        x: x, y: y, radius: 600, maxRadius: 600,
+        color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 4500
     });
-    enemies.forEach(e => { e.hp -= 15000; });
+    enemies.forEach(e => { if(Math.hypot(e.x - x, e.y - y) < 600) e.hp -= 4500; });
 }
 
 function spawnCurse() {
@@ -636,19 +636,18 @@ function update() {
     if(screenShake > 0) screenShake--;
     if(player.hp <= 0) { triggerGameOver(); return; }
 
-    // 고종(Gojo)일 경우 7초마다 2초간 무하한 밀어내기 처리
     if(player.charType === 'Gojo') {
-        limitlessTimer += 0.016; // 대략 60fps 기준
+        limitlessTimer += 0.016; 
         if(!limitlessActive && limitlessTimer >= 7.0) {
             limitlessActive = true;
-            limitlessDurationCounter = 120; // 2초간 지속 (60fps * 2)
+            limitlessDurationCounter = 120; 
             showDialogue('「무하한」 발동!');
         }
         if(limitlessActive) {
             limitlessDurationCounter--;
             if(limitlessDurationCounter <= 0) {
                 limitlessActive = false;
-                limitlessTimer = 0; // 카운트 리셋
+                limitlessTimer = 0; 
             }
         }
     }
@@ -710,6 +709,26 @@ function update() {
         }
         if(mahoraga.life <= 0) mahoraga = null;
     }
+
+    // 허식 무라사키 투사체 업데이트 및 충돌 처리
+    purpleProjectiles.forEach((pp, ppi) => {
+        pp.x += pp.vx;
+        pp.y += pp.vy;
+        pp.life--;
+
+        // 적들과 충돌 검사
+        enemies.forEach(e => {
+            if(Math.hypot(e.x - pp.x, e.y - pp.y) < e.radius + pp.radius) {
+                e.hp -= pp.damage;
+            }
+        });
+
+        // 수명이 다하거나 맵 끝에 도달하면 대폭발 일으키고 소멸
+        if(pp.life <= 0 || pp.x < 0 || pp.x > WORLD_WIDTH || pp.y < 0 || pp.y > WORLD_HEIGHT) {
+            triggerPurpleExplosion(pp.x, pp.y);
+            purpleProjectiles.splice(ppi, 1);
+        }
+    });
 
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
@@ -836,9 +855,8 @@ function update() {
         let ang = Math.atan2(player.y - e.y, player.x - e.x);
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
-        // 무하한 활성화 상태일 때 일정 반경(예: 180px) 안으로 들어오는 적들을 강력하게 밀어냄
         if(player.charType === 'Gojo' && limitlessActive && dist < 180) {
-            e.x -= Math.cos(ang) * 12; // 강제 밀어내기 속도
+            e.x -= Math.cos(ang) * 12; 
             e.y -= Math.sin(ang) * 12;
         } else {
             if(e.isRanged && dist < 300) {
@@ -1017,7 +1035,6 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.translate(-camera.x, -camera.y);
 
-    // 고조 무하한 활성화 시 플레이어 주변에 방어 오라 원 표시
     if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
         ctx.strokeStyle = 'rgba(112, 161, 255, 0.75)';
@@ -1067,6 +1084,21 @@ function draw() {
         ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 8; ctx.stroke();
         ctx.shadowBlur = 0;
+    });
+
+    // 허식 무라사키 원형 투사체 렌더링
+    purpleProjectiles.forEach(pp => {
+        ctx.save();
+        ctx.shadowBlur = 40;
+        ctx.shadowColor = '#a855f7';
+        ctx.fillStyle = '#7000ff';
+        ctx.beginPath();
+        ctx.arc(pp.x, pp.y, pp.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#e056fd';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.restore();
     });
 
     laserBeams.forEach(lb => {
