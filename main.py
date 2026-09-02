@@ -216,7 +216,7 @@ resizeCanvas();
 const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
 aoAudio.volume = 1.0;
 const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
-purpleAudio.volume = 1.0;
+purpleAudio.volume = 0.4; // [수정] 무라사키 음성 소리 크기를 줄임 (1.0 -> 0.4)
 
 let audioCtx = null;
 function initAudio() {
@@ -528,7 +528,7 @@ function castSkill(key) {
             playVoiceAndSound('ao_voice');
             triggerVibration(25);
             blackHoles.push({
-                orbitAngle: ang, orbitRadius: 260, radius: 650, life: 180, damage: 3000, x: player.x, y: player.y
+                orbitAngle: ang, orbitRadius: 260, radius: 420, life: 180, damage: 3000, x: player.x, y: player.y // [수정] 아오(블랙홀) 크기 축소 (650 -> 420)
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
@@ -544,7 +544,7 @@ function castSkill(key) {
         cooldowns.T = maxCooldowns[player.charType].T;
         if(player.charType === 'Gojo') {
             addUlt(6.0);
-            playVoiceAndSound('purple_voice');
+            // [수정] 자폭 무라사키를 할 때는 음성 지원(playVoiceAndSound) 호출 안 함
             triggerVibration(35);
             purpleProjectiles.push({
                 x: player.x, y: player.y,
@@ -561,7 +561,7 @@ function castSkill(key) {
     } else if(key === 'X') {
         player.ultEnergy = 0;
         if(player.charType === 'Gojo') {
-            activeDomain = { type: 'Gojo', timer: 1200 }; // 영역전개 지속시간 대폭 연장 (약 4배)
+            activeDomain = { type: 'Gojo', timer: 1200 };
         } else if(player.charType === 'Sukuna') {
             activeDomain = { type: 'Sukuna', timer: 1000 };
         } else {
@@ -801,8 +801,8 @@ function update() {
         });
 
         if(bh.life <= 0) {
-            blueOrbs.push({ x: bh.x, y: bh.y, radius: 150, life: 350 });
-            explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 400, color: '#3742fa', life: 18, damage: bh.damage});
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 100, life: 350 }); // [수정] 남겨지는 블루 오프 크기 축소 (150 -> 100)
+            explosions.push({x: bh.x, y: bh.y, radius: 180, maxRadius: 280, color: '#3742fa', life: 18, damage: bh.damage}); // [수정] 아오 폭발 크기 축소
             blackHoles.splice(bhi, 1);
         }
     });
@@ -874,7 +874,7 @@ function update() {
 
             if(reachedTarget || hitEnemy || hitOrb) {
                 if(hitOrb || (p.targetOrb && Math.hypot(p.x - p.targetOrb.x, p.y - p.targetOrb.y) < 120)) {
-                    playVoiceAndSound('purple_voice');
+                    // [수정] 자폭 무라사키 폭발 시에도 음성(purple_voice)을 호출하지 않음
                     showDialogue('「자폭 허식 · 茈」');
                     triggerVibration(50);
 
@@ -1199,19 +1199,19 @@ function draw() {
     });
 
     blackHoles.forEach(bh => {
-        ctx.shadowBlur = 55; ctx.shadowColor = '#3742fa';
+        ctx.shadowBlur = 40; ctx.shadowColor = '#3742fa'; // [수정] 블랙홀 이펙트 범위 조절
         ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
-        ctx.beginPath(); ctx.arc(bh.x, bh.y, 140, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 8; ctx.stroke();
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, 95, 0, Math.PI*2); ctx.fill(); // [수정] 블랙홀 시각적 크기 축소 (140 -> 95)
+        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 6; ctx.stroke();
         ctx.shadowBlur = 0;
     });
 
     blueOrbs.forEach(bo => {
         let alpha = bo.life / 350;
-        ctx.shadowBlur = 70; ctx.shadowColor = '#0026ff';
+        ctx.shadowBlur = 40; ctx.shadowColor = '#0026ff';
         ctx.fillStyle = `rgba(0, 38, 255, ${alpha})`;
         ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 10; ctx.stroke();
+        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 7; ctx.stroke();
         ctx.shadowBlur = 0;
     });
 
