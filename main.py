@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 고죠 보이스 풀패치 완료")
+st.set_page_config(layout="wide", page_title="주술회전: 고죠 보이스 커스텀 패치")
 
 st.markdown("""
     <style>
@@ -148,7 +148,7 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 고죠 아오·무라사키 보이스 패치 적용 완료</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 고죠 아카·아오·무라사키 보이스 적용</div>
                 <div id="boss-status" style="font-size:14px; color:#ff4757; margin-top:6px; font-weight:bold;">보스 소환 대기 중...</div>
                 <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:2px;">처치한 보스: 0 / 100</div>
             </div>
@@ -161,16 +161,16 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (아오/무라사키/무량공처 보이스 탑재)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오.</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 기본공격: 자동 발사 (템포 안정화 + 요와이모)<br>
+                    • 기본공격: 자동 발사 (요와이모)<br>
                     • E: 아카 「赤」<br>
                     • R: 아오 「蒼」 (보이스 적용!)<br>
-                    • T: 무라사키 「虚式」 (보이스 적용!)<br>
-                    • X: 영역전개 「무량공처」 (타이밍 조절 완료)<br>
+                    • T: 무라사키 「허식」 (보이스 적용!)<br>
+                    • X: 영역전개 (사운드 제외)<br>
                     • <strong>★잔해에 아카 맞추면 자폭 무라사키</strong>
                 </p>
             </div>
@@ -178,7 +178,7 @@ game_html = """
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
                     • 기본공격: 자동 참격<br>
-                    • E: 해(解) <br>
+                    • E: 해(解)<br>
                     • R: 팔(捌)<br>
                     • T: 푸가(🔥)<br>
                     • X: 영역전개 「복마어주자」
@@ -215,26 +215,22 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// 1. 무량공처 보이스 (1초 늦게 들리는 타이밍 조절을 위해 별도 처리 추가)
-const domainAudio = new Audio('https://www.myinstants.com/media/sounds/rpreplay_final1623689697_mov.mp3');
-domainAudio.volume = 1.0;
-
-// 2. 요와이모 보이스
+// 요와이모 보이스
 const yowaimoAudio = new Audio('https://www.myinstants.com/media/sounds/yowai-mo-gojo-77212.mp3');
 yowaimoAudio.volume = 0.8;
 
-// 3. 보내주신 아오 보이스 링크 매핑 (Myinstants에 업로드된 안정적 공개 URL 활용)
+// 아오 보이스
 const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
 aoAudio.volume = 1.0;
 
-// 4. 보내주신 무라사키 보이스 링크 매핑
+// 무라사키 보이스
 const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
 purpleAudio.volume = 1.0;
 
 let audioCtx = null;
 function initAudio() {
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    [domainAudio, yowaimoAudio, aoAudio, purpleAudio].forEach(audio => {
+    [yowaimoAudio, aoAudio, purpleAudio].forEach(audio => {
         if(audio.paused) {
             audio.play().catch(() => {});
             audio.pause();
@@ -245,15 +241,6 @@ function initAudio() {
 
 function playVoiceAndSound(type) {
     initAudio();
-    
-    if(type === 'domain') {
-        // 타이밍을 살짝 늦추어 출력감을 맞춤 (1초 딜레이)
-        setTimeout(() => {
-            domainAudio.currentTime = 0;
-            domainAudio.play().catch(err => console.log("Domain Audio error:", err));
-        }, 1000);
-        return;
-    }
 
     if(type === 'yowaimo') {
         yowaimoAudio.currentTime = 0;
@@ -263,13 +250,13 @@ function playVoiceAndSound(type) {
 
     if(type === 'ao_voice') {
         aoAudio.currentTime = 0;
-        aoAudio.play().catch(err => console.log("Ao Audio error:", err));
+        aoAudio.play().catch(err => {});
         return;
     }
 
     if(type === 'purple_voice') {
         purpleAudio.currentTime = 0;
-        purpleAudio.play().catch(err => console.log("Purple Audio error:", err));
+        purpleAudio.play().catch(err => {});
         return;
     }
 
@@ -505,7 +492,7 @@ function castSkill(key) {
         addUlt(12.0);
         
         if(player.charType === 'Gojo') {
-            playVoiceAndSound('ao_voice'); // 아오 음성 재생!
+            playVoiceAndSound('ao_voice');
             triggerVibration(20);
             blackHoles.push({
                 orbitAngle: ang,
@@ -530,7 +517,7 @@ function castSkill(key) {
         cooldowns.T = maxCooldowns[player.charType].T;
         if(player.charType === 'Gojo') {
             addUlt(20.0);
-            playVoiceAndSound('purple_voice'); // 무라사키 음성 재생!
+            playVoiceAndSound('purple_voice');
             triggerVibration(35);
             laserBeams.push({
                 x: player.x, y: player.y, ang: ang, length: 2400, width: 80,
@@ -545,7 +532,6 @@ function castSkill(key) {
         }
     } else if(key === 'X') {
         player.ultEnergy = 0;
-        playVoiceAndSound('domain'); // 영역전개 무량공처 (1초 딜레이 적용)
         if(player.charType === 'Gojo') {
             activeDomain = { type: 'Gojo', timer: 280 };
         } else if(player.charType === 'Sukuna') {
