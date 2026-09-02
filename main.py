@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 오토에임 + 평타 하향 & 잔몹 대량 소환 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 오토에임 + 평타 데미지 & 속도 추가 하향 패치")
 
 st.markdown("""
     <style>
@@ -165,7 +165,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[평타 하향 & 잔몹 대량 소환 패치 적용] 오토에임 및 Q 5초 무적 활성화</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[평타 데미지 및 공속 추가 하향 패치 적용] 오토에임 및 Q 5초 무적 활성화</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -394,7 +394,6 @@ function selectChar(type) {
     document.getElementById('sk-r').innerText = skNames[type][2];
     document.getElementById('sk-t').innerText = skNames[type][3];
 
-    // 게임 시작 시 잔몹 소환량 대폭 증가 (50마리)
     for(let i=0; i<50; i++) spawnCurse();
     spawnBoss();
     gameLoop();
@@ -427,7 +426,8 @@ function getAutoAimAngle() {
 function performAutoAttack() {
     if(isGameOver) return;
     let now = Date.now();
-    let attackInterval = (player.charType === 'Gojo') ? 400 : 300;
+    // 평타 발사 속도(쿨타임)를 더 낮춤 (고죠: 700ms, 스쿠나/메구미: 600ms)
+    let attackInterval = (player.charType === 'Gojo') ? 700 : 600;
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
@@ -444,10 +444,10 @@ function performAutoAttack() {
     if(player.charType === 'Gojo') {
         let shotX = player.x + Math.cos(ang) * 20;
         let shotY = player.y + Math.sin(ang) * 20;
-        // 평타 데미지 낮춤 (950 -> 250)
+        // 평타 데미지를 한 번 더 낮춤 (250 -> 80)
         projectiles.push({
             x: shotX, y: shotY, vx: Math.cos(ang)*16, vy: Math.sin(ang)*16,
-            damage: 250, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
+            damage: 80, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
         });
         for(let i=0; i<8; i++) {
             highQualityShots.push({
@@ -456,11 +456,11 @@ function performAutoAttack() {
             });
         }
     } else if(player.charType === 'Sukuna') {
-        // 스쿠나 평타 참격 데미지 낮춤 (800 -> 200)
-        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 200});
+        // 스쿠나 평타 데미지를 한 번 더 낮춤 (200 -> 70)
+        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 70});
     } else {
-        // 메구미 평타 데미지 낮춤 (600 -> 180)
-        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 180, radius: 8, color: '#2ecc71', type:'normal'});
+        // 메구미 평타 데미지를 한 번 더 낮춤 (180 -> 60)
+        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 60, radius: 8, color: '#2ecc71', type:'normal'});
     }
 }
 
@@ -707,7 +707,6 @@ function update() {
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
-    // 잔몹 소환량을 80마리 이상으로 대폭 증가
     if(enemies.filter(e => !e.isBoss).length < 80) spawnCurse();
 
     if(activeDomain) {
