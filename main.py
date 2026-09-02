@@ -1,7 +1,7 @@
 import streamlit as str_lit
 import streamlit.components.v1 as components
 
-str_lit.set_page_config(layout="wide", page_title="주술회전: 천공의 별 개정판")
+str_lit.set_page_config(layout="wide", page_title="주술회전: 무라사키 개정판")
 
 str_lit.markdown("""
     <style>
@@ -118,7 +118,7 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:15px;">주술사</div>
-                <div style="font-size:9px; color:#aaa; margin-top:3px;">체력 (HP) <span style="color:#00d2ff;">[천공의 별 발동중]</span></div>
+                <div style="font-size:9px; color:#aaa; margin-top:3px;">체력 (HP)</div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:9px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -126,10 +126,6 @@ game_html = """
                 <div class="skill-container">
                     <div class="skill-icon" style="border-color:#3498db;">
                         <span class="skill-key" style="color:#3498db;">AUTO</span><span>오토에임</span>
-                    </div>
-                    <div class="skill-icon">
-                        <span class="skill-key">Q</span><span id="sk-q">천공의별</span>
-                        <div id="cd-q" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon">
                         <span class="skill-key">E</span><span id="sk-e">아카</span>
@@ -159,36 +155,36 @@ game_html = """
     </div>
 
     <div id="dialogue-box">
-        <div id="dialogue-text">천공의 별 발동</div>
+        <div id="dialogue-text">무라사키 발동</div>
     </div>
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:42px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[Q스킬: 천공의 별 (시전 즉시 광역 스턴 / 3초간 무하한 유지 후 꺼짐 / 쿨타임 8초)]</p>
+        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[T스킬: 허식 「茈」 (작은 원에서 점점 커진 뒤 강력하게 발사 + 효과음)]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • Q: 천공의 별 (쿨 8초)<br>
                     • E: 술식반전 · 「赤」<br>
                     • R: 술식순전 · 「蒼」<br>
-                    • T: 대형 허식 「茈」 / X: 무량공처
+                    • T: 허식 「茈」 (효과음 포함)<br>
+                    • X: 무량공처
                 </p>
             </div>
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • Q: 천공의 별 (쿨 8초)<br>
                     • E: 해(解) / R: 팔(捌)<br>
-                    • T: 푸가(🔥) / X: 복마어주자
+                    • T: 푸가(🔥) (효과음 포함)<br>
+                    • X: 복마어주자
                 </p>
             </div>
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • Q: 천공의 별 (쿨 8초)<br>
                     • E: 누에 / R: 옥견<br>
-                    • T: 그림자 속박 / X: 마허라
+                    • T: 그림자 폭발 (효과음 포함)<br>
+                    • X: 마허라
                 </p>
             </div>
         </div>
@@ -214,8 +210,10 @@ resizeCanvas();
 
 const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
 aoAudio.volume = 1.0;
+
+// 무라사키 효과음 추가 (볼륨을 0.3으로 약간 줄임)
 const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
-purpleAudio.volume = 0.4;
+purpleAudio.volume = 0.3;
 
 let audioCtx = null;
 function initAudio() {
@@ -264,12 +262,6 @@ let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
 
-// Q스킬 상태 관리 변수 (기본적으로 무하한 켜져 있는 상태)
-let limitlessActive = true; 
-let skyStarCasting = false;   
-let skyStarCastTimer = 0;     
-let skyStarActive = false;    // 버프 적용 중 상태 (무적, 이속증가)
-let skyStarTimer = 0;         // 지속 시간 카운트 (3초 = 180프레임)
 let bloodSplatters = [];
 
 let player = {
@@ -279,17 +271,17 @@ let player = {
     charType: 'Gojo', facing: 1, lastAttack: 0
 };
 
-let cooldowns = { Q: 0, E: 0, R: 0, T: 0, X: 0 };
+let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { Q: 8, E: 8, R: 15, T: 24, X: 0 },
-    Sukuna: { Q: 8, E: 7, R: 14, T: 21, X: 0 },
-    Megumi: { Q: 8, E: 8, R: 15, T: 23, X: 0 }
+    Gojo: { E: 8, R: 15, T: 24, X: 0 },
+    Sukuna: { E: 7, R: 14, T: 21, X: 0 },
+    Megumi: { E: 8, R: 15, T: 23, X: 0 }
 };
 
 let dialogues = {
-    Gojo: { Q: '천공의 별 발동!', E: '술식반전 · 「赤」', R: '술식순전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
-    Sukuna: { Q: '천공의 별 발동!', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
-    Megumi: { Q: '천공의 별 발동!', E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
+    Gojo: { E: '술식반전 · 「赤」', R: '술식순전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
+    Sukuna: { E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
+    Megumi: { E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 폭발', X: '마허라 소환' }
 };
 
 let activeDomain = null;
@@ -303,6 +295,7 @@ let blackHoles = [];
 let blueOrbs = [];       
 let purpleEffects = [];   
 let purpleProjectiles = []; 
+let chargingPurples = [];   
 let laserBeams = [];
 let meleeAttacks = [];
 let enemies = [];
@@ -340,7 +333,6 @@ window.addEventListener('keydown', e => {
     initAudio();
     let k = e.key.toLowerCase();
     keys[k] = true;
-    if(k === 'q') castSkill('Q');
     if(k === 'e') castSkill('E');
     if(k === 'r') castSkill('R');
     if(k === 't') castSkill('T');
@@ -351,7 +343,6 @@ window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35 * 1.5)); }
 
 function takeDamage(damage) {
-    if(skyStarActive) return; 
     player.hp -= damage; 
     lastHitTime = Date.now();
 }
@@ -376,16 +367,15 @@ function selectChar(type) {
     document.getElementById('class-select').style.display = 'none';
     
     let skNames = {
-        'Gojo': ['천공의별', '아카', '아오', '무라사키', '무량공처'],
-        'Sukuna': ['천공의별', '해(解)', '팔(捌)', '푸가', '복마어주자'],
-        'Megumi': ['천공의별', '누에', '옥견', '그림자', '마허라']
+        'Gojo': ['아카', '아오', '무라사키', '무량공처'],
+        'Sukuna': ['해(解)', '팔(捌)', '푸가', '복마어주자'],
+        'Megumi': ['누에', '옥견', '그림자', '마허라']
     };
     
     document.getElementById('char-name').innerText = type === 'Gojo' ? '고죠 사토루' : (type === 'Sukuna' ? '양면 스쿠나' : '후시구로 메구미');
-    document.getElementById('sk-q').innerText = skNames[type][0];
-    document.getElementById('sk-e').innerText = skNames[type][1];
-    document.getElementById('sk-r').innerText = skNames[type][2];
-    document.getElementById('sk-t').innerText = skNames[type][3];
+    document.getElementById('sk-e').innerText = skNames[type][0];
+    document.getElementById('sk-r').innerText = skNames[type][1];
+    document.getElementById('sk-t').innerText = skNames[type][2];
 
     for(let i=0; i<50; i++) spawnCurse();
     spawnBoss();
@@ -417,7 +407,7 @@ function getAutoAimAngle() {
 }
 
 function performAutoAttack() {
-    if(isGameOver || skyStarCasting) return; 
+    if(isGameOver) return; 
     let now = Date.now();
     let attackInterval = (player.charType === 'Gojo') ? 700 : 600;
     if(now - player.lastAttack < attackInterval) return;
@@ -448,7 +438,7 @@ function performAutoAttack() {
 }
 
 function castSkill(key) {
-    if(isGameOver || skyStarCasting) return;
+    if(isGameOver) return;
     if(cooldowns[key] > 0) return;
     if(key === 'X' && player.ultEnergy < player.maxUlt) return;
 
@@ -470,22 +460,7 @@ function castSkill(key) {
 
     showDialogue(dialogues[player.charType][key]);
 
-    if(key === 'Q') {
-        cooldowns.Q = maxCooldowns[player.charType].Q;
-        skyStarCasting = true;        
-        skyStarCastTimer = 30;        // 0.5초간 선딜 후 발동
-        limitlessActive = false;      // Q 시전 직후 무하한 일시 꺼짐
-        
-        enemies.forEach(e => {
-            let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
-            if(distToPlayer < 700 || e.isBoss) {
-                e.stunTimer = 1200; 
-            }
-        });
-
-        playVoiceAndSound('ao_voice');
-        triggerVibration(40);
-    } else if(key === 'E') {
+    if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
         addUlt(2.5);
         
@@ -544,21 +519,21 @@ function castSkill(key) {
         }
     } else if(key === 'T') {
         cooldowns.T = maxCooldowns[player.charType].T;
-        if(player.charType === 'Gojo') {
-            addUlt(6.0);
-            triggerVibration(35);
-            purpleProjectiles.push({
-                x: player.x, y: player.y,
-                vx: Math.cos(ang) * 9.5, vy: Math.sin(ang) * 9.5,
-                radius: 140, maxLife: 300, life: 300, damage: 9999, hitEnemies: new Set()
-            });
-        } else if(player.charType === 'Sukuna') {
-            addUlt(5.0);
-            explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 4000});
-        } else {
-            addUlt(5.0);
-            enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 350) e.speed = 0.5; });
-        }
+        addUlt(6.0);
+        triggerVibration(35);
+
+        // 무라사키 시전 시 효과음 재생 (볼륨 낮춘 상태)
+        purpleAudio.currentTime = 0;
+        purpleAudio.play().catch(() => {});
+
+        chargingPurples.push({
+            x: player.x, y: player.y,
+            ang: ang,
+            radius: 10,       
+            maxRadius: 130,   
+            chargeTimer: 45,  
+            damage: 9999
+        });
     } else if(key === 'X') {
         player.ultEnergy = 0;
         if(player.charType === 'Gojo') {
@@ -638,7 +613,7 @@ function triggerGameOver() {
 }
 
 setInterval(() => {
-    ['Q', 'E', 'R', 'T', 'X'].forEach(k => {
+    ['E', 'R', 'T', 'X'].forEach(k => {
         if(cooldowns[k] > 0) cooldowns[k] = Math.max(0, cooldowns[k] - 0.1);
         let elem = document.getElementById('cd-' + k.toLowerCase());
         if(elem) {
@@ -660,38 +635,17 @@ function update() {
     if(screenShake > 0) screenShake--;
     if(player.hp <= 0) { triggerGameOver(); return; }
 
-    if(skyStarCasting) {
-        skyStarCastTimer--;
-        if(skyStarCastTimer <= 0) {
-            skyStarCasting = false;
-            skyStarActive = true;
-            skyStarTimer = 180; // 딱 3초간 지속 (60프레임 * 3)
-            limitlessActive = true; // 3초 동안 무하한 켜짐
-            player.speed = player.baseSpeed * 3.5; 
-            triggerVibration(40);
-        }
-    } else {
-        performAutoAttack();
+    performAutoAttack();
 
-        if(skyStarActive) {
-            skyStarTimer--;
-            if(skyStarTimer <= 0) {
-                skyStarActive = false;
-                limitlessActive = false; // 3초가 지나면 무하한이 꺼짐!
-                player.speed = player.baseSpeed;
-            }
-        }
+    let dx = 0, dy = 0;
+    if(keys['a']) { dx -= 1; player.facing = -1; }
+    if(keys['d']) { dx += 1; player.facing = 1; }
+    if(keys['w']) dy -= 1;
+    if(keys['s']) dy += 1;
+    if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
 
-        let dx = 0, dy = 0;
-        if(keys['a']) { dx -= 1; player.facing = -1; }
-        if(keys['d']) { dx += 1; player.facing = 1; }
-        if(keys['w']) dy -= 1;
-        if(keys['s']) dy += 1;
-        if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
-
-        player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
-        player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
-    }
+    player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
+    player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
 
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
@@ -739,6 +693,23 @@ function update() {
         bs.x += bs.vx;
         bs.y += bs.vy;
         if(bs.life <= 0) bloodSplatters.splice(bsi, 1);
+    });
+
+    chargingPurples.forEach((cp, cpi) => {
+        cp.chargeTimer--;
+        if(cp.radius < cp.maxRadius) {
+            cp.radius += (cp.maxRadius - cp.radius) * 0.15;
+        }
+
+        if(cp.chargeTimer <= 0) {
+            purpleProjectiles.push({
+                x: cp.x, y: cp.y,
+                vx: Math.cos(cp.ang) * 14, vy: Math.sin(cp.ang) * 14,
+                radius: cp.maxRadius, maxLife: 300, life: 300, damage: cp.damage, hitEnemies: new Set()
+            });
+            triggerVibration(30);
+            chargingPurples.splice(cpi, 1);
+        }
     });
 
     purpleProjectiles.forEach((pp, ppi) => {
@@ -806,16 +777,8 @@ function update() {
         if(lb.life <= 0) laserBeams.splice(lbi, 1);
     });
 
-    // 적 발사체 무하한 충돌 및 플레이어 피격 판정
     enemyProjectiles.forEach((ep, epi) => {
         ep.x += ep.vx; ep.y += ep.vy;
-
-        // 무하한이 활성화되어 있을 때 발사체가 반경 70에 닿으면 즉시 소멸
-        let limitlessRadius = 70;
-        if(player.charType === 'Gojo' && limitlessActive && Math.hypot(player.x - ep.x, player.y - ep.y) < limitlessRadius + ep.radius) {
-            enemyProjectiles.splice(epi, 1);
-            return;
-        }
 
         if(Math.hypot(player.x - ep.x, player.y - ep.y) < ep.radius + 15) {
             takeDamage(ep.damage);
@@ -947,18 +910,12 @@ function update() {
             let ang = Math.atan2(player.y - e.y, player.x - e.x);
             let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
-            let limitlessRadius = 70;
-            if(player.charType === 'Gojo' && limitlessActive && dist < limitlessRadius + e.radius) {
-                e.x -= Math.cos(ang) * 14; 
-                e.y -= Math.sin(ang) * 14;
+            if(e.isRanged && dist < 300) {
+                e.x -= Math.cos(ang) * e.speed;
+                e.y -= Math.sin(ang) * e.speed;
             } else {
-                if(e.isRanged && dist < 300) {
-                    e.x -= Math.cos(ang) * e.speed;
-                    e.y -= Math.sin(ang) * e.speed;
-                } else {
-                    e.x += Math.cos(ang) * e.speed;
-                    e.y += Math.sin(ang) * e.speed;
-                }
+                e.x += Math.cos(ang) * e.speed;
+                e.y += Math.sin(ang) * e.speed;
             }
 
             e.attackCd = (e.attackCd || 0) + 1;
@@ -1015,17 +972,6 @@ function update() {
             }
         }
 
-        if(skyStarActive) {
-            let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
-            if(distToPlayer < player.radius + e.radius + 90) {
-                e.hp -= 3500; 
-                purpleEffects.push({
-                    x: e.x, y: e.y, vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3,
-                    radius: Math.random()*6+3, life: 10, color: '#00d2ff'
-                });
-            }
-        }
-
         if(e.hp <= 0) {
             if(e.isBoss) {
                 defeatedBosses++;
@@ -1067,10 +1013,10 @@ function drawPlayerSprite(p) {
     ctx.scale(p.facing, 1);
 
     if(p.charType === 'Gojo') {
-        ctx.shadowBlur = 20; ctx.shadowColor = skyStarActive ? '#00d2ff' : '#70a1ff';
+        ctx.shadowBlur = 20; ctx.shadowColor = '#70a1ff';
         ctx.fillStyle = '#0a0a14'; ctx.fillRect(-10, -16, 20, 32);
         ctx.fillStyle = '#ffffff'; ctx.fillRect(-9, -32, 18, 12);
-        ctx.fillStyle = skyStarActive ? '#00d2ff' : '#70a1ff'; ctx.fillRect(-7, -24, 14, 4);
+        ctx.fillStyle = '#70a1ff'; ctx.fillRect(-7, -24, 14, 4);
         ctx.shadowBlur = 0;
     } else if(p.charType === 'Sukuna') {
         ctx.fillStyle = '#111'; ctx.fillRect(-10, -16, 20, 32);
@@ -1080,33 +1026,6 @@ function drawPlayerSprite(p) {
         ctx.fillStyle = '#0f172a'; ctx.fillRect(-10, -16, 20, 32);
         ctx.fillStyle = '#1e293b'; ctx.fillRect(-11, -34, 22, 12);
     }
-    ctx.restore();
-}
-
-function drawSkyStar(x, y) {
-    ctx.save();
-    ctx.translate(x, y - 65);
-    let rotAngle = Date.now() * 0.001; 
-    ctx.rotate(rotAngle);
-    
-    ctx.shadowBlur = 25;
-    ctx.shadowColor = '#00d2ff';
-    ctx.fillStyle = '#00d2ff';
-    
-    ctx.beginPath();
-    ctx.moveTo(0, -45);  
-    ctx.quadraticCurveTo(0, 0, 45, 0);   
-    ctx.quadraticCurveTo(0, 0, 0, 45);   
-    ctx.quadraticCurveTo(0, 0, -45, 0);  
-    ctx.quadraticCurveTo(0, 0, 0, -45);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(0, 0, 8, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.restore();
 }
 
@@ -1175,21 +1094,6 @@ function draw() {
         ctx.restore();
     });
 
-    // 무하한 범위 축소 (반경 70) 및 상태 표시
-    if(player.charType === 'Gojo' && limitlessActive) {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
-        ctx.lineWidth = 2.5;
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#70a1ff';
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, 70, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(112, 161, 255, 0.05)';
-        ctx.fill();
-        ctx.restore();
-    }
-
     if(activeDomain) {
         if(activeDomain.type === 'Gojo') {
             ctx.fillStyle = 'rgba(5, 5, 20, 0.85)';
@@ -1232,6 +1136,20 @@ function draw() {
         ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 7; ctx.stroke();
         ctx.shadowBlur = 0;
+    });
+
+    chargingPurples.forEach(cp => {
+        ctx.save();
+        ctx.shadowBlur = 40;
+        ctx.shadowColor = '#a855f7';
+        ctx.fillStyle = '#7000ff';
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, cp.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#e056fd';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.restore();
     });
 
     purpleProjectiles.forEach(pp => {
@@ -1317,10 +1235,6 @@ function draw() {
     });
 
     drawPlayerSprite(player);
-
-    if(skyStarCasting || skyStarActive) {
-        drawSkyStar(player.x, player.y);
-    }
 
     ctx.restore();
 }
