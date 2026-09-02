@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 궁 게이지 조절 및 몬스터 킬 카운트 패치")
+st.set_page_config(layout="wide", page_title="주술회전: Q스킬 (신속 + 아오 지속딜) 패치")
 
 st.markdown("""
     <style>
@@ -55,17 +55,17 @@ game_html = """
     .boss-bar-outer { width: 100%; height: 16px; background: rgba(255,255,255,0.1); border-radius: 8px; overflow: hidden; margin-top: 5px; }
     .boss-bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #e84118); transition: width 0.1s; }
 
-    .skill-container { display: flex; gap: 10px; margin-top: 8px; }
+    .skill-container { display: flex; gap: 8px; margin-top: 8px; }
     .skill-icon {
-        position: relative; width: 55px; height: 55px; background: rgba(255,255,255,0.08);
+        position: relative; width: 50px; height: 50px; background: rgba(255,255,255,0.08);
         border: 1px solid #a855f7; border-radius: 10px;
         display: flex; flex-direction: column; justify-content: space-between; align-items: center;
-        padding: 5px; font-size: 10px; font-weight: bold; color: #fff; overflow: hidden;
+        padding: 4px; font-size: 9px; font-weight: bold; color: #fff; overflow: hidden;
     }
-    .skill-key { font-size: 13px; color: #e056fd; }
+    .skill-key { font-size: 12px; color: #e056fd; }
     .cooldown-overlay {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.75); color: #ff4757; font-size: 15px; font-weight: bold;
+        background: rgba(0, 0, 0, 0.75); color: #ff4757; font-size: 14px; font-weight: bold;
         display: flex; justify-content: center; align-items: center; display: none;
     }
 
@@ -119,14 +119,18 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#2ecc71;">[3초 미피격 회복]</span></div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#2ecc71;">[자동 회복]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
                 
                 <div class="skill-container">
                     <div class="skill-icon" style="border-color:#3498db;">
-                        <span class="skill-key" style="color:#3498db;">CLICK</span><span>평타</span>
+                        <span class="skill-key" style="color:#3498db;">AUTO</span><span>평타</span>
+                    </div>
+                    <div class="skill-icon">
+                        <span class="skill-key">Q</span><span id="sk-q">신속아오</span>
+                        <div id="cd-q" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon">
                         <span class="skill-key">E</span><span id="sk-e">스킬1</span>
@@ -161,12 +165,12 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (마우스 클릭으로 수동 공격)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (Q스킬: 30초 쿨, 5초간 이속 폭증 + 닿는 적만 아오 지속 데미지)</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 평타: 고출력 주력탄 (클릭)<br>
+                    • Q: 신속 아오 폭주 (30초 쿨)<br>
                     • E: 아카 「赤」 / R: 아오 「蒼」<br>
                     • T: 허식 「茈」 / X: 무량공처
                 </p>
@@ -174,7 +178,7 @@ game_html = """
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • 기본공격: 참격 (클릭)<br>
+                    • Q: 신속 아오 폭주 (30초 쿨)<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
@@ -182,7 +186,7 @@ game_html = """
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • 기본공격: 그림자 투사체 (클릭)<br>
+                    • Q: 신속 아오 폭주 (30초 쿨)<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라
                 </p>
@@ -265,29 +269,35 @@ let lastHitTime = Date.now();
 let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
+let mouseX = window.innerWidth / 2;
+let mouseY = window.innerHeight / 2;
 
 let limitlessTimer = 0;
 let limitlessActive = false;
 let limitlessDurationCounter = 0;
 
+// Q 스킬 신속 아오 버프 관련 변수 (5초 동안 닿는 적에게만 데미지)
+let speedAoActive = false;
+let speedAoTimer = 0; 
+
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
-    speed: 6.5, hp: 300, maxHp: 300,
+    baseSpeed: 6.5, speed: 6.5, hp: 300, maxHp: 300,
     ultEnergy: 0, maxUlt: 100,
     charType: 'Gojo', facing: 1, lastAttack: 0
 };
 
-let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
+let cooldowns = { Q: 0, E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { E: 9, R: 16, T: 25, X: 0 },
-    Sukuna: { E: 8, R: 15, T: 22, X: 0 },
-    Megumi: { E: 9, R: 16, T: 24, X: 0 }
+    Gojo: { Q: 30, E: 9, R: 16, T: 25, X: 0 },
+    Sukuna: { Q: 30, E: 8, R: 15, T: 22, X: 0 },
+    Megumi: { Q: 30, E: 9, R: 16, T: 24, X: 0 }
 };
 
 let dialogues = {
-    Gojo: { E: '술식 순전 · 「赤」', R: '술식 반전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
-    Sukuna: { E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
-    Megumi: { E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
+    Gojo: { Q: '신속 아오 폭주', E: '술식 순전 · 「赤」', R: '술식 반전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
+    Sukuna: { Q: '신속 아오 폭주', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
+    Megumi: { Q: '신속 아오 폭주', E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
 };
 
 let activeDomain = null;
@@ -305,6 +315,7 @@ let laserBeams = [];
 let meleeAttacks = [];
 let enemies = [];
 let highQualityShots = []; 
+let windTrails = [];      
 
 const BOSS_COLORS = [
     { bg: '#e74c3c', aura: '#ff7675', spikes: 5 },
@@ -337,18 +348,16 @@ window.addEventListener('keydown', e => {
     initAudio();
     let k = e.key.toLowerCase();
     keys[k] = true;
+    if(k === 'q') castSkill('Q');
     if(k === 'e') castSkill('E');
     if(k === 'r') castSkill('R');
     if(k === 't') castSkill('T');
     if(k === 'x') castSkill('X');
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-
-// 마우스 클릭 시 평타 발사 (가만히 있으면 안 때리도록 변경)
-window.addEventListener('mousedown', e => {
-    if(isGameOver) return;
-    initAudio();
-    basicAttack(e.clientX, e.clientY);
+window.addEventListener('mousemove', e => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
 });
 
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35)); }
@@ -374,15 +383,16 @@ function selectChar(type) {
     document.getElementById('class-select').style.display = 'none';
     
     let skNames = {
-        'Gojo': ['아카', '아오', '무라사키', '무량공처'],
-        'Sukuna': ['해(解)', '팔(捌)', '푸가', '복마어주자'],
-        'Megumi': ['누에', '옥견', '그림자', '마허라']
+        'Gojo': ['신속아오', '아카', '아오', '무라사키', '무량공처'],
+        'Sukuna': ['신속아오', '해(解)', '팔(捌)', '푸가', '복마어주자'],
+        'Megumi': ['신속아오', '누에', '옥견', '그림자', '마허라']
     };
     
     document.getElementById('char-name').innerText = type === 'Gojo' ? '고죠 사토루' : (type === 'Sukuna' ? '양면 스쿠나' : '후시구로 메구미');
-    document.getElementById('sk-e').innerText = skNames[type][0];
-    document.getElementById('sk-r').innerText = skNames[type][1];
-    document.getElementById('sk-t').innerText = skNames[type][2];
+    document.getElementById('sk-q').innerText = skNames[type][0];
+    document.getElementById('sk-e').innerText = skNames[type][1];
+    document.getElementById('sk-r').innerText = skNames[type][2];
+    document.getElementById('sk-t').innerText = skNames[type][3];
 
     for(let i=0; i<30; i++) spawnCurse();
     spawnBoss();
@@ -394,21 +404,21 @@ document.getElementById('card-sukuna').addEventListener('click', () => selectCha
 document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
 document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
-function basicAttack(clientX, clientY) {
+function performAutoAttack() {
     if(isGameOver) return;
     let now = Date.now();
     let attackInterval = (player.charType === 'Gojo') ? 400 : 300;
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
-    let worldMouseX = clientX + camera.x;
-    let worldMouseY = clientY + camera.y;
+    let worldMouseX = mouseX + camera.x;
+    let worldMouseY = mouseY + camera.y;
     let ang = Math.atan2(worldMouseY - player.y, worldMouseX - player.x);
 
     addUlt(0.8);
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
-    if(player.charType === 'Gojo' && Math.random() < 0.35) {
+    if(player.charType === 'Gojo' && Math.random() < 0.25) {
         playVoiceAndSound('yowaimo');
         showDialogue('「약하니까요」');
     }
@@ -456,7 +466,15 @@ function castSkill(key) {
 
     showDialogue(dialogues[player.charType][key]);
 
-    if(key === 'E') {
+    if(key === 'Q') {
+        // Q 스킬: 30초 쿨타임, 5초간 이속 폭증 + 닿는 적에게만 아오 지속 데미지 활성화
+        cooldowns.Q = 30;
+        speedAoActive = true;
+        speedAoTimer = 300; // 5초 (60fps 기준)
+        playVoiceAndSound('ao_voice');
+        triggerVibration(25);
+        addUlt(3.0);
+    } else if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
         addUlt(2.5);
         
@@ -594,7 +612,7 @@ function triggerGameOver() {
 }
 
 setInterval(() => {
-    ['E', 'R', 'T', 'X'].forEach(k => {
+    ['Q', 'E', 'R', 'T', 'X'].forEach(k => {
         if(cooldowns[k] > 0) cooldowns[k] = Math.max(0, cooldowns[k] - 0.1);
         let elem = document.getElementById('cd-' + k.toLowerCase());
         if(elem) {
@@ -615,6 +633,35 @@ function update() {
     if(isGameOver) return;
     if(screenShake > 0) screenShake--;
     if(player.hp <= 0) { triggerGameOver(); return; }
+
+    performAutoAttack();
+
+    // Q 스킬 (신속 아오 버프) 처리: 5초 동안만 작동하며, 플레이어와 '닿는 적'에게만 지속 데미지 부여
+    if(speedAoActive) {
+        speedAoTimer--;
+        player.speed = player.baseSpeed * 2.3; // 이동속도 폭증
+        
+        // 바람을 가르는 잔상 이펙트 추가
+        windTrails.push({
+            x: player.x, y: player.y, radius: Math.random() * 40 + 30, life: 15, alpha: 0.7
+        });
+
+        // 5초(300프레임) 동안 오직 플레이어와 몸이 닿는(충돌하는) 적에게만 아오 지속 데미지 적용
+        enemies.forEach(e => {
+            let dist = Math.hypot(e.x - player.x, e.y - player.y);
+            // 플레이어 반지름(약 15~20)과 적 반지름의 합 이내로 '닿았을 때'만 판정
+            if(dist < e.radius + 20) {
+                e.hp -= 4.0; // 닿는 동안 지속 데미지
+            }
+        });
+
+        if(speedAoTimer <= 0) {
+            speedAoActive = false;
+            player.speed = player.baseSpeed;
+        }
+    } else {
+        player.speed = player.baseSpeed;
+    }
 
     if(player.charType === 'Gojo') {
         limitlessTimer += 0.016; 
@@ -650,9 +697,7 @@ function update() {
         activeDomain.timer--;
         triggerVibration(4);
         if(activeDomain.type === 'Gojo') {
-            enemies.forEach(e => { e.speed = 0; }); // 고죠 영역 안에서 멈추기만 하고 데미지는 안 줌 (오직 플레이어가 칠 때만)
-        } else if(activeDomain.type === 'Sukuna') {
-            // 스쿠나 영역 내에서 자동 참격 제거 (플레이어가 직접 칠 때만 닳도록 함)
+            enemies.forEach(e => { e.speed = 0; });
         }
         if(activeDomain.timer <= 0) activeDomain = null;
     }
@@ -677,6 +722,12 @@ function update() {
         }
         if(mahoraga.life <= 0) mahoraga = null;
     }
+
+    windTrails.forEach((wt, wti) => {
+        wt.life--;
+        wt.radius += 1.5;
+        if(wt.life <= 0) windTrails.splice(wti, 1);
+    });
 
     purpleProjectiles.forEach((pp, ppi) => {
         pp.x += pp.vx;
@@ -997,6 +1048,18 @@ function draw() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.translate(-camera.x, -camera.y);
+
+    // Q 스킬 활성화 시 바람을 가르는 잔상 이펙트 렌더링
+    windTrails.forEach(wt => {
+        let alpha = wt.life / 15;
+        ctx.save();
+        ctx.strokeStyle = `rgba(180, 230, 255, ${alpha})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(wt.x, wt.y, wt.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    });
 
     if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
