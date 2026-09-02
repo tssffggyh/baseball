@@ -161,7 +161,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (원작 링크 사운드 연동)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (요청하신 고죠 영역전개 원작 보이스 연동)</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -212,7 +212,7 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// 원작 보이스 링크(myinstants) 오디오 엘리먼트 초기화
+// 보내주신 마이인스턴츠 링크의 실제 직접 스트리밍 MP3 파일 주소
 const domainAudio = new Audio('https://www.myinstants.com/media/sounds/gojo-domain-expansion-60533.mp3');
 domainAudio.volume = 1.0;
 
@@ -230,7 +230,6 @@ function playVoiceAndSound(type) {
     initAudio();
     
     if(type === 'domain') {
-        // 보내주신 원작 고죠 영역전개 링크 음원 재생
         domainAudio.currentTime = 0;
         domainAudio.play().catch(err => console.log("Audio play error:", err));
         return;
