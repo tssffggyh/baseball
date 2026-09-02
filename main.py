@@ -328,7 +328,7 @@ function getBossData(lvl) {
 
     return {
         level: lvl, name: `${title} - ${HUMAN_BOSS_TITLES[nameIdx]} [${lvl}/100]`,
-        hp: scaledHp, radius: 28, // 인간형 크기에 맞게 축소 (기존 55~135에서 축소)
+        hp: scaledHp, radius: 28, 
         speed: Math.min(5.2, 2.6 + (lvl * 0.026)), dmg: 32 + Math.floor(lvl * 3.2),
         color: '#ff4757', aura: '#e84118'
     };
@@ -531,8 +531,10 @@ function castSkill(key) {
         purpleAudio.currentTime = 0;
         purpleAudio.play().catch(() => {});
 
+        // 위치가 이동해도 원래 자리에 고정되도록 시작 위치(startX, startY) 저장
         chargingPurples.push({
             x: player.x, y: player.y,
+            startX: player.x, startY: player.y,
             ang: ang,
             radius: 5,       
             maxRadius: 130,   
@@ -735,8 +737,9 @@ function update() {
         }
 
         if(cp.chargeTimer <= 0) {
+            // 저장해 둔 고정 시작 위치(startX, startY)에서 발사되도록 수정
             purpleProjectiles.push({
-                x: cp.x, y: cp.y,
+                x: cp.startX, y: cp.startY,
                 vx: Math.cos(cp.ang) * 14, vy: Math.sin(cp.ang) * 14,
                 radius: cp.maxRadius, maxLife: 300, life: 300, damage: cp.damage, hitEnemies: new Set()
             });
@@ -963,13 +966,11 @@ function update() {
                 });
             }
 
-            // 인간형 보스 고유 스킬 시스템
             if(e.isBoss && e.speed > 0) {
                 if(e.skillCd >= 60) {
                     e.skillCd = 0;
                     let patternType = Math.floor(Math.random() * 3);
                     if(patternType === 0) {
-                        // 연속 참격 웨이브
                         for(let i=-2; i<=2; i++) {
                             slashes.push({
                                 x: e.x + Math.cos(ang+i*0.25)*40, y: e.y + Math.sin(ang+i*0.25)*40,
@@ -977,13 +978,11 @@ function update() {
                             });
                         }
                     } else if(patternType === 1) {
-                        // 광역 충격파
                         explosions.push({
                             x: e.x, y: e.y,
                             radius: 20, maxRadius: 180, color: 'rgba(255, 71, 87, 0.55)', life: 20, damage: e.dmg * 1.0
                         });
                     } else {
-                        // 원거리 투사체 난사 (탄막)
                         for(let i=0; i<6; i++) {
                             let spreadAng = ang + (i - 2.5) * 0.2;
                             enemyProjectiles.push({
@@ -1072,18 +1071,13 @@ function drawEnemySprite(e) {
     ctx.scale(e.facing || 1, 1);
 
     if(e.isBoss) {
-        // 인간형 보스 아바타 렌더링
         ctx.shadowBlur = 20; ctx.shadowColor = e.aura;
-        // 의복/몸통
         ctx.fillStyle = '#2d132c'; ctx.fillRect(-12, -18, 24, 36);
-        // 머리
         ctx.fillStyle = e.stunTimer > 0 ? '#34495e' : '#ff7675'; 
         ctx.fillRect(-10, -36, 20, 16);
-        // 눈빛 (붉은색/맹렬한 오라)
         ctx.fillStyle = '#ff4757';
         ctx.fillRect(-6, -30, 4, 3);
         ctx.fillRect(2, -30, 4, 3);
-        // 오라 띠
         ctx.strokeStyle = e.aura; ctx.lineWidth = 2;
         ctx.strokeRect(-14, -40, 28, 58);
         ctx.shadowBlur = 0;
@@ -1178,13 +1172,14 @@ function draw() {
         ctx.shadowBlur = 0;
     });
 
+    // 차징 중인 무라사키 이펙트가 시작 위치(startX, startY)에 고정되도록 렌더링 수정
     chargingPurples.forEach(cp => {
         ctx.save();
         ctx.shadowBlur = 40;
         ctx.shadowColor = '#a855f7';
         ctx.fillStyle = '#7000ff';
         ctx.beginPath();
-        ctx.arc(player.x, player.y, cp.radius, 0, Math.PI * 2);
+        ctx.arc(cp.startX, cp.startY, cp.radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#e056fd';
         ctx.lineWidth = 6;
