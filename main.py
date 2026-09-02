@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 오토 평타 및 원작 보이스 최종 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 무량공처 보이스 패치 완료")
 
 st.markdown("""
     <style>
@@ -148,7 +148,7 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 완전 자동 평타 + 스킬 | WASD 이동</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 고죠 궁극기 무량공처 보이스 패치 완료 | WASD 이동</div>
                 <div id="boss-status" style="font-size:14px; color:#ff4757; margin-top:6px; font-weight:bold;">보스 소환 대기 중...</div>
                 <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:2px;">처치한 보스: 0 / 100</div>
             </div>
@@ -161,16 +161,16 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (평타 자동 발사 적용)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (궁극기 무량공처 사운드 적용)</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 기본공격: <strong>완전 자동 발사</strong><br>
+                    • 기본공격: 자동 발사 (템포 안정화 + 요와이모)<br>
                     • E: 아카 「赤」<br>
                     • R: 아오 「蒼」<br>
                     • T: 무라사키 「虚式」<br>
-                    • X: 영역전개 「무량공처 (원작 보이스)」<br>
+                    • X: 영역전개 「무량공처」 (직접 보내주신 보이스 재생! 야무짐)<br>
                     • <strong>★잔해에 아카 맞추면 자폭 무라사키</strong>
                 </p>
             </div>
@@ -215,8 +215,13 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-const domainAudio = new Audio('https://audio.com/vertex-az17/audio/gojo-domain-expansion-60533');
+// 보내주신 무량공처 MP3 파일 링크 연결
+const domainAudio = new Audio('https://www.myinstants.com/media/sounds/rpreplay_final1623689697_mov.mp3');
 domainAudio.volume = 1.0;
+
+// 요와이모 보이스 오디오 설정
+const yowaimoAudio = new Audio('https://www.myinstants.com/media/sounds/yowai-mo-gojo-77212.mp3');
+yowaimoAudio.volume = 0.8;
 
 let audioCtx = null;
 function initAudio() {
@@ -226,6 +231,11 @@ function initAudio() {
         domainAudio.pause();
         domainAudio.currentTime = 0;
     }
+    if(yowaimoAudio.paused) {
+        yowaimoAudio.play().catch(() => {});
+        yowaimoAudio.pause();
+        yowaimoAudio.currentTime = 0;
+    }
 }
 
 function playVoiceAndSound(type) {
@@ -234,6 +244,12 @@ function playVoiceAndSound(type) {
     if(type === 'domain') {
         domainAudio.currentTime = 0;
         domainAudio.play().catch(err => console.log("Domain Audio play error:", err));
+        return;
+    }
+
+    if(type === 'yowaimo') {
+        yowaimoAudio.currentTime = 0;
+        yowaimoAudio.play().catch(err => console.log("Yowaimo Audio play error:", err));
         return;
     }
 
@@ -409,23 +425,28 @@ function selectChar(type) {
 function basicAttack() {
     if(isGameOver) return;
     let now = Date.now();
-    if(now - player.lastAttack < 180) return;
+    if(now - player.lastAttack < 550) return;
     player.lastAttack = now;
 
-    addUlt(2.0);
+    addUlt(3.5);
     let target = getAutoAimTarget();
     let ang = target.angle;
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
+    if(player.charType === 'Gojo' && Math.random() < 0.35) {
+        playVoiceAndSound('yowaimo');
+        showDialogue('「약하니까요」');
+    }
+
     if(player.charType === 'Gojo') {
         projectiles.push({
-            x: player.x, y: player.y, vx: Math.cos(ang)*20, vy: Math.sin(ang)*20,
-            damage: 48, radius: 10, color: '#70a1ff', type:'gojo_basic'
+            x: player.x, y: player.y, vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
+            damage: 65, radius: 11, color: '#70a1ff', type:'gojo_basic'
         });
     } else if(player.charType === 'Sukuna') {
-        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 45});
+        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 60});
     } else {
-        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, damage: 32, radius: 7, color: '#2ecc71', type:'normal'});
+        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 45, radius: 8, color: '#2ecc71', type:'normal'});
     }
 }
 
@@ -662,7 +683,6 @@ function update() {
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
-    // 사정거리 내에 적이 있으면 평타 자동 발사 (오토 파이어)
     let target = getAutoAimTarget();
     if(target.dist < 850) {
         basicAttack();
