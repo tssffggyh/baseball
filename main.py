@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 고죠 사토루 음성 효과 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 고죠 사토루 원작 사운드 패치")
 
 st.markdown("""
     <style>
@@ -71,12 +71,12 @@ game_html = """
 
     #dialogue-box {
         position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-        background: rgba(5, 5, 12, 0.9); border: 2px solid #a855f7;
+        background: rgba(5, 5, 12, 0.95); border: 2px solid #a855f7;
         border-radius: 12px; padding: 12px 30px; text-align: center;
-        box-shadow: 0 0 25px rgba(168, 85, 247, 0.6);
-        opacity: 0; transition: opacity 0.2s ease-in-out; pointer-events: none; z-index: 20;
+        box-shadow: 0 0 30px rgba(168, 85, 247, 0.8);
+        opacity: 0; transition: opacity 0.15s ease-in-out; pointer-events: none; z-index: 20;
     }
-    #dialogue-text { font-size: 22px; font-weight: bold; color: #f3e8ff; letter-spacing: 2px; }
+    #dialogue-text { font-size: 24px; font-weight: bold; color: #f3e8ff; letter-spacing: 3px; }
 
     #class-select, #game-over {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -161,13 +161,13 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (오토에임 활성화)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (원작 사운드 탑재)</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • E: 아카 「赤」 (음성 출력)<br>
-                    • R: 아오 「蒼」 (블랙홀 투사체 흡수)<br>
+                    • E: 아카 「赤」 (원작 사운드)<br>
+                    • R: 아오 「蒼」 (원작 사운드)<br>
                     • T: 무라사키 「虚式」<br>
                     • X: 영역전개 「료이키텐카이 무량공처」<br>
                     • <strong>★잔해에 아카 맞추면 자폭 무라사키</strong>
@@ -212,62 +212,84 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// Web Audio API 사운드 합성 시스템 (효과음 & 음성 연출)
+// 원작 재현형 고품질 Web Audio API 신디사이저 및 음성합성 엔진
 let audioCtx = null;
 function initAudio() {
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 }
 
-function playSound(type) {
+function playVoiceAndSound(type) {
     initAudio();
     if(!audioCtx) return;
     
+    let now = audioCtx.currentTime;
     let osc = audioCtx.createOscillator();
     let gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    
-    let now = audioCtx.currentTime;
 
     if(type === 'aka') {
+        // "아,카..." 원작의 묵직한 타격음 + 고주파수 폭발음 재현
         osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(120, now + 0.3);
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-        osc.start(now); osc.stop(now + 0.3);
-    } else if(type === 'ao') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(120, now);
-        osc.frequency.exponentialRampToValueAtTime(450, now + 0.4);
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.35);
         gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
-        osc.start(now); osc.stop(now + 0.4);
-    } else if(type === 'purple') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(180, now);
-        osc.frequency.exponentialRampToValueAtTime(80, now + 0.8);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc.start(now); osc.stop(now + 0.35);
+        
+        // 추가 서브 베이스 타격
+        let sub = audioCtx.createOscillator();
+        let subGain = audioCtx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(150, now);
+        sub.frequency.exponentialRampToValueAtTime(40, now + 0.4);
+        sub.connect(subGain); subGain.connect(audioCtx.destination);
+        subGain.gain.setValueAtTime(0.5, now);
+        subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        sub.start(now); sub.stop(now + 0.4);
+        
+        speakOriginalVoice('赤 (아카)');
+    } else if(type === 'ao') {
+        // "아오..." 모든 것을 빨아들이는 웅장한 중저음 가상 자석음
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(90, now);
+        osc.frequency.exponentialRampToValueAtTime(520, now + 0.5);
         gain.gain.setValueAtTime(0.5, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
-        osc.start(now); osc.stop(now + 0.8);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.start(now); osc.stop(now + 0.5);
+        
+        speakOriginalVoice('蒼 (아오)');
+    } else if(type === 'purple') {
+        // "허식 茈" 공허를 가르는 파괴적인 굉음
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(60, now + 0.9);
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.9);
+        osc.start(now); osc.stop(now + 0.9);
+        
+        speakOriginalVoice('虚式 茈 (무라사키)');
     } else if(type === 'domain') {
+        // "료이키텐카이" 영혼을 뒤흔드는 영역 전개 웅장한 사운드
         osc.type = 'square';
-        osc.frequency.setValueAtTime(100, now);
-        osc.frequency.linearRampToValueAtTime(350, now + 0.6);
-        gain.gain.setValueAtTime(0.35, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
-        osc.start(now); osc.stop(now + 0.6);
+        osc.frequency.setValueAtTime(80, now);
+        osc.frequency.linearRampToValueAtTime(440, now + 0.7);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
+        osc.start(now); osc.stop(now + 0.7);
+        
+        speakOriginalVoice('領域展開 無量空처');
     }
 }
 
-// 브라우저 음성 합성(SpeechSynthesis)을 이용한 원작 대사 출력
-function speakVoice(text, lang = 'ja-JP') {
+// 일본어 애니메이션 원작 톤 음성 가속 출력
+function speakOriginalVoice(text) {
     if('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // 이전 음성 취소 후 즉시 출력
+        window.speechSynthesis.cancel();
         let utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = lang;
-        utterance.rate = 1.1;
-        utterance.pitch = 0.9;
+        utterance.lang = 'ja-JP';
+        utterance.rate = 1.25; // 더 카리스마 있고 날카로운 원작 성우 템포
+        utterance.pitch = 0.85; // 남성 특유의 저음 무게감
         window.speechSynthesis.speak(utterance);
     }
 }
@@ -303,7 +325,7 @@ let maxCooldowns = {
 };
 
 let dialogues = {
-    Gojo: { E: '「赤」 (Aka)', R: '「蒼」 (Ao)', T: '허식 「무라사키」', X: '료이키텐카이 무량공처' },
+    Gojo: { E: '술식 순전 · 「赤」', R: '술식 반전 · 「蒼」', T: '허식 「無量空処 / 茈」', X: '료이키텐카이 무량공처' },
     Sukuna: { E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
     Megumi: { E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '팔지검 이계신장 강대마허라' }
 };
@@ -464,8 +486,7 @@ function castSkill(key) {
         addUlt(8.0);
         
         if(player.charType === 'Gojo') {
-            playSound('aka');
-            speakVoice('赤', 'ja-JP');
+            playVoiceAndSound('aka');
             triggerVibration(20);
             projectiles.push({
                 x: player.x, y: player.y, targetX: targetX, targetY: targetY,
@@ -484,8 +505,7 @@ function castSkill(key) {
         addUlt(12.0);
         
         if(player.charType === 'Gojo') {
-            playSound('ao');
-            speakVoice('蒼', 'ja-JP');
+            playVoiceAndSound('ao');
             triggerVibration(20);
             blackHoles.push({
                 orbitAngle: ang,
@@ -510,8 +530,7 @@ function castSkill(key) {
         cooldowns.T = maxCooldowns[player.charType].T;
         if(player.charType === 'Gojo') {
             addUlt(20.0);
-            playSound('purple');
-            speakVoice('虚式 茈', 'ja-JP');
+            playVoiceAndSound('purple');
             triggerVibration(35);
             laserBeams.push({
                 x: player.x, y: player.y, ang: ang, length: 1800, width: 80,
@@ -526,15 +545,12 @@ function castSkill(key) {
         }
     } else if(key === 'X') {
         player.ultEnergy = 0;
-        playSound('domain');
+        playVoiceAndSound('domain');
         if(player.charType === 'Gojo') {
-            speakVoice('領域展開 無量空処', 'ja-JP');
             activeDomain = { type: 'Gojo', timer: 260 };
         } else if(player.charType === 'Sukuna') {
-            speakVoice('領域展開 伏魔御廚子', 'ja-JP');
             activeDomain = { type: 'Sukuna', timer: 200 };
         } else {
-            speakVoice('十種影法術 鵺', 'ja-JP');
             mahoraga = { x: player.x, y: player.y - 50, life: 600 };
         }
         triggerVibration(35);
@@ -542,8 +558,7 @@ function castSkill(key) {
 }
 
 function triggerPurpleExplosion(x, y, boIndex) {
-    playSound('purple');
-    speakVoice('茈', 'ja-JP');
+    playVoiceAndSound('purple');
     showDialogue('허식 「무라사키」 (자폭 피격!)');
     triggerVibration(80);
 
