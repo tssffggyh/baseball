@@ -1,36 +1,33 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 허식 무라사키 완벽 고증판")
+st.set_page_config(layout="wide", page_title="주술회전: 영역전개 지속시간 대폭 연장 개정판")
 
-st.markdown(
-    """
+st.markdown("""
     <style>
         .main .block-container { max-width: 100% !important; padding: 0rem !important; }
         iframe { width: 100% !important; border: none; }
         header, footer { visibility: hidden; }
     </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 game_html = """
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8">
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body, html {
-        width: 100%; height: 100%; overflow: hidden;
+    body {
         background-color: #020204; color: #fff;
         font-family: 'Consolas', monospace;
+        display: flex; justify-content: center; align-items: center;
+        width: 100vw; height: 100vh; overflow: hidden;
     }
     #game-container {
         position: relative; width: 100vw; height: 100vh;
-        overflow: hidden; background: #020204;
+        overflow: hidden; background: #000;
     }
-    canvas { display: block; cursor: crosshair; width: 100%; height: 100%; }
+    canvas { display: block; cursor: crosshair; }
     
     #ui-layer {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -40,15 +37,14 @@ game_html = """
     .hud-card {
         background: rgba(10, 10, 18, 0.85); backdrop-filter: blur(10px);
         padding: 15px 25px; border-radius: 12px;
-        border: 1px solid rgba(0, 210, 255, 0.4); box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-        pointer-events: auto;
+        border: 1px solid rgba(168, 85, 247, 0.4); box-shadow: 0 8px 32px rgba(0,0,0,0.6);
     }
     .bar-outer {
         width: 280px; height: 12px; background: rgba(255,255,255,0.1);
         border-radius: 6px; overflow: hidden; margin: 4px 0 10px 0;
     }
     .bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ff6b81); transition: width 0.1s; }
-    .bar-ult { width: 0%; height: 100%; background: linear-gradient(90deg, #00d2ff, #70a1ff); transition: width 0.1s; }
+    .bar-ult { width: 0%; height: 100%; background: linear-gradient(90deg, #a855f7, #e056fd); transition: width 0.1s; }
     
     #boss-hud {
         position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
@@ -62,11 +58,11 @@ game_html = """
     .skill-container { display: flex; gap: 8px; margin-top: 8px; }
     .skill-icon {
         position: relative; width: 50px; height: 50px; background: rgba(255,255,255,0.08);
-        border: 1px solid #00d2ff; border-radius: 10px;
+        border: 1px solid #a855f7; border-radius: 10px;
         display: flex; flex-direction: column; justify-content: space-between; align-items: center;
         padding: 4px; font-size: 9px; font-weight: bold; color: #fff; overflow: hidden;
     }
-    .skill-key { font-size: 12px; color: #70a1ff; }
+    .skill-key { font-size: 12px; color: #e056fd; }
     .cooldown-overlay {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.75); color: #ff4757; font-size: 14px; font-weight: bold;
@@ -75,41 +71,35 @@ game_html = """
 
     #dialogue-box {
         position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-        background: rgba(5, 5, 12, 0.95); border: 2px solid #00d2ff;
+        background: rgba(5, 5, 12, 0.95); border: 2px solid #a855f7;
         border-radius: 12px; padding: 12px 30px; text-align: center;
-        box-shadow: 0 0 30px rgba(0, 210, 255, 0.6);
+        box-shadow: 0 0 30px rgba(168, 85, 247, 0.8);
         opacity: 0; transition: opacity 0.15s ease-in-out; pointer-events: none; z-index: 20;
     }
-    #dialogue-text { font-size: 24px; font-weight: bold; color: #e0f2fe; letter-spacing: 3px; }
+    #dialogue-text { font-size: 24px; font-weight: bold; color: #f3e8ff; letter-spacing: 3px; }
 
-    #class-select {
-        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        background: rgba(3, 3, 6, 0.98); backdrop-filter: blur(15px);
-        display: flex; flex-direction: column; justify-content: center; z-index: 9999;
+    #class-select, #game-over {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(3, 3, 6, 0.94); backdrop-filter: blur(15px);
+        display: flex; flex-direction: column; justify-content: center; z-index: 100;
         align-items: center; pointer-events: auto;
     }
     .card-group { display: flex; gap: 30px; margin-top: 40px; }
     .card {
-        background: rgba(20, 20, 35, 0.7); border: 2px solid rgba(0, 210, 255, 0.3);
-        border-radius: 20px; padding: 30px 20px; width: 320px;
+        background: rgba(20, 20, 35, 0.7); border: 2px solid rgba(168, 85, 247, 0.3);
+        border-radius: 20px; padding: 30px 20px; width: 290px;
         text-align: center; cursor: pointer; transition: all 0.3s ease;
     }
     .card:hover {
-        transform: translateY(-10px); border-color: #00d2ff;
-        box-shadow: 0 15px 35px rgba(0, 210, 255, 0.4); background: rgba(30, 30, 50, 0.9);
+        transform: translateY(-10px); border-color: #a855f7;
+        box-shadow: 0 15px 35px rgba(168, 85, 247, 0.4); background: rgba(30, 30, 50, 0.9);
     }
-    .card h2 { margin-bottom: 12px; font-size: 26px; }
+    .card h2 { margin-bottom: 12px; font-size: 24px; }
     .card p { font-size: 12px; color: #a1a1aa; line-height: 1.6; text-align: left; }
     
-    #game-over {
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(3, 3, 6, 0.98); backdrop-filter: blur(15px);
-        display: none; flex-direction: column; justify-content: center; z-index: 100;
-        align-items: center; pointer-events: auto;
-    }
     .restart-btn {
         margin-top: 30px; padding: 15px 40px; font-size: 20px; font-weight: bold;
-        color: #fff; background: linear-gradient(90deg, #ff4757, #00d2ff);
+        color: #fff; background: linear-gradient(90deg, #ff4757, #a855f7);
         border: none; border-radius: 10px; cursor: pointer; transition: 0.2s;
     }
     .restart-btn:hover { transform: scale(1.05); }
@@ -128,8 +118,8 @@ game_html = """
     <div id="ui-layer">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
-                <div id="char-name" style="color:#00d2ff; font-weight:bold; font-size:16px;">원작 고죠 사토루</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP)</div>
+                <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#e056fd;">[영역전개 지속시간 대폭 연장]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -139,7 +129,7 @@ game_html = """
                         <span class="skill-key" style="color:#3498db;">AUTO</span><span>오토에임</span>
                     </div>
                     <div class="skill-icon">
-                        <span class="skill-key">Q</span><span id="sk-q">신속이동</span>
+                        <span class="skill-key">Q</span><span id="sk-q">신속아오</span>
                         <div id="cd-q" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon">
@@ -155,7 +145,7 @@ game_html = """
                         <div id="cd-t" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon" style="border-color:#ff4757;">
-                        <span class="skill-key" style="color:#ff4757;">X</span><span>무량공처</span>
+                        <span class="skill-key" style="color:#ff4757;">X</span><span>영역전개</span>
                         <div id="cd-x" class="cooldown-overlay">0</div>
                     </div>
                 </div>
@@ -164,7 +154,7 @@ game_html = """
             <div class="hud-card" style="text-align:right;">
                 <div id="boss-status" style="font-size:14px; color:#ff4757; font-weight:bold;">보스 소환 대기 중...</div>
                 <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:6px;">처치한 보스: 0 / 100</div>
-                <div id="mob-kill-status" style="font-size:13px; color:#00d2ff; margin-top:2px; font-weight:bold;">처치한 일반 주령: 0마리</div>
+                <div id="mob-kill-status" style="font-size:13px; color:#a855f7; margin-top:2px; font-weight:bold;">처치한 일반 주령: 0마리</div>
             </div>
         </div>
     </div>
@@ -174,34 +164,38 @@ game_html = """
     </div>
 
     <div id="class-select">
-        <h1 style="color:#e0f2fe; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #00d2ff;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[원작 고증 고죠 사토루 | 궤도형 아오 견인 | 잔해 아카 자폭 무라사키 | 지연형 茈]</p>
+        <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
+        <p style="color:#a1a1aa; margin-top:10px;">[영역전개 지속시간 대폭 연장 패치]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
-                <h2 style="color:#00d2ff;">👁️ 고죠 사토루 (원작 고증)</h2>
+                <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 외형: 흑발 머리칼 + 검은색 안대 (원작 의상)<br>
-                    • Q: 신속 순간이동 (순보)<br>
-                    • E: 술식반전 「赤」 (아오가 있으면 자동 유도)<br>
-                    • R: 술식순전 「蒼」 (내 주위 거리두고 궤도 회전 + 몹/발사체 끌고 감)<br>
-                    • T: 허식 「茈」 (엄청 늦게 나가며 강력한 파괴력)<br>
-                    • X: 영역전개 · 무량공처
+                    • Q: 신속 아오 폭주 (무적 버프)<br>
+                    • E: 술식반전 · 「赤」 (광역 밀쳐내기 & 자폭 茈 유도)<br>
+                    • R: 술식순전 · 「蒼」 (대형 블랙홀 당기기 & 대형 잔해 생성)<br>
+                    • T: 대형 허식 「茈」 / X: 무량공처 (지속시간 대폭 상향)
                 </p>
             </div>
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • Q: 신속 폭주<br>
-                    • E: 참격 「해(解)」<br>
-                    • R: 참격 「팔(捌)」<br>
-                    • T: 「푸가(🔥)」<br>
-                    • X: 복마어주자
+                    • Q: 신속 아오 폭주 (무적 버프)<br>
+                    • E: 해(解) / R: 팔(捌)<br>
+                    • T: 푸가(🔥) / X: 복마어주자 (지속시간 대폭 상향)
+                </p>
+            </div>
+            <div class="card" id="card-megumi">
+                <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
+                <p>
+                    • Q: 신속 아오 폭주 (무적 버프)<br>
+                    • E: 누에 / R: 옥견<br>
+                    • T: 그림자 속박 / X: 마허라 (지속시간 대폭 상향)
                 </p>
             </div>
         </div>
     </div>
 
-    <div id="game-over">
+    <div id="game-over" style="display:none;">
         <h1 style="color:#ff4757; font-size:56px; letter-spacing:3px;">YOU DIED</h1>
         <p style="color:#aaa; margin-top:10px; font-size:18px;" id="final-stats">주령들의 공격으로 사망했습니다.</p>
         <button class="restart-btn" id="restart-btn">다시 도전하기</button>
@@ -209,64 +203,6 @@ game_html = """
 </div>
 
 <script>
-// 웹 오디오 API 합성 사운드 시스템 (브라우저 자동 재생 정책 우회 및 호환성 확보)
-let audioCtx = null;
-
-function initAudio() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-}
-
-function playSound(type) {
-    if (!audioCtx) return;
-    try {
-        let osc = audioCtx.createOscillator();
-        let gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        let now = audioCtx.currentTime;
-
-        if (type === 'shoot') {
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(600, now);
-            osc.frequency.exponentialRampToValueAtTime(150, now + 0.1);
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
-            osc.start(now);
-            osc.stop(now + 0.1);
-        } else if (type === 'skill') {
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(300, now);
-            osc.frequency.exponentialRampToValueAtTime(900, now + 0.25);
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
-            osc.start(now);
-            osc.stop(now + 0.25);
-        } else if (type === 'explosion') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(120, now);
-            osc.frequency.linearRampToValueAtTime(30, now + 0.4);
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
-            osc.start(now);
-            osc.stop(now + 0.4);
-        } else if (type === 'hit') {
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, now);
-            osc.frequency.linearRampToValueAtTime(50, now + 0.08);
-            gain.gain.setValueAtTime(0.1, now);
-            gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
-            osc.start(now);
-            osc.stop(now + 0.08);
-        }
-    } catch(e) {}
-}
-
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -276,6 +212,45 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
+
+const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
+aoAudio.volume = 1.0;
+const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
+purpleAudio.volume = 1.0;
+
+let audioCtx = null;
+function initAudio() {
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    [aoAudio, purpleAudio].forEach(audio => {
+        if(audio.paused) {
+            audio.play().catch(() => {});
+            audio.pause();
+            audio.currentTime = 0;
+        }
+    });
+}
+
+function playVoiceAndSound(type) {
+    initAudio();
+    if(type === 'ao_voice') { aoAudio.currentTime = 0; aoAudio.play().catch(err => {}); return; }
+    if(type === 'purple_voice') { purpleAudio.currentTime = 0; purpleAudio.play().catch(err => {}); return; }
+
+    if(!audioCtx) return;
+    let now = audioCtx.currentTime;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if(type === 'aka') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.35);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc.start(now); osc.stop(now + 0.35);
+    }
+}
 
 const WORLD_WIDTH = 7200;
 const WORLD_HEIGHT = 5400;
@@ -297,9 +272,10 @@ let limitlessTimer = 0;
 let limitlessActive = false;
 let limitlessDurationCounter = 0;
 
+let speedAoActive = false;
+let speedAoTimer = 0; 
+
 let bloodSplatters = [];
-let permanentCraters = []; 
-let debrisList = []; 
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
@@ -310,26 +286,33 @@ let player = {
 
 let cooldowns = { Q: 0, E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { Q: 12, E: 5, R: 14, T: 22, X: 0 },
-    Sukuna: { Q: 29, E: 7, R: 14, T: 21, X: 0 }
+    Gojo: { Q: 29, E: 8, R: 15, T: 24, X: 0 },
+    Sukuna: { Q: 29, E: 7, R: 14, T: 21, X: 0 },
+    Megumi: { Q: 29, E: 8, R: 15, T: 23, X: 0 }
 };
 
 let dialogues = {
-    Gojo: { Q: '신속 이동', E: '술식반전 · 「赤」', R: '술식순전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
-    Sukuna: { Q: '신속 폭주', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' }
+    Gojo: { Q: '신속 아오 폭주 (무적)', E: '술식반전 · 「赤」', R: '술식순전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
+    Sukuna: { Q: '신속 아오 폭주 (무적)', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
+    Megumi: { Q: '신속 아오 폭주 (무적)', E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
 };
 
 let activeDomain = null;
+let mahoraga = null;
 let keys = {};
 let projectiles = [];
 let enemyProjectiles = [];
 let slashes = [];
 let explosions = [];
-let blackHoles = [];      
-let blueOrbs = [];        
+let blackHoles = [];     
+let blueOrbs = [];       
+let purpleEffects = [];   
 let purpleProjectiles = []; 
+let laserBeams = [];
+let meleeAttacks = [];
 let enemies = [];
 let highQualityShots = []; 
+let windTrails = [];      
 
 const BOSS_COLORS = [
     { bg: '#e74c3c', aura: '#ff7675', spikes: 5 },
@@ -369,14 +352,13 @@ window.addEventListener('keydown', e => {
     if(k === 'x') castSkill('X');
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-window.addEventListener('click', () => { initAudio(); });
 
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35 * 1.5)); }
 
 function takeDamage(damage) {
+    if(speedAoActive) return; 
     player.hp -= damage; 
     lastHitTime = Date.now();
-    playSound('hit');
 }
 
 function showDialogue(text) {
@@ -393,30 +375,31 @@ function triggerVibration(intensity) {
     if (navigator.vibrate) navigator.vibrate(intensity * 15);
 }
 
-function startGame(type) {
+function selectChar(type) {
     initAudio();
     player.charType = type;
     document.getElementById('class-select').style.display = 'none';
     
     let skNames = {
-        'Gojo': ['신속이동', '아카', '아오', '무라사키', '무량공처'],
-        'Sukuna': ['신속폭주', '해(解)', '팔(捌)', '푸가', '복마어주자']
+        'Gojo': ['신속아오', '아카', '아오', '무라사키', '무량공처'],
+        'Sukuna': ['신속아오', '해(解)', '팔(捌)', '푸가', '복마어주자'],
+        'Megumi': ['신속아오', '누에', '옥견', '그림자', '마허라']
     };
     
-    document.getElementById('char-name').innerText = type === 'Gojo' ? '원작 고죠 사토루' : '양면 스쿠나';
+    document.getElementById('char-name').innerText = type === 'Gojo' ? '고죠 사토루' : (type === 'Sukuna' ? '양면 스쿠나' : '후시구로 메구미');
     document.getElementById('sk-q').innerText = skNames[type][0];
     document.getElementById('sk-e').innerText = skNames[type][1];
     document.getElementById('sk-r').innerText = skNames[type][2];
     document.getElementById('sk-t').innerText = skNames[type][3];
-    document.getElementById('sk-x').innerText = type === 'Gojo' ? '무량공처' : '복마어주자';
 
     for(let i=0; i<50; i++) spawnCurse();
     spawnBoss();
-    requestAnimationFrame(gameLoop);
+    gameLoop();
 }
 
-document.getElementById('card-gojo').addEventListener('click', () => startGame('Gojo'));
-document.getElementById('card-sukuna').addEventListener('click', () => startGame('Sukuna'));
+document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
+document.getElementById('card-sukuna').addEventListener('click', () => selectChar('Sukuna'));
+document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
 document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
 function getAutoAimAngle() {
@@ -441,21 +424,21 @@ function getAutoAimAngle() {
 function performAutoAttack() {
     if(isGameOver) return;
     let now = Date.now();
-    let attackInterval = 600;
+    let attackInterval = (player.charType === 'Gojo') ? 700 : 600;
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
     let ang = getAutoAimAngle();
+
     addUlt(0.8);
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
-    playSound('shoot');
 
     if(player.charType === 'Gojo') {
         let shotX = player.x + Math.cos(ang) * 20;
         let shotY = player.y + Math.sin(ang) * 20;
         projectiles.push({
-            x: shotX, y: shotY, vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
-            damage: 90, radius: 12, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
+            x: shotX, y: shotY, vx: Math.cos(ang)*16, vy: Math.sin(ang)*16,
+            damage: 80, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
         });
         for(let i=0; i<8; i++) {
             highQualityShots.push({
@@ -463,8 +446,10 @@ function performAutoAttack() {
                 radius: Math.random()*5+2, life: 18, color: '#70a1ff'
             });
         }
-    } else {
+    } else if(player.charType === 'Sukuna') {
         slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 70});
+    } else {
+        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 60, radius: 8, color: '#2ecc71', type:'normal'});
     }
 }
 
@@ -474,15 +459,13 @@ function castSkill(key) {
     if(key === 'X' && player.ultEnergy < player.maxUlt) return;
 
     let ang = getAutoAimAngle();
-    let targetX = player.x + Math.cos(ang) * 250;
-    let targetY = player.y + Math.sin(ang) * 250;
-
-    playSound('skill');
+    let targetX = player.x + Math.cos(ang) * 200;
+    let targetY = player.y + Math.sin(ang) * 200;
 
     if(key === 'X' && player.charType === 'Gojo') {
         gojoDomainCount++;
         if(gojoDomainCount >= 4) {
-            showDialogue('뇌에 과부하가 걸렸다...');
+            showDialogue('더 이상 쓸 수가 없어...');
             cooldowns.X = 24;
             player.ultEnergy = 0;
             gojoDomainCount = 0;
@@ -495,84 +478,94 @@ function castSkill(key) {
 
     if(key === 'Q') {
         cooldowns.Q = maxCooldowns[player.charType].Q;
-        player.x += Math.cos(ang) * 350;
-        player.y += Math.sin(ang) * 350;
-        triggerVibration(20);
+        speedAoActive = true;
+        speedAoTimer = 500;
+        playVoiceAndSound('ao_voice');
+        triggerVibration(25);
         addUlt(3.0);
     } else if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
         addUlt(2.5);
         
         if(player.charType === 'Gojo') {
+            playVoiceAndSound('aka');
             triggerVibration(30);
-            let finalTargetX = targetX;
-            let finalTargetY = targetY;
-            if(blackHoles.length > 0) {
-                finalTargetX = blackHoles[0].x;
-                finalTargetY = blackHoles[0].y;
+            
+            let targetOrb = blueOrbs.length > 0 ? blueOrbs[0] : null;
+            let finalVx = Math.cos(ang)*18;
+            let finalVy = Math.sin(ang)*18;
+            let targetXPos = targetX;
+            let targetYPos = targetY;
+
+            if(targetOrb) {
+                let orbAng = Math.atan2(targetOrb.y - player.y, targetOrb.x - player.x);
+                finalVx = Math.cos(orbAng) * 22;
+                finalVy = Math.sin(orbAng) * 22;
+                targetXPos = targetOrb.x;
+                targetYPos = targetOrb.y;
             }
-            let autoAng = Math.atan2(finalTargetY - player.y, finalTargetX - player.x);
 
             projectiles.push({
                 x: player.x, y: player.y, 
-                targetX: finalTargetX, targetY: finalTargetY,
-                vx: Math.cos(autoAng)*22, vy: Math.sin(autoAng)*22,
-                type: 'aka', damage: 4500, radius: 28, maxDist: Math.hypot(finalTargetX - player.x, finalTargetY - player.y), traveled: 0
+                targetX: targetXPos, targetY: targetYPos,
+                vx: finalVx, vy: finalVy,
+                type: 'aka', damage: 3500, radius: 28,
+                maxDist: targetOrb ? Math.hypot(targetOrb.x - player.x, targetOrb.y - player.y) : 350, 
+                traveled: 0, targetOrb: targetOrb
             });
-        } else {
+        } else if(player.charType === 'Sukuna') {
             for(let i=-2; i<=2; i++) {
                 slashes.push({ x: player.x, y: player.y, ang: ang + i*0.2, length: 220, life: 14, damage: 1500 });
             }
+        } else {
+            explosions.push({x: targetX, y: targetY, radius: 70, maxRadius: 70, color: '#f1c40f', life: 15, damage: 1200});
         }
     } else if(key === 'R') {
         cooldowns.R = maxCooldowns[player.charType].R;
         addUlt(4.0);
         
         if(player.charType === 'Gojo') {
+            playVoiceAndSound('ao_voice');
             triggerVibration(25);
             blackHoles.push({
-                orbitAngle: ang, orbitRadius: 160, radius: 90, life: 350, damage: 2500, x: player.x, y: player.y
+                orbitAngle: ang, orbitRadius: 260, radius: 650, life: 180, damage: 3000, x: player.x, y: player.y
             });
-        } else {
+        } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
                 slashes.push({
                     x: targetX + (Math.random()-0.5)*200, y: targetY + (Math.random()-0.5)*200,
                     ang: Math.random()*Math.PI*2, length: 160, life: 12, damage: 1800
                 });
             }
+        } else {
+            projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, type:'normal', damage: 1500, radius: 10, color: '#2ecc71'});
         }
     } else if(key === 'T') {
         cooldowns.T = maxCooldowns[player.charType].T;
         if(player.charType === 'Gojo') {
             addUlt(6.0);
-            triggerVibration(45);
-            playSound('explosion');
-            
+            playVoiceAndSound('purple_voice');
+            triggerVibration(35);
             purpleProjectiles.push({
-                x: player.x + Math.cos(ang)*35, 
-                y: player.y + Math.sin(ang)*35,
-                vx: Math.cos(ang) * 11, 
-                vy: Math.sin(ang) * 11,
-                phase: 'expanding', 
-                timer: 110, 
-                currentRadius: 4,
-                maxRadius: 160,
-                life: 400, 
-                damage: 99999, 
-                ang: ang
+                x: player.x, y: player.y,
+                vx: Math.cos(ang) * 9.5, vy: Math.sin(ang) * 9.5,
+                radius: 140, maxLife: 300, life: 300, damage: 9999, hitEnemies: new Set()
             });
+        } else if(player.charType === 'Sukuna') {
+            addUlt(5.0);
+            explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 4000});
         } else {
             addUlt(5.0);
-            playSound('explosion');
-            explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 4000});
+            enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 350) e.speed = 0.5; });
         }
     } else if(key === 'X') {
         player.ultEnergy = 0;
-        playSound('explosion');
         if(player.charType === 'Gojo') {
-            activeDomain = { type: 'Gojo', timer: 1200 };
-        } else {
+            activeDomain = { type: 'Gojo', timer: 1200 }; // 영역전개 지속시간 대폭 연장 (약 4배)
+        } else if(player.charType === 'Sukuna') {
             activeDomain = { type: 'Sukuna', timer: 1000 };
+        } else {
+            mahoraga = { x: player.x, y: player.y - 50, life: 1500 };
         }
         triggerVibration(40);
     }
@@ -588,7 +581,7 @@ function spawnCurse() {
         x: x, y: y, radius: isRanged ? 18 : 22,
         hp: isRanged ? 100 : 150, maxHp: isRanged ? 100 : 150,
         speed: isRanged ? 2.0 : 2.8,
-        isBoss: false, isRanged: isRanged
+        isBoss: false, isRanged: isRanged, attackCd: 0
     });
 }
 
@@ -626,7 +619,7 @@ function spawnBoss() {
         x: bx, y: by, level: cfg.level, name: cfg.name,
         hp: cfg.hp, maxHp: cfg.hp, radius: cfg.radius, speed: cfg.speed, dmg: cfg.dmg,
         color: cfg.color, aura: cfg.aura, spikes: cfg.spikes,
-        isBoss: true
+        isBoss: true, attackCd: 0, skillCd: 0, ultCd: 0
     };
     
     enemies.push(boss);
@@ -639,9 +632,7 @@ function triggerGameOver() {
     isGameOver = true;
     if(bossRespawnTimer) clearInterval(bossRespawnTimer);
     document.getElementById('ui-layer').style.display = 'none';
-    let gOver = document.getElementById('game-over');
-    gOver.style.display = 'flex';
-    gOver.style.zIndex = '9999';
+    document.getElementById('game-over').style.display = 'flex';
     document.getElementById('final-stats').innerText = `도달한 보스 레벨: Lv.${bossLevel} | 처치한 보스: ${defeatedBosses}마리 | 처치한 일반 주령: ${normalKillCount}마리`;
 }
 
@@ -670,11 +661,34 @@ function update() {
 
     performAutoAttack();
 
+    if(speedAoActive) {
+        speedAoTimer--;
+        player.speed = player.baseSpeed * 2.5; 
+        
+        windTrails.push({
+            x: player.x, y: player.y, radius: Math.random() * 40 + 30, life: 15, alpha: 0.7
+        });
+
+        enemies.forEach(e => {
+            let dist = Math.hypot(e.x - player.x, e.y - player.y);
+            if(dist < e.radius + 30) {
+                e.hp -= 120.0;
+            }
+        });
+
+        if(speedAoTimer <= 0) {
+            speedAoActive = false;
+            player.speed = player.baseSpeed;
+        }
+    } else {
+        player.speed = player.baseSpeed;
+    }
+
     if(player.charType === 'Gojo') {
         limitlessTimer += 0.016; 
-        if(!limitlessActive && limitlessTimer >= 6.0) {
+        if(!limitlessActive && limitlessTimer >= 7.0) {
             limitlessActive = true;
-            limitlessDurationCounter = 200; 
+            limitlessDurationCounter = 180; 
         }
         if(limitlessActive) {
             limitlessDurationCounter--;
@@ -720,6 +734,22 @@ function update() {
         bossHud.style.display = 'none';
     }
 
+    if(mahoraga) {
+        mahoraga.life--;
+        let bossTarget = activeBosses[0] || enemies[0];
+        if(bossTarget) {
+            let ang = Math.atan2(bossTarget.y - mahoraga.y, bossTarget.x - mahoraga.x);
+            mahoraga.x += Math.cos(ang) * 4.5; mahoraga.y += Math.sin(ang) * 4.5;
+        }
+        if(mahoraga.life <= 0) mahoraga = null;
+    }
+
+    windTrails.forEach((wt, wti) => {
+        wt.life--;
+        wt.radius += 1.5;
+        if(wt.life <= 0) windTrails.splice(wti, 1);
+    });
+
     bloodSplatters.forEach((bs, bsi) => {
         bs.life--;
         bs.x += bs.vx;
@@ -727,42 +757,22 @@ function update() {
         if(bs.life <= 0) bloodSplatters.splice(bsi, 1);
     });
 
-    debrisList.forEach((d, di) => {
-        d.life--;
-        if(d.life <= 0) debrisList.splice(di, 1);
-    });
-
     purpleProjectiles.forEach((pp, ppi) => {
+        pp.x += pp.vx;
+        pp.y += pp.vy;
         pp.life--;
-        if(pp.phase === 'expanding') {
-            pp.timer--;
-            let progress = (110 - pp.timer) / 110;
-            pp.currentRadius = 4 + (pp.maxRadius - 4) * progress;
-            
-            if(pp.timer <= 0) {
-                pp.phase = 'charging';
-                pp.timer = 30; 
-                triggerVibration(20);
-            }
-        } else if(pp.phase === 'charging') {
-            pp.timer--;
-            if(pp.timer <= 0) {
-                pp.phase = 'firing';
-                triggerVibration(45);
-                playSound('explosion');
-                permanentCraters.push({ x: pp.x, y: pp.y, radius: pp.maxRadius * 1.5 });
-            }
-        } else if(pp.phase === 'firing') {
-            pp.x += pp.vx * 2.2;
-            pp.y += pp.vy * 2.2;
 
-            enemies.forEach(e => {
-                let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
-                if(dist < e.radius + pp.maxRadius) {
-                    e.hp -= 99999;
-                }
-            });
-        }
+        enemies.forEach((e, ei) => {
+            let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
+            if(dist < e.radius + pp.radius) {
+                e.hp -= 800;
+                purpleEffects.push({
+                    x: e.x + (Math.random()-0.5)*30, y: e.y + (Math.random()-0.5)*30,
+                    vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4,
+                    radius: Math.random()*8+4, life: 15, color: '#e056fd'
+                });
+            }
+        });
 
         if(pp.life <= 0 || pp.x < 0 || pp.x > WORLD_WIDTH || pp.y < 0 || pp.y > WORLD_HEIGHT) {
             purpleProjectiles.splice(ppi, 1);
@@ -771,36 +781,45 @@ function update() {
 
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
-        bh.orbitAngle += 0.05;
+        bh.orbitAngle += 0.06;
         bh.x = player.x + Math.cos(bh.orbitAngle) * bh.orbitRadius;
         bh.y = player.y + Math.sin(bh.orbitAngle) * bh.orbitRadius;
 
         enemies.forEach(e => {
             let d = Math.hypot(bh.x - e.x, bh.y - e.y);
-            if(d < bh.radius * 2.2) {
+            if(d < bh.radius) {
                 let pullAng = Math.atan2(bh.y - e.y, bh.x - e.x);
-                e.x += Math.cos(pullAng) * 6;
-                e.y += Math.sin(pullAng) * 6;
+                e.x += Math.cos(pullAng) * 15;
+                e.y += Math.sin(pullAng) * 15;
             }
         });
 
-        enemyProjectiles.forEach(ep => {
-            let d = Math.hypot(bh.x - ep.x, bh.y - ep.y);
-            if(d < bh.radius * 2) {
-                let pullAng = Math.atan2(bh.y - ep.y, bh.x - ep.x);
-                ep.vx += Math.cos(pullAng) * 2;
-                ep.vy += Math.sin(pullAng) * 2;
+        enemyProjectiles.forEach((ep, epi) => {
+            if(Math.hypot(bh.x - ep.x, bh.y - ep.y) < bh.radius) {
+                enemyProjectiles.splice(epi, 1);
             }
         });
 
         if(bh.life <= 0) {
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 150, life: 350 });
+            explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 400, color: '#3742fa', life: 18, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
     });
 
     blueOrbs.forEach((bo, boi) => {
         bo.life--;
+        enemyProjectiles.forEach((ep, epi) => {
+            if(Math.hypot(bo.x - ep.x, bo.y - ep.y) < bo.radius) {
+                enemyProjectiles.splice(epi, 1);
+            }
+        });
         if(bo.life <= 0) blueOrbs.splice(boi, 1);
+    });
+
+    laserBeams.forEach((lb, lbi) => {
+        lb.life--;
+        if(lb.life <= 0) laserBeams.splice(lbi, 1);
     });
 
     enemyProjectiles.forEach((ep, epi) => {
@@ -812,6 +831,11 @@ function update() {
         }
     });
 
+    meleeAttacks.forEach((ma, mai) => {
+        ma.life--;
+        if(ma.life <= 0) meleeAttacks.splice(mai, 1);
+    });
+
     highQualityShots.forEach((hs, hsi) => {
         hs.x += hs.vx; hs.y += hs.vy; hs.life--;
         if(hs.life <= 0) highQualityShots.splice(hsi, 1);
@@ -821,33 +845,25 @@ function update() {
         p.x += p.vx; p.y += p.vy;
 
         if(p.type === 'aka') {
+            if(p.targetOrb) {
+                let orbExists = blueOrbs.includes(p.targetOrb);
+                if(orbExists) {
+                    let reAng = Math.atan2(p.targetOrb.y - p.y, p.targetOrb.x - p.x);
+                    p.vx = Math.cos(reAng) * 22;
+                    p.vy = Math.sin(reAng) * 22;
+                }
+            }
+
             p.traveled += Math.hypot(p.vx, p.vy);
             let reachedTarget = p.traveled >= p.maxDist;
+            let hitOrb = false;
 
-            let hitDebrisIdx = -1;
-            debrisList.forEach((deb, di) => {
-                if(Math.hypot(deb.x - p.x, deb.y - p.y) < deb.radius + p.radius + 40) {
-                    hitDebrisIdx = di;
+            blueOrbs.forEach((bo, boi) => {
+                if(Math.hypot(bo.x - p.x, bo.y - p.y) < bo.radius + p.radius) {
+                    hitOrb = true;
+                    blueOrbs.splice(boi, 1);
                 }
             });
-
-            if(hitDebrisIdx !== -1) {
-                let deb = debrisList[hitDebrisIdx];
-                debrisList.splice(hitDebrisIdx, 1);
-
-                explosions.push({
-                    x: deb.x, y: deb.y, radius: 40, maxRadius: 3500, color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 999999
-                });
-                permanentCraters.push({ x: deb.x, y: deb.y, radius: 2500 });
-                triggerVibration(60);
-                playSound('explosion');
-                showDialogue('💥 잔해 연계 자폭 무라사키 발동!!');
-
-                enemies.forEach(e => { e.hp = 0; });
-
-                projectiles.splice(pi, 1);
-                return;
-            }
 
             let hitEnemy = false;
             enemies.forEach(e => {
@@ -856,196 +872,394 @@ function update() {
                 }
             });
 
-            if(reachedTarget || hitEnemy) {
-                explosions.push({
-                    x: p.x, y: p.y, radius: 30, maxRadius: 380, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
-                });
-                permanentCraters.push({ x: p.x, y: p.y, radius: 380 });
+            if(reachedTarget || hitEnemy || hitOrb) {
+                if(hitOrb || (p.targetOrb && Math.hypot(p.x - p.targetOrb.x, p.y - p.targetOrb.y) < 120)) {
+                    playVoiceAndSound('purple_voice');
+                    showDialogue('「자폭 허식 · 茈」');
+                    triggerVibration(50);
+
+                    explosions.push({
+                        x: p.x, y: p.y, radius: 40, maxRadius: 1100, color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 10000
+                    });
+
+                    enemies.forEach(e => {
+                        e.hp -= 10000;
+                        e.hp -= e.maxHp * 0.5;
+                    });
+                } else {
+                    explosions.push({
+                        x: p.x, y: p.y, radius: 30, maxRadius: 320, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
+                    });
+                    triggerVibration(25);
+                    enemies.forEach(e => {
+                        if(Math.hypot(e.x - p.x, e.y - p.y) < 320) {
+                            e.hp -= p.damage;
+                        }
+                    });
+                }
+
                 projectiles.splice(pi, 1);
-                triggerVibration(25);
-                playSound('explosion');
+                return;
             }
-        } else {
-            enemies.forEach(e => {
-                if(Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
-                    e.hp -= p.damage;
+        }
+
+        if(p.type === 'gojo_hq_basic') {
+            p.trailTimer--;
+            if(p.trailTimer <= 0) {
+                p.trailTimer = 3;
+                highQualityShots.push({ x: p.x, y: p.y, vx: 0, vy: 0, radius: 4, life: 10, color: '#00d2ff' });
+            }
+        }
+
+        enemies.forEach((e) => {
+            if(p.type !== 'aka' && Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
+                e.hp -= p.damage;
+                if(p.type === 'normal' || p.type === 'gojo_hq_basic') {
+                    for(let i=0; i<5; i++) {
+                        highQualityShots.push({
+                            x: p.x, y: p.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
+                            radius: Math.random()*3+2, life: 12, color: '#ffffff'
+                        });
+                    }
                     projectiles.splice(pi, 1);
                 }
-            });
-        }
+            }
+        });
+    });
+
+    purpleEffects.forEach((pe, pei) => {
+        pe.x += pe.vx; pe.y += pe.vy; pe.life--;
+        if(pe.life <= 0) purpleEffects.splice(pei, 1);
+    });
+
+    explosions.forEach((ex, exi) => {
+        ex.life--;
+        if(ex.radius < ex.maxRadius) ex.radius += (ex.maxRadius - ex.radius) * 0.2;
+        enemies.forEach(e => { if(Math.hypot(e.x - ex.x, e.y - ex.y) < ex.radius) e.hp -= ex.damage / 15; });
+        if(ex.life <= 0) explosions.splice(exi, 1);
     });
 
     slashes.forEach((s, si) => {
         s.life--;
-        enemies.forEach(e => {
-            if(Math.hypot(e.x - s.x, e.y - s.y) < e.radius + 30) {
-                e.hp -= s.damage;
-            }
-        });
+        enemies.forEach(e => { if(Math.hypot(e.x - s.x, e.y - s.y) < s.length / 2) e.hp -= s.damage / 4; });
         if(s.life <= 0) slashes.splice(si, 1);
     });
 
-    explosions.forEach((ex, exi) => {
-        ex.radius += (ex.maxRadius - ex.radius) * 0.2;
-        ex.life--;
-        enemies.forEach(e => {
-            if(Math.hypot(e.x - ex.x, e.y - ex.y) < ex.radius + e.radius) {
-                e.hp -= (ex.damage / 10);
-            }
-        });
-        if(ex.life <= 0) explosions.splice(exi, 1);
-    });
+    enemies.forEach((e, ei) => {
+        if(activeDomain && activeDomain.type === 'Gojo') e.speed = 0;
+        else e.speed = e.isBoss ? e.speed : (e.isRanged ? 2.0 : 2.8);
 
-    enemies.forEach((e, idx) => {
-        if(activeDomain && activeDomain.type === 'Gojo') {
-            // 정지
+        let ang = Math.atan2(player.y - e.y, player.x - e.x);
+        let dist = Math.hypot(player.x - e.x, player.y - e.y);
+
+        if(player.charType === 'Gojo' && limitlessActive && dist < 130) {
+            e.x -= Math.cos(ang) * 14; 
+            e.y -= Math.sin(ang) * 14;
         } else {
-            let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
-            let ang = Math.atan2(player.y - e.y, player.x - e.x);
-            
-            if(e.isBoss) {
-                e.x += Math.cos(ang) * e.speed;
-                e.y += Math.sin(ang) * e.speed;
-
-                if(distToPlayer < 70) {
-                    takeDamage(e.dmg * 0.1);
-                }
+            if(e.isRanged && dist < 300) {
+                e.x -= Math.cos(ang) * e.speed;
+                e.y -= Math.sin(ang) * e.speed;
             } else {
                 e.x += Math.cos(ang) * e.speed;
                 e.y += Math.sin(ang) * e.speed;
-                if(distToPlayer < e.radius + 15) {
-                    takeDamage(1.2);
+            }
+        }
+
+        e.attackCd = (e.attackCd || 0) + 1;
+        e.skillCd = (e.skillCd || 0) + 1;
+        e.ultCd = (e.ultCd || 0) + 1;
+
+        if(e.isRanged && e.attackCd >= 80 && dist < 550 && e.speed > 0) {
+            e.attackCd = 0;
+            enemyProjectiles.push({
+                x: e.x, y: e.y, vx: Math.cos(ang)*8, vy: Math.sin(ang)*8,
+                damage: 18, radius: 6
+            });
+        }
+
+        if(e.isBoss && e.speed > 0) {
+            if(e.skillCd >= 70) {
+                e.skillCd = 0;
+                let patternType = Math.floor(Math.random() * 3);
+                
+                if(patternType === 0) {
+                    for(let i=-2; i<=2; i++) {
+                        enemyProjectiles.push({
+                            x: e.x, y: e.y, vx: Math.cos(ang + i*0.22)*11, vy: Math.sin(ang + i*0.22)*11,
+                            damage: e.dmg * 0.7, radius: 8
+                        });
+                    }
+                } else if(patternType === 1) {
+                    explosions.push({
+                        x: player.x + (Math.random()-0.5)*120, y: player.y + (Math.random()-0.5)*120,
+                        radius: 20, maxRadius: 150, color: 'rgba(231, 76, 60, 0.65)', life: 25, damage: e.dmg * 1.1
+                    });
+                } else {
+                    for(let i=0; i<8; i++) {
+                        let rAng = (Math.PI * 2 / 8) * i;
+                        enemyProjectiles.push({
+                            x: e.x, y: e.y, vx: Math.cos(rAng)*7.5, vy: Math.sin(rAng)*7.5,
+                            damage: e.dmg * 0.8, radius: 7
+                        });
+                    }
                 }
+            }
+        }
+
+        if(!e.isRanged && dist < e.radius + 30 && e.speed > 0) {
+            if(e.attackCd >= (e.isBoss ? 20 : 40)) {
+                e.attackCd = 0;
+                let dmg = e.isBoss ? e.dmg : 14;
+                takeDamage(dmg);
+                triggerVibration(e.isBoss ? 15 : 6);
+                meleeAttacks.push({
+                    x: (e.x + player.x) / 2, y: (e.y + player.y) / 2,
+                    ang: ang, radius: e.isBoss ? e.radius + 10 : 25, life: 10, isBoss: e.isBoss
+                });
             }
         }
 
         if(e.hp <= 0) {
-            for(let i=0; i<12; i++) {
-                bloodSplatters.push({
-                    x: e.x, y: e.y,
-                    vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8,
-                    radius: Math.random()*6+3, life: 60, color: e.isBoss ? '#ff4757' : '#00d2ff'
-                });
-            }
-
-            debrisList.push({
-                x: e.x, y: e.y, radius: 22, life: 900 
-            });
-
             if(e.isBoss) {
                 defeatedBosses++;
                 bossLevel++;
-                document.getElementById('kill-status').innerText = `처치한 보스: ${defeatedBosses} / 100`;
-                enemies.splice(idx, 1);
-
+                addUlt(8.0);
+                enemies.splice(ei, 1);
+                
                 if(bossLevel <= 100) {
                     startBossRespawnTimer();
                 } else {
-                    showDialogue('🎉 모든 주령을 토벌했습니다!');
+                    document.getElementById('boss-status').innerText = `🏆 모든 보스 제령 완료!`;
+                    showDialogue(`🎉 축하합니다! 100단계 보스 정복!`);
                 }
             } else {
+                for(let b=0; b<12; b++) {
+                    let bAng = Math.random() * Math.PI * 2;
+                    let bSpd = Math.random() * 5 + 2;
+                    bloodSplatters.push({
+                        x: e.x, y: e.y,
+                        vx: Math.cos(bAng) * bSpd,
+                        vy: Math.sin(bAng) * bSpd,
+                        radius: Math.random() * 4 + 2,
+                        life: Math.random() * 30 + 20
+                    });
+                }
+
                 normalKillCount++;
-                document.getElementById('mob-kill-status').innerText = `처치한 일반 주령: ${normalKillCount}마리`;
-                addUlt(2.0);
-                enemies.splice(idx, 1);
+                addUlt(0.5);
+                enemies.splice(ei, 1);
             }
         }
     });
 
-    let hpPct = Math.max(0, (player.hp / player.maxHp) * 100);
-    let ultPct = Math.max(0, (player.ultEnergy / player.maxUlt) * 100);
-    document.getElementById('hp-bar').style.width = hpPct + '%';
-    document.getElementById('ult-bar').style.width = ultPct + '%';
+    document.getElementById('hp-bar').style.width = Math.max(0, (player.hp / player.maxHp * 100)) + '%';
+    document.getElementById('ult-bar').style.width = Math.min(100, (player.ultEnergy / player.maxUlt * 100)) + '%';
+    document.getElementById('kill-status').innerText = `처치한 보스: ${defeatedBosses} / 100`;
+    document.getElementById('mob-kill-status').innerText = `처치한 일반 주령: ${normalKillCount}마리`;
+}
+
+function drawPlayerSprite(p) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.facing, 1);
+
+    if(p.charType === 'Gojo') {
+        ctx.shadowBlur = 20; ctx.shadowColor = '#70a1ff';
+        ctx.fillStyle = '#0a0a14'; ctx.fillRect(-10, -16, 20, 32);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(-9, -32, 18, 12);
+        ctx.fillStyle = '#70a1ff'; ctx.fillRect(-7, -24, 14, 4);
+        ctx.shadowBlur = 0;
+    } else if(p.charType === 'Sukuna') {
+        ctx.fillStyle = '#111'; ctx.fillRect(-10, -16, 20, 32);
+        ctx.fillStyle = '#ff7675'; ctx.fillRect(-9, -32, 18, 10);
+        ctx.fillStyle = '#ff4757'; ctx.fillRect(-6, -24, 12, 3);
+    } else {
+        ctx.fillStyle = '#0f172a'; ctx.fillRect(-10, -16, 20, 32);
+        ctx.fillStyle = '#1e293b'; ctx.fillRect(-11, -34, 22, 12);
+    }
+    ctx.restore();
+}
+
+function drawEnemySprite(e) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    if(e.isBoss) {
+        ctx.shadowBlur = 25 + Math.floor(e.level / 4); ctx.shadowColor = e.aura;
+        ctx.fillStyle = e.color;
+        ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
+        
+        ctx.fillStyle = e.aura;
+        for(let i=0; i<e.spikes; i++) {
+            let spikeAng = (Math.PI * 2 / e.spikes) * i;
+            let sx = Math.cos(spikeAng) * (e.radius + 12);
+            let sy = Math.sin(spikeAng) * (e.radius + 12);
+            ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI*2); ctx.fill();
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ff4757';
+        ctx.font = 'bold 16px Consolas';
+        ctx.textAlign = 'center';
+        ctx.fillText(`[LV.${e.level}]`, 0, -e.radius - 18);
+    } else {
+        if(e.isRanged) {
+            ctx.fillStyle = '#8e44ad';
+            ctx.beginPath();
+            ctx.moveTo(0, -e.radius);
+            ctx.lineTo(e.radius, 0);
+            ctx.lineTo(0, e.radius);
+            ctx.lineTo(-e.radius, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = '#e056fd'; ctx.lineWidth = 2; ctx.stroke();
+        } else {
+            ctx.fillStyle = '#1e272e';
+            ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#57606f'; ctx.lineWidth = 2; ctx.stroke();
+            
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath(); ctx.arc(-6, -4, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(6, -4, 4, 0, Math.PI*2); ctx.fill();
+        }
+    }
+    ctx.restore();
 }
 
 function draw() {
-    ctx.fillStyle = '#020204';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     ctx.save();
-    let shakeX = (Math.random() - 0.5) * screenShake;
-    let shakeY = (Math.random() - 0.5) * screenShake;
-    ctx.translate(Math.floor(-camera.x + shakeX), Math.floor(-camera.y + shakeY));
+    if(screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
 
-    ctx.strokeStyle = 'rgba(0, 210, 255, 0.06)';
-    ctx.lineWidth = 1;
-    let gridSize = 120;
-    for(let x=0; x<=WORLD_WIDTH; x+=gridSize) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke();
-    }
-    for(let y=0; y<=WORLD_HEIGHT; y+=gridSize) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke();
-    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.translate(-camera.x, -camera.y);
 
-    permanentCraters.forEach(cr => {
+    windTrails.forEach(wt => {
+        let alpha = wt.life / 15;
         ctx.save();
-        ctx.fillStyle = 'rgba(5, 2, 10, 0.7)';
-        ctx.beginPath(); ctx.arc(cr.x, cr.y, cr.radius * 0.85, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.35)';
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = `rgba(180, 230, 255, ${alpha})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(wt.x, wt.y, wt.radius, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
     });
 
-    debrisList.forEach(deb => {
+    if(speedAoActive) {
         ctx.save();
-        ctx.fillStyle = '#2f3542';
-        ctx.beginPath(); ctx.arc(deb.x, deb.y, deb.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 2.5; ctx.stroke();
-        ctx.fillStyle = '#70a1ff'; ctx.font = '10px Consolas'; ctx.textAlign = 'center';
-        ctx.fillText('술식 잔해', deb.x, deb.y - deb.radius - 6);
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.9)';
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = '#ffd700';
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, 45, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.restore();
-    });
+    }
+
+    if(player.charType === 'Gojo' && limitlessActive) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#70a1ff';
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, 130, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(112, 161, 255, 0.06)';
+        ctx.fill();
+        ctx.restore();
+    }
+
+    if(activeDomain) {
+        if(activeDomain.type === 'Gojo') {
+            ctx.fillStyle = 'rgba(5, 5, 20, 0.85)';
+            ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
+            ctx.fillStyle = '#70a1ff';
+            for(let i=0; i<30; i++) {
+                let sx = camera.x + (Math.sin(i * 99 + Date.now()*0.002) * 0.5 + 0.5) * canvas.width;
+                let sy = camera.y + (Math.cos(i * 33 + Date.now()*0.002) * 0.5 + 0.5) * canvas.height;
+                ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill();
+            }
+        } else {
+            ctx.fillStyle = 'rgba(40, 5, 5, 0.75)';
+            ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
+        }
+    }
+
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.06)'; ctx.lineWidth = 1;
+    for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
+    for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke(); }
 
     bloodSplatters.forEach(bs => {
-        ctx.fillStyle = bs.color;
-        ctx.beginPath(); ctx.arc(bs.x, bs.y, bs.radius, 0, Math.PI*2); ctx.fill();
-    });
-
-    blueOrbs.forEach(bo => {
-        ctx.save();
-        ctx.fillStyle = 'rgba(55, 66, 250, 0.18)';
-        ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#3742fa'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.restore();
+        ctx.fillStyle = '#c0392b';
+        ctx.beginPath();
+        ctx.arc(bs.x, bs.y, bs.radius, 0, Math.PI * 2);
+        ctx.fill();
     });
 
     blackHoles.forEach(bh => {
-        ctx.save();
-        ctx.fillStyle = 'rgba(0, 210, 255, 0.35)';
-        ctx.beginPath(); ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 4; ctx.stroke();
-        ctx.shadowBlur = 30; ctx.shadowColor = '#00d2ff';
-        ctx.restore();
+        ctx.shadowBlur = 55; ctx.shadowColor = '#3742fa';
+        ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, 140, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 8; ctx.stroke();
+        ctx.shadowBlur = 0;
+    });
+
+    blueOrbs.forEach(bo => {
+        let alpha = bo.life / 350;
+        ctx.shadowBlur = 70; ctx.shadowColor = '#0026ff';
+        ctx.fillStyle = `rgba(0, 38, 255, ${alpha})`;
+        ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 10; ctx.stroke();
+        ctx.shadowBlur = 0;
     });
 
     purpleProjectiles.forEach(pp => {
         ctx.save();
-        if(pp.phase === 'expanding') {
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.8)';
-            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.currentRadius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#d290ff'; ctx.lineWidth = 4; ctx.stroke();
-            ctx.shadowBlur = 30; ctx.shadowColor = '#a855f7';
-        } else if(pp.phase === 'charging') {
-            let isFlash = Math.floor(Date.now() / 40) % 2 === 0;
-            ctx.fillStyle = isFlash ? 'rgba(255, 255, 255, 0.95)' : 'rgba(224, 86, 253, 0.95)';
-            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = isFlash ? 8 : 4; ctx.stroke();
-            ctx.shadowBlur = 70; ctx.shadowColor = '#ffffff';
-        } else if(pp.phase === 'firing') {
-            ctx.fillStyle = '#e056fd';
-            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke();
-            ctx.shadowBlur = 80; ctx.shadowColor = '#a855f7';
-        }
+        ctx.shadowBlur = 90;
+        ctx.shadowColor = '#a855f7';
+        ctx.fillStyle = '#7000ff';
+        ctx.beginPath();
+        ctx.arc(pp.x, pp.y, pp.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#e056fd';
+        ctx.lineWidth = 14;
+        ctx.stroke();
         ctx.restore();
     });
 
-    explosions.forEach(ex => {
+    if(mahoraga) {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(mahoraga.x, mahoraga.y, 30, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4; ctx.stroke();
+    }
+
+    enemies.forEach(e => drawEnemySprite(e));
+
+    enemyProjectiles.forEach(ep => {
+        ctx.fillStyle = '#ff4757';
+        ctx.beginPath(); ctx.arc(ep.x, ep.y, ep.radius, 0, Math.PI*2); ctx.fill();
+    });
+
+    meleeAttacks.forEach(ma => {
         ctx.save();
-        ctx.fillStyle = ex.color;
-        ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.radius, 0, Math.PI*2); ctx.fill();
+        ctx.translate(ma.x, ma.y);
+        ctx.rotate(ma.ang);
+        ctx.strokeStyle = ma.isBoss ? '#ff4757' : '#ff6b81';
+        ctx.lineWidth = ma.isBoss ? 6 : 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, ma.radius, -Math.PI/3, Math.PI/3);
+        ctx.stroke();
         ctx.restore();
+    });
+
+    slashes.forEach(s => {
+        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(s.x - Math.cos(s.ang)*s.length/2, s.y - Math.sin(s.ang)*s.length/2);
+        ctx.lineTo(s.x + Math.cos(s.ang)*s.length/2, s.y + Math.sin(s.ang)*s.length/2);
+        ctx.stroke();
     });
 
     highQualityShots.forEach(hs => {
@@ -1053,81 +1267,37 @@ function draw() {
         ctx.beginPath(); ctx.arc(hs.x, hs.y, hs.radius, 0, Math.PI*2); ctx.fill();
     });
 
+    purpleEffects.forEach(pe => {
+        ctx.fillStyle = pe.color;
+        ctx.beginPath(); ctx.arc(pe.x, pe.y, pe.radius, 0, Math.PI*2); ctx.fill();
+    });
+
+    explosions.forEach(ex => {
+        ctx.fillStyle = ex.color;
+        ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.radius, 0, Math.PI*2); ctx.fill();
+    });
+
     projectiles.forEach(p => {
-        ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
-    });
-
-    enemyProjectiles.forEach(ep => {
-        ctx.fillStyle = ep.color;
-        ctx.beginPath(); ctx.arc(ep.x, ep.y, ep.radius, 0, Math.PI*2); ctx.fill();
-    });
-
-    slashes.forEach(s => {
         ctx.save();
-        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(s.x + Math.cos(s.ang)*s.length, s.y + Math.sin(s.ang)*s.length);
-        ctx.stroke();
+        if(p.type === 'gojo_hq_basic') {
+            ctx.shadowBlur = 20; ctx.shadowColor = '#00d2ff';
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 4; ctx.stroke();
+        } else if(p.type === 'aka') {
+            ctx.shadowBlur = 35; ctx.shadowColor = '#ff4757';
+            ctx.fillStyle = '#ff6b81';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
+        } else {
+            ctx.shadowBlur = 10; ctx.shadowColor = '#70a1ff';
+            ctx.fillStyle = p.color || '#3742fa';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+        }
         ctx.restore();
     });
 
-    enemies.forEach(e => {
-        ctx.save();
-        ctx.fillStyle = e.color;
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = e.aura; ctx.lineWidth = e.isBoss ? 5 : 2; ctx.stroke();
-
-        let barW = e.radius * 2;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(e.x - barW/2, e.y - e.radius - 14, barW, 6);
-        ctx.fillStyle = e.isBoss ? '#ff4757' : '#00d2ff';
-        ctx.fillRect(e.x - barW/2, e.y - e.radius - 14, barW * (e.hp / e.maxHp), 6);
-
-        ctx.fillStyle = '#fff'; ctx.font = '11px Consolas'; ctx.textAlign = 'center';
-        ctx.fillText(e.name || '주령', e.x, e.y - e.radius - 18);
-        ctx.restore();
-    });
-
-    ctx.save();
-    if(player.charType === 'Gojo') {
-        let pulse = Math.sin(Date.now() / 150) * 4;
-
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.45)';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(player.x, player.y, 32 + pulse, 0, Math.PI*2); ctx.stroke();
-
-        ctx.fillStyle = '#1e272e';
-        ctx.beginPath();
-        ctx.arc(player.x, player.y - 4, 22, Math.PI, 0, false);
-        ctx.fill();
-
-        ctx.fillStyle = '#2f3542';
-        ctx.beginPath(); ctx.arc(player.x, player.y + 2, 20, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 3; ctx.stroke();
-
-        ctx.fillStyle = '#000000';
-        ctx.beginPath();
-        ctx.rect(player.x - 15, player.y - 10, 30, 8);
-        ctx.fill();
-        ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 1.5; ctx.stroke();
-    } else {
-        ctx.fillStyle = '#ff4757';
-        ctx.beginPath(); ctx.arc(player.x, player.y, 22, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-    }
-
-    if(limitlessActive) {
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.85)';
-        ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.arc(player.x, player.y, 46, 0, Math.PI*2); ctx.stroke();
-    }
-
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Consolas'; ctx.textAlign = 'center';
-    ctx.fillText(player.charType === 'Gojo' ? '고죠 사토루' : '스쿠나', player.x, player.y - 45);
-    ctx.restore();
-
+    drawPlayerSprite(player);
     ctx.restore();
 }
 
@@ -1141,4 +1311,4 @@ function gameLoop() {
 </html>
 """
 
-components.html(game_html, height=850, scrolling=False)
+components.html(game_html, height=950)
