@@ -82,7 +82,7 @@ game_html = """
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(3, 3, 6, 0.94); backdrop-filter: blur(15px);
         display: flex; flex-direction: column; justify-content: center; z-index: 100;
-        align-items: center;
+        align-items: center; pointer-events: auto;
     }
     .card-group { display: flex; gap: 30px; margin-top: 40px; }
     .card {
@@ -164,7 +164,7 @@ game_html = """
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
         <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오.</p>
         <div class="card-group">
-            <div class="card" onclick="selectChar('Gojo')">
+            <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • 패시브: <strong>무하한 (범위 130 / 3초 지속)</strong><br>
@@ -173,7 +173,7 @@ game_html = """
                     • T: 허식 「茈」 / X: 무량공처
                 </p>
             </div>
-            <div class="card" onclick="selectChar('Sukuna')">
+            <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
                     • 기본공격: 참격 연사<br>
@@ -181,7 +181,7 @@ game_html = """
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
             </div>
-            <div class="card" onclick="selectChar('Megumi')">
+            <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
                     • 기본공격: 그림자 투사체<br>
@@ -195,7 +195,7 @@ game_html = """
     <div id="game-over" style="display:none;">
         <h1 style="color:#ff4757; font-size:56px; letter-spacing:3px;">YOU DIED</h1>
         <p style="color:#aaa; margin-top:10px; font-size:18px;" id="final-stats">주령들의 공격으로 사망했습니다.</p>
-        <button class="restart-btn" onclick="location.reload()">다시 도전하기</button>
+        <button class="restart-btn" id="restart-btn">다시 도전하기</button>
     </div>
 </div>
 
@@ -395,6 +395,12 @@ function selectChar(type) {
     spawnBoss();
     gameLoop();
 }
+
+// 이벤트 리스너 바인딩 (클릭 오류 방지)
+document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
+document.getElementById('card-sukuna').addEventListener('click', () => selectChar('Sukuna'));
+document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
+document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
 function basicAttack() {
     if(isGameOver) return;
@@ -1081,7 +1087,10 @@ function draw() {
     }
 
     ctx.strokeStyle = 'rgba(168, 85, 247, 0.06)'; ctx.lineWidth = 1;
-    for(let x=0; x<WORLD_WIDTH; ctx.beginPath(); ctx.lineTo(WORLD_WIDTH,y); ctx.lineTo(x,WORLD_HEIGHT); ctx.moveTo(0,y); ctx.moveTo(x,0); ctx.stroke(); for(let x+="100)" y="0;" y+="100)" y<WORLD_HEIGHT; { }> {
+    for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
+    for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke(); }
+
+    blackHoles.forEach(bh => {
         ctx.shadowBlur = 45; ctx.shadowColor = '#3742fa';
         ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
         ctx.beginPath(); ctx.arc(bh.x, bh.y, 85, 0, Math.PI*2); ctx.fill();
