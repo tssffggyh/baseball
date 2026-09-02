@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 아오 발사체 흡수 및 쿨타임/궁극기 상향 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 자폭 허식 '茈' 컴비네이션 패치")
 
 st.markdown("""
     <style>
@@ -119,7 +119,7 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#2ecc71;">[아오 흡수 & 쿨타임/궁극기 가속 패치]</span></div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#e056fd;">[자폭 무라사키 콤비네이션 패치]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -165,13 +165,14 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[아오 발사체 흡수 & 쿨타임/궁극기 가속 패치]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[아오 잔해 + 아카 = 자폭 무라사키 콤비네이션 패치]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
-                    • E: 아카 「赤」 / R: 아오 「蒼」 (적 및 발사체 흡수)<br>
+                    • E: 아카 (아오 잔해 유도 시 자폭 茈 발동)<br>
+                    • R: 아오 (발사체 흡수 & 잔해 생성)<br>
                     • T: 대형 허식 「茈」 / X: 무량공처
                 </p>
             </div>
@@ -287,7 +288,6 @@ let player = {
 };
 
 let cooldowns = { Q: 0, E: 0, R: 0, T: 0, X: 0 };
-// 기존 쿨타임에서 각 1초씩 단축
 let maxCooldowns = {
     Gojo: { Q: 29, E: 8, R: 15, T: 24, X: 0 },
     Sukuna: { Q: 29, E: 7, R: 14, T: 21, X: 0 },
@@ -356,7 +356,6 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// 궁극기 충전량 1.5배 상향 적용
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35 * 1.5)); }
 
 function takeDamage(damage) {
@@ -499,12 +498,29 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             playVoiceAndSound('aka');
             triggerVibration(25);
+            
+            // 아오 잔해(blueOrbs)가 존재하면 아카가 무조건 그 잔해를 향해 날아가 자폭 무라사키 유도
+            let targetOrb = blueOrbs.length > 0 ? blueOrbs[0] : null;
+            let finalVx = Math.cos(ang)*18;
+            let finalVy = Math.sin(ang)*18;
+            let targetXPos = targetX;
+            let targetYPos = targetY;
+
+            if(targetOrb) {
+                let orbAng = Math.atan2(targetOrb.y - player.y, targetOrb.x - player.x);
+                finalVx = Math.cos(orbAng) * 22;
+                finalVy = Math.sin(orbAng) * 22;
+                targetXPos = targetOrb.x;
+                targetYPos = targetOrb.y;
+            }
+
             projectiles.push({
                 x: player.x, y: player.y, 
-                targetX: targetX, targetY: targetY,
-                vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
+                targetX: targetXPos, targetY: targetYPos,
+                vx: finalVx, vy: finalVy,
                 type: 'aka', damage: 3000, radius: 16,
-                maxDist: 300, traveled: 0
+                maxDist: targetOrb ? Math.hypot(targetOrb.x - player.x, targetOrb.y - player.y) : 300, 
+                traveled: 0, targetOrb: targetOrb
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=-2; i<=2; i++) {
@@ -772,7 +788,6 @@ function update() {
         }
     });
 
-    // 아오(블랙홀) 및 잔류 구체가 적과 적 발사체를 동시에 빨아들이고 흡수하도록 수정
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
         bh.orbitAngle += 0.06;
@@ -788,7 +803,6 @@ function update() {
             }
         });
 
-        // 적 발사체 흡수 (아오 범위 내로 들어오면 소멸)
         enemyProjectiles.forEach((ep, epi) => {
             if(Math.hypot(bh.x - ep.x, bh.y - ep.y) < bh.radius) {
                 enemyProjectiles.splice(epi, 1);
@@ -804,7 +818,6 @@ function update() {
 
     blueOrbs.forEach((bo, boi) => {
         bo.life--;
-        // 잔류 구체(블랙홀 터진 자리)도 적 발사체를 지속적으로 빨아들여 흡수
         enemyProjectiles.forEach((ep, epi) => {
             if(Math.hypot(bo.x - ep.x, bo.y - ep.y) < bo.radius) {
                 enemyProjectiles.splice(epi, 1);
@@ -841,8 +854,27 @@ function update() {
         p.x += p.vx; p.y += p.vy;
 
         if(p.type === 'aka') {
+            // 아오 잔해가 도중에 소멸했는지 체크하고 실시간 유도
+            if(p.targetOrb) {
+                let orbExists = blueOrbs.includes(p.targetOrb);
+                if(orbExists) {
+                    let reAng = Math.atan2(p.targetOrb.y - p.y, p.targetOrb.x - p.x);
+                    p.vx = Math.cos(reAng) * 22;
+                    p.vy = Math.sin(reAng) * 22;
+                }
+            }
+
             p.traveled += Math.hypot(p.vx, p.vy);
             let reachedTarget = p.traveled >= p.maxDist;
+            let hitOrb = false;
+
+            blueOrbs.forEach((bo, boi) => {
+                if(Math.hypot(bo.x - p.x, bo.y - p.y) < bo.radius + p.radius) {
+                    hitOrb = true;
+                    blueOrbs.splice(boi, 1); // 잔해 소모
+                }
+            });
+
             let hitEnemy = false;
             enemies.forEach(e => {
                 if(Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
@@ -850,16 +882,33 @@ function update() {
                 }
             });
 
-            if(reachedTarget || hitEnemy) {
-                explosions.push({
-                    x: p.x, y: p.y, radius: 20, maxRadius: 160, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
-                });
-                triggerVibration(20);
-                enemies.forEach(e => {
-                    if(Math.hypot(e.x - p.x, e.y - p.y) < 160) {
-                        e.hp -= p.damage;
-                    }
-                });
+            if(reachedTarget || hitEnemy || hitOrb) {
+                if(hitOrb || (p.targetOrb && Math.hypot(p.x - p.targetOrb.x, p.y - p.targetOrb.y) < 100)) {
+                    // 자폭 무라사키 발동! 맵 전체 데미지 10000 + 현재 체력의 50% 차감
+                    playVoiceAndSound('purple_voice');
+                    showDialogue('「자폭 허식 · 茈」');
+                    triggerVibration(50);
+
+                    explosions.push({
+                        x: p.x, y: p.y, radius: 40, maxRadius: 900, color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 10000
+                    });
+
+                    enemies.forEach(e => {
+                        e.hp -= 10000;
+                        e.hp -= e.maxHp * 0.5; // 현재 체력 / 최대 체력 비례 50% 추가 깎기
+                    });
+                } else {
+                    explosions.push({
+                        x: p.x, y: p.y, radius: 20, maxRadius: 160, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
+                    });
+                    triggerVibration(20);
+                    enemies.forEach(e => {
+                        if(Math.hypot(e.x - p.x, e.y - p.y) < 160) {
+                            e.hp -= p.damage;
+                        }
+                    });
+                }
+
                 projectiles.splice(pi, 1);
                 return;
             }
