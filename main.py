@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: Q스킬 (신속 + 아오 지속딜) 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 오토에임 + Q 5초 무적 & 잔몹 원킬/출혈 패치")
 
 st.markdown("""
     <style>
@@ -126,7 +126,7 @@ game_html = """
                 
                 <div class="skill-container">
                     <div class="skill-icon" style="border-color:#3498db;">
-                        <span class="skill-key" style="color:#3498db;">AUTO</span><span>평타</span>
+                        <span class="skill-key" style="color:#3498db;">AUTO</span><span>오토에임</span>
                     </div>
                     <div class="skill-icon">
                         <span class="skill-key">Q</span><span id="sk-q">신속아오</span>
@@ -165,12 +165,12 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (Q스킬: 30초 쿨, 5초간 이속 폭증 + 닿는 적만 아오 지속 데미지)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[오토에임 활성화] Q: 5초간 무적 + 이속 폭증 + 닿는 적 아오 지속딜 | 잔몹 원킬 & 출혈 연출 적용</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (30초 쿨)<br>
+                    • Q: 신속 아오 폭주 (5초 무적)<br>
                     • E: 아카 「赤」 / R: 아오 「蒼」<br>
                     • T: 허식 「茈」 / X: 무량공처
                 </p>
@@ -178,7 +178,7 @@ game_html = """
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (30초 쿨)<br>
+                    • Q: 신속 아오 폭주 (5초 무적)<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
@@ -186,7 +186,7 @@ game_html = """
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (30초 쿨)<br>
+                    • Q: 신속 아오 폭주 (5초 무적)<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라
                 </p>
@@ -269,16 +269,16 @@ let lastHitTime = Date.now();
 let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
-let mouseX = window.innerWidth / 2;
-let mouseY = window.innerHeight / 2;
 
 let limitlessTimer = 0;
 let limitlessActive = false;
 let limitlessDurationCounter = 0;
 
-// Q 스킬 신속 아오 버프 관련 변수 (5초 동안 닿는 적에게만 데미지)
+// Q 스킬 버프 변수 (5초 무적 + 이속 폭증 + 닿는 적 지속 데미지)
 let speedAoActive = false;
 let speedAoTimer = 0; 
+
+let bloodSplatters = []; // 잔몹 죽을 때 튀는 피 이펙트 배열
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
@@ -295,9 +295,9 @@ let maxCooldowns = {
 };
 
 let dialogues = {
-    Gojo: { Q: '신속 아오 폭주', E: '술식 순전 · 「赤」', R: '술식 반전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
-    Sukuna: { Q: '신속 아오 폭주', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
-    Megumi: { Q: '신속 아오 폭주', E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
+    Gojo: { Q: '신속 아오 폭주 (무적)', E: '술식 순전 · 「赤」', R: '술식 반전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
+    Sukuna: { Q: '신속 아오 폭주 (무적)', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
+    Megumi: { Q: '신속 아오 폭주 (무적)', E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
 };
 
 let activeDomain = null;
@@ -355,13 +355,15 @@ window.addEventListener('keydown', e => {
     if(k === 'x') castSkill('X');
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-window.addEventListener('mousemove', e => {
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-});
 
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35)); }
-function takeDamage(damage) { player.hp -= damage; lastHitTime = Date.now(); }
+
+// Q 스킬 5초 무적 적용을 위한 체력 감소 함수 수정
+function takeDamage(damage) {
+    if(speedAoActive) return; // Q 스킬 사용 중(5초 무적)에는 데미지를 받지 않음
+    player.hp -= damage; 
+    lastHitTime = Date.now();
+}
 
 function showDialogue(text) {
     let box = document.getElementById('dialogue-box');
@@ -404,6 +406,26 @@ document.getElementById('card-sukuna').addEventListener('click', () => selectCha
 document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
 document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
+// [오토에임 기능] 가장 가까운 적을 자동으로 탐색하여 조준 각도 반환
+function getAutoAimAngle() {
+    if(enemies.length === 0) return 0;
+    let closestEnemy = null;
+    let minDist = Infinity;
+    
+    enemies.forEach(e => {
+        let dist = Math.hypot(e.x - player.x, e.y - player.y);
+        if(dist < minDist) {
+            minDist = dist;
+            closestEnemy = e;
+        }
+    });
+
+    if(closestEnemy) {
+        return Math.atan2(closestEnemy.y - player.y, closestEnemy.x - player.x);
+    }
+    return 0;
+}
+
 function performAutoAttack() {
     if(isGameOver) return;
     let now = Date.now();
@@ -411,9 +433,8 @@ function performAutoAttack() {
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
-    let worldMouseX = mouseX + camera.x;
-    let worldMouseY = mouseY + camera.y;
-    let ang = Math.atan2(worldMouseY - player.y, worldMouseX - player.x);
+    // 마우스 대신 오토에임 함수로 각도 자동 계산
+    let ang = getAutoAimAngle();
 
     addUlt(0.8);
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
@@ -428,7 +449,7 @@ function performAutoAttack() {
         let shotY = player.y + Math.sin(ang) * 20;
         projectiles.push({
             x: shotX, y: shotY, vx: Math.cos(ang)*16, vy: Math.sin(ang)*16,
-            damage: 95, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
+            damage: 950, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
         });
         for(let i=0; i<8; i++) {
             highQualityShots.push({
@@ -437,9 +458,9 @@ function performAutoAttack() {
             });
         }
     } else if(player.charType === 'Sukuna') {
-        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 60});
+        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 800});
     } else {
-        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 45, radius: 8, color: '#2ecc71', type:'normal'});
+        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 600, radius: 8, color: '#2ecc71', type:'normal'});
     }
 }
 
@@ -448,9 +469,9 @@ function castSkill(key) {
     if(cooldowns[key] > 0) return;
     if(key === 'X' && player.ultEnergy < player.maxUlt) return;
 
-    let targetX = player.x + player.facing * 200;
-    let targetY = player.y;
-    let ang = player.facing > 0 ? 0 : Math.PI;
+    let ang = getAutoAimAngle();
+    let targetX = player.x + Math.cos(ang) * 200;
+    let targetY = player.y + Math.sin(ang) * 200;
 
     if(key === 'X' && player.charType === 'Gojo') {
         gojoDomainCount++;
@@ -467,10 +488,10 @@ function castSkill(key) {
     showDialogue(dialogues[player.charType][key]);
 
     if(key === 'Q') {
-        // Q 스킬: 30초 쿨타임, 5초간 이속 폭증 + 닿는 적에게만 아오 지속 데미지 활성화
+        // Q 스킬: 30초 쿨타임, 5초(300프레임) 동안 무적 + 이속 폭증 + 닿는 적 아오 지속 데미지
         cooldowns.Q = 30;
         speedAoActive = true;
-        speedAoTimer = 300; // 5초 (60fps 기준)
+        speedAoTimer = 300; 
         playVoiceAndSound('ao_voice');
         triggerVibration(25);
         addUlt(3.0);
@@ -485,15 +506,15 @@ function castSkill(key) {
                 x: player.x, y: player.y, 
                 targetX: targetX, targetY: targetY,
                 vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
-                type: 'aka', damage: 600, radius: 16,
+                type: 'aka', damage: 3000, radius: 16,
                 maxDist: 300, traveled: 0
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=-2; i<=2; i++) {
-                slashes.push({ x: player.x, y: player.y, ang: ang + i*0.2, length: 220, life: 14, damage: 95 });
+                slashes.push({ x: player.x, y: player.y, ang: ang + i*0.2, length: 220, life: 14, damage: 1500 });
             }
         } else {
-            explosions.push({x: targetX, y: targetY, radius: 70, maxRadius: 70, color: '#f1c40f', life: 15, damage: 120});
+            explosions.push({x: targetX, y: targetY, radius: 70, maxRadius: 70, color: '#f1c40f', life: 15, damage: 1200});
         }
     } else if(key === 'R') {
         cooldowns.R = maxCooldowns[player.charType].R;
@@ -503,17 +524,17 @@ function castSkill(key) {
             playVoiceAndSound('ao_voice');
             triggerVibration(20);
             blackHoles.push({
-                orbitAngle: ang, orbitRadius: 240, radius: 400, life: 180, damage: 220, x: player.x, y: player.y
+                orbitAngle: ang, orbitRadius: 240, radius: 400, life: 180, damage: 2500, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
                 slashes.push({
                     x: targetX + (Math.random()-0.5)*200, y: targetY + (Math.random()-0.5)*200,
-                    ang: Math.random()*Math.PI*2, length: 160, life: 12, damage: 130
+                    ang: Math.random()*Math.PI*2, length: 160, life: 12, damage: 1800
                 });
             }
         } else {
-            projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, type:'normal', damage: 100, radius: 10, color: '#2ecc71'});
+            projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, type:'normal', damage: 1500, radius: 10, color: '#2ecc71'});
         }
     } else if(key === 'T') {
         cooldowns.T = maxCooldowns[player.charType].T;
@@ -524,11 +545,11 @@ function castSkill(key) {
             purpleProjectiles.push({
                 x: player.x, y: player.y,
                 vx: Math.cos(ang) * 9.5, vy: Math.sin(ang) * 9.5,
-                radius: 80, maxLife: 300, life: 300, damage: 2500, hitEnemies: new Set()
+                radius: 80, maxLife: 300, life: 300, damage: 9999, hitEnemies: new Set()
             });
         } else if(player.charType === 'Sukuna') {
             addUlt(5.0);
-            explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 300});
+            explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 4000});
         } else {
             addUlt(5.0);
             enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 350) e.speed = 0.5; });
@@ -554,7 +575,7 @@ function spawnCurse() {
     let isRanged = Math.random() < 0.4;
     enemies.push({
         x: x, y: y, radius: isRanged ? 18 : 22,
-        hp: isRanged ? 120 : 180, maxHp: isRanged ? 120 : 180,
+        hp: isRanged ? 100 : 150, maxHp: isRanged ? 100 : 150, // 잔몹 체력을 낮게 설정하여 데미지 증가 시 원킬 가능
         speed: isRanged ? 2.0 : 2.8,
         isBoss: false, isRanged: isRanged, attackCd: 0
     });
@@ -636,22 +657,19 @@ function update() {
 
     performAutoAttack();
 
-    // Q 스킬 (신속 아오 버프) 처리: 5초 동안만 작동하며, 플레이어와 '닿는 적'에게만 지속 데미지 부여
+    // Q 스킬 (신속 아오 버프): 5초 무적 + 이속 폭증 + 닿는 적 아오 지속 데미지
     if(speedAoActive) {
         speedAoTimer--;
-        player.speed = player.baseSpeed * 2.3; // 이동속도 폭증
+        player.speed = player.baseSpeed * 2.5; 
         
-        // 바람을 가르는 잔상 이펙트 추가
         windTrails.push({
             x: player.x, y: player.y, radius: Math.random() * 40 + 30, life: 15, alpha: 0.7
         });
 
-        // 5초(300프레임) 동안 오직 플레이어와 몸이 닿는(충돌하는) 적에게만 아오 지속 데미지 적용
         enemies.forEach(e => {
             let dist = Math.hypot(e.x - player.x, e.y - player.y);
-            // 플레이어 반지름(약 15~20)과 적 반지름의 합 이내로 '닿았을 때'만 판정
             if(dist < e.radius + 20) {
-                e.hp -= 4.0; // 닿는 동안 지속 데미지
+                e.hp -= 50.0; // 닿는 적에게 강력한 지속 데미지
             }
         });
 
@@ -729,6 +747,14 @@ function update() {
         if(wt.life <= 0) windTrails.splice(wti, 1);
     });
 
+    // 피 흘림(출혈) 이펙트 업데이트
+    bloodSplatters.forEach((bs, bsi) => {
+        bs.life--;
+        bs.x += bs.vx;
+        bs.y += bs.vy;
+        if(bs.life <= 0) bloodSplatters.splice(bsi, 1);
+    });
+
     purpleProjectiles.forEach((pp, ppi) => {
         pp.x += pp.vx;
         pp.y += pp.vy;
@@ -737,7 +763,7 @@ function update() {
         enemies.forEach((e, ei) => {
             let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
             if(dist < e.radius + pp.radius) {
-                e.hp -= 35; 
+                e.hp -= 500; 
                 purpleEffects.push({
                     x: e.x + (Math.random()-0.5)*30, y: e.y + (Math.random()-0.5)*30,
                     vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4,
@@ -960,6 +986,19 @@ function update() {
                     showDialogue(`🎉 축하합니다! 100단계 보스 정복!`);
                 }
             } else {
+                // [잔몹 죽을 때 피 흘리는 연출] 사망 위치에 피 파티클 다수 생성
+                for(let b=0; b<12; b++) {
+                    let bAng = Math.random() * Math.PI * 2;
+                    let bSpd = Math.random() * 5 + 2;
+                    bloodSplatters.push({
+                        x: e.x, y: e.y,
+                        vx: Math.cos(bAng) * bSpd,
+                        vy: Math.sin(bAng) * bSpd,
+                        radius: Math.random() * 4 + 2,
+                        life: Math.random() * 30 + 20
+                    });
+                }
+
                 normalKillCount++;
                 addUlt(0.5);
                 enemies.splice(ei, 1);
@@ -1049,7 +1088,6 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.translate(-camera.x, -camera.y);
 
-    // Q 스킬 활성화 시 바람을 가르는 잔상 이펙트 렌더링
     windTrails.forEach(wt => {
         let alpha = wt.life / 15;
         ctx.save();
@@ -1060,6 +1098,19 @@ function draw() {
         ctx.stroke();
         ctx.restore();
     });
+
+    // Q 스킬(5초 무적) 활성화 시 플레이어 주위에 화려한 무적 보호막 시각 효과 렌더링
+    if(speedAoActive) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.9)';
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = '#ffd700';
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, 45, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
 
     if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
@@ -1094,6 +1145,14 @@ function draw() {
     ctx.strokeStyle = 'rgba(168, 85, 247, 0.06)'; ctx.lineWidth = 1;
     for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
     for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke(); }
+
+    // 피 흘림(출혈) 입자 렌더링
+    bloodSplatters.forEach(bs => {
+        ctx.fillStyle = '#c0392b';
+        ctx.beginPath();
+        ctx.arc(bs.x, bs.y, bs.radius, 0, Math.PI * 2);
+        ctx.fill();
+    });
 
     blackHoles.forEach(bh => {
         ctx.shadowBlur = 45; ctx.shadowColor = '#3742fa';
