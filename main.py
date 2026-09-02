@@ -77,6 +77,18 @@ game_html = """
     }
     #dialogue-text { font-size: 20px; font-weight: bold; color: #f3e8ff; letter-spacing: 2px; }
 
+    /* 영역전개 대형 한자 연출 스타일 */
+    #domain-kanji-overlay {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        pointer-events: none; z-index: 50; opacity: 0; transition: opacity 0.3s ease;
+    }
+    .kanji-line {
+        font-size: 64px; font-weight: 900; color: #70a1ff;
+        text-shadow: 0 0 30px #00d2ff, 0 0 60px #70a1ff, 0 0 10px #fff;
+        letter-spacing: 8px; margin: 5px 0;
+    }
+
     #class-select, #game-over {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(3, 3, 6, 0.94); backdrop-filter: blur(15px);
@@ -109,6 +121,11 @@ game_html = """
 <div id="game-container">
     <canvas id="gameCanvas"></canvas>
     
+    <div id="domain-kanji-overlay">
+        <div class="kanji-line">領域展開</div>
+        <div class="kanji-line">無量空處</div>
+    </div>
+
     <div id="boss-hud">
         <div id="boss-name" style="color:#ff4757; font-weight:bold; font-size:14px;">[LV.1] 보스</div>
         <div class="boss-bar-outer"><div id="boss-hp-bar" class="boss-bar-hp"></div></div>
@@ -160,14 +177,14 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:42px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[T스킬: 허식 「茈」 (2초간 천천히 차징 후 발사)]</p>
+        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[영역전개: 적 20초 스턴 / 본인 3초 정지 / 대형 한자 연출]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • E: 술식반전 · 「赤」<br>
-                    • R: 술식순전 · 「蒼」 (쿨타임 감소)<br>
-                    • T: 허식 「茈」 (차징 시간 증가)<br>
+                    • R: 술식순전 · 「蒼」<br>
+                    • T: 허식 「茈」 (2초 차징)<br>
                     • X: 무량공처
                 </p>
             </div>
@@ -260,6 +277,7 @@ let lastHitTime = Date.now();
 let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
+let playerStunTimer = 0; // 플레이어가 가만히 멈춰있을 시간 (프레임 단위, 3초 = 180프레임)
 
 let bloodSplatters = [];
 
@@ -272,7 +290,7 @@ let player = {
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { E: 8, R: 7, T: 16, X: 0 },    // R(아오)와 T(무라사키) 쿨타임 대폭 감소
+    Gojo: { E: 8, R: 7, T: 16, X: 0 },
     Sukuna: { E: 7, R: 7, T: 14, X: 0 },
     Megumi: { E: 8, R: 7, T: 15, X: 0 }
 };
@@ -406,7 +424,7 @@ function getAutoAimAngle() {
 }
 
 function performAutoAttack() {
-    if(isGameOver) return; 
+    if(isGameOver || playerStunTimer > 0) return; // 플레이어 스턴 중 공격 불가
     let now = Date.now();
     let attackInterval = (player.charType === 'Gojo') ? 700 : 600;
     if(now - player.lastAttack < attackInterval) return;
@@ -440,6 +458,7 @@ function castSkill(key) {
     if(isGameOver) return;
     if(cooldowns[key] > 0) return;
     if(key === 'X' && player.ultEnergy < player.maxUlt) return;
+    if(key !== 'X' && playerStunTimer > 0) return; // 영역전개 시전 중 외 다른 스킬 제한
 
     let ang = getAutoAimAngle();
     let targetX = player.x + Math.cos(ang) * 200;
@@ -524,7 +543,6 @@ function castSkill(key) {
         purpleAudio.currentTime = 0;
         purpleAudio.play().catch(() => {});
 
-        // chargeTimer를 120 (약 2초)으로 늘려 천천히 차징되도록 설정
         chargingPurples.push({
             x: player.x, y: player.y,
             ang: ang,
@@ -537,6 +555,20 @@ function castSkill(key) {
         player.ultEnergy = 0;
         if(player.charType === 'Gojo') {
             activeDomain = { type: 'Gojo', timer: 1200 };
+            playerStunTimer = 180; // 플레이어 3초(180프레임) 가만히 멈춤
+            
+            // 모든 적에게 20초(1200프레임) 동안 스턴 부여
+            enemies.forEach(e => {
+                e.stunTimer = 1200;
+            });
+
+            // 화면 중앙 대형 한자 출력 연출
+            let kanjiEl = document.getElementById('domain-kanji-overlay');
+            kanjiEl.style.opacity = '1';
+            setTimeout(() => {
+                kanjiEl.style.opacity = '0';
+            }, 3000); // 3초 뒤 페이드아웃
+
         } else if(player.charType === 'Sukuna') {
             activeDomain = { type: 'Sukuna', timer: 1000 };
         } else {
@@ -552,12 +584,17 @@ function spawnCurse() {
     if(Math.hypot(x - player.x, y - player.y) < 500) return;
 
     let isRanged = Math.random() < 0.4;
-    enemies.push({
+    let newEnemy = {
         x: x, y: y, radius: isRanged ? 18 : 22,
         hp: isRanged ? 100 : 150, maxHp: isRanged ? 100 : 150,
         speed: isRanged ? 2.0 : 2.8,
         isBoss: false, isRanged: isRanged, attackCd: 0, stunTimer: 0
-    });
+    };
+    // 고죠 영역전개 지속 중 소환되는 적도 즉시 스턴 적용
+    if(activeDomain && activeDomain.type === 'Gojo') {
+        newEnemy.stunTimer = activeDomain.timer;
+    }
+    enemies.push(newEnemy);
 }
 
 function startBossRespawnTimer() {
@@ -597,6 +634,10 @@ function spawnBoss() {
         isBoss: true, attackCd: 0, skillCd: 0, ultCd: 0, stunTimer: 0
     };
     
+    if(activeDomain && activeDomain.type === 'Gojo') {
+        boss.stunTimer = activeDomain.timer;
+    }
+
     enemies.push(boss);
     document.getElementById('boss-status').innerText = `⚠️ 보스 교전 중!`;
     showDialogue(`⚠️ [LV.${cfg.level}] 보스 출현!`);
@@ -634,17 +675,25 @@ function update() {
     if(screenShake > 0) screenShake--;
     if(player.hp <= 0) { triggerGameOver(); return; }
 
+    // 플레이어 스턴 타이머 감소 (영역전개 시전 후 3초간 가만히 있기)
+    if(playerStunTimer > 0) {
+        playerStunTimer--;
+    }
+
     performAutoAttack();
 
     let dx = 0, dy = 0;
-    if(keys['a']) { dx -= 1; player.facing = -1; }
-    if(keys['d']) { dx += 1; player.facing = 1; }
-    if(keys['w']) dy -= 1;
-    if(keys['s']) dy += 1;
-    if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+    // 플레이어가 스턴 상태가 아닐 때만 이동 가능
+    if(playerStunTimer <= 0) {
+        if(keys['a']) { dx -= 1; player.facing = -1; }
+        if(keys['d']) { dx += 1; player.facing = 1; }
+        if(keys['w']) dy -= 1;
+        if(keys['s']) dy += 1;
+        if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
 
-    player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
-    player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
+        player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
+        player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
+    }
 
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
@@ -655,7 +704,10 @@ function update() {
         activeDomain.timer--;
         triggerVibration(4);
         if(activeDomain.type === 'Gojo') {
-            enemies.forEach(e => { e.speed = 0; });
+            // 적들은 스턴 타이머가 유지되는 동안 완전히 정지
+            enemies.forEach(e => { 
+                if(e.stunTimer <= 0) e.speed = 0; 
+            });
         }
         if(activeDomain.timer <= 0) activeDomain = null;
     }
@@ -696,7 +748,6 @@ function update() {
 
     chargingPurples.forEach((cp, cpi) => {
         cp.chargeTimer--;
-        // 2초(120프레임) 동안 아주 서서히 크기가 커지도록 계수 조절 (0.03 -> 0.02)
         if(cp.radius < cp.maxRadius) {
             cp.radius += (cp.maxRadius - cp.radius) * 0.02;
         }
@@ -901,6 +952,7 @@ function update() {
     });
 
     enemies.forEach((e, ei) => {
+        // 적 스턴 타이머 처리 (20초 동안 멈춤)
         if(e.stunTimer > 0) {
             e.stunTimer--;
             e.speed = 0;
@@ -1054,7 +1106,7 @@ function drawEnemySprite(e) {
         ctx.fillText(`[LV.${e.level}]`, 0, -e.radius - 18);
     } else {
         if(e.isRanged) {
-            ctx.fillStyle = e.stunTimer > 0 ? '#555' : '#8e44ad';
+            ctx.fillStyle = e.stunTimer > 0 ? '#34495e' : '#8e44ad';
             ctx.beginPath();
             ctx.moveTo(0, -e.radius);
             ctx.lineTo(e.radius, 0);
@@ -1064,7 +1116,7 @@ function drawEnemySprite(e) {
             ctx.fill();
             ctx.strokeStyle = '#e056fd'; ctx.lineWidth = 2; ctx.stroke();
         } else {
-            ctx.fillStyle = e.stunTimer > 0 ? '#555' : '#1e272e';
+            ctx.fillStyle = e.stunTimer > 0 ? '#34495e' : '#1e272e';
             ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#57606f'; ctx.lineWidth = 2; ctx.stroke();
             
