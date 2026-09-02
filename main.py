@@ -1,9 +1,9 @@
-import streamlit as st
+import streamlit as str_lit
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 천공의 별 개정판")
+str_lit.set_page_config(layout="wide", page_title="주술회전: 천공의 별 개정판")
 
-st.markdown("""
+str_lit.markdown("""
     <style>
         .main .block-container { max-width: 100% !important; padding: 0rem !important; overflow: hidden !important; }
         iframe { width: 100% !important; height: 100vh !important; border: none; display: block; }
@@ -164,7 +164,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:42px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[Q스킬: 천공의 별 (3초 시전정지 후 무적/이속증가/무하한해제/20초스턴/아카데미지)]</p>
+        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[Q스킬: 천공의 별 (시전 즉시 광역 20초 스턴 / 3초 정지 후 무적·이속증가·무하한해제·아카데미지)]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -475,8 +475,18 @@ function castSkill(key) {
         skyStarCasting = true;        // 3초간 이동 불가 상태 돌입
         skyStarCastTimer = 180;       // 3초 (60프레임 * 3)
         limitlessActive = false;      // 무하한 꺼짐
+        
+        // ★ Q스킬 쓰는 순간 적들에게 즉시 20초간 넓은 범위 스턴 부여
+        enemies.forEach(e => {
+            let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
+            // 범위를 조금 더 넓게 확장 (예: 600 반경 이내 또는 전체 적에게 즉시 적용)
+            if(distToPlayer < 700 || e.isBoss) {
+                e.stunTimer = 1200; // 20초 (60프레임 * 20)
+            }
+        });
+
         playVoiceAndSound('ao_voice');
-        triggerVibration(30);
+        triggerVibration(40);
     } else if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
         addUlt(2.5);
@@ -660,11 +670,6 @@ function update() {
             skyStarActive = true;
             skyStarTimer = 600; // 버프 지속 시간 (예: 10초)
             player.speed = player.baseSpeed * 3.5; // 이동속도 대폭 증가
-
-            // 적들에게 20초간 스턴 부여
-            enemies.forEach(e => {
-                e.stunTimer = 1200; // 20초 (60프레임 * 20)
-            });
             triggerVibration(40);
         }
     } else {
@@ -1002,10 +1007,10 @@ function update() {
             }
         }
 
-        // Q스킬 지속 중 닿는 적들에게 아카 데미지 적용
+        // Q스킬 지속 중 닿는 적들에게 아카 데미지 적용 (판정 범위 확장)
         if(skyStarActive) {
             let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
-            if(distToPlayer < player.radius + e.radius + 40) {
+            if(distToPlayer < player.radius + e.radius + 90) {
                 e.hp -= 3500; // 아카에 준하는 데미지
                 purpleEffects.push({
                     x: e.x, y: e.y, vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3,
