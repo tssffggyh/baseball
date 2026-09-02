@@ -18,19 +18,19 @@ game_html = """
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
+    body, html {
+        width: 100%; height: 100%; overflow: hidden;
         background-color: #020204; color: #fff;
         font-family: 'Consolas', monospace;
-        display: flex; justify-content: center; align-items: center;
-        width: 100vw; height: 100vh; overflow: hidden;
     }
     #game-container {
         position: relative; width: 100vw; height: 100vh;
         overflow: hidden; background: #000;
     }
-    canvas { display: block; cursor: crosshair; }
+    canvas { display: block; cursor: crosshair; width: 100%; height: 100%; }
     
     #ui-layer {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -41,6 +41,7 @@ game_html = """
         background: rgba(10, 10, 18, 0.85); backdrop-filter: blur(10px);
         padding: 15px 25px; border-radius: 12px;
         border: 1px solid rgba(0, 210, 255, 0.4); box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        pointer-events: auto;
     }
     .bar-outer {
         width: 280px; height: 12px; background: rgba(255,255,255,0.1);
@@ -83,7 +84,7 @@ game_html = """
 
     #class-select, #game-over {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(3, 3, 6, 0.94); backdrop-filter: blur(15px);
+        background: rgba(3, 3, 6, 0.98); backdrop-filter: blur(15px);
         display: flex; flex-direction: column; justify-content: center; z-index: 100;
         align-items: center; pointer-events: auto;
     }
@@ -229,28 +230,6 @@ function initAudio() {
     });
 }
 
-function playVoiceAndSound(type) {
-    initAudio();
-    if(type === 'ao_voice') { aoAudio.currentTime = 0; aoAudio.play().catch(err => {}); return; }
-    if(type === 'purple_voice') { purpleAudio.currentTime = 0; purpleAudio.play().catch(err => {}); return; }
-
-    if(!audioCtx) return;
-    let now = audioCtx.currentTime;
-    let osc = audioCtx.createOscillator();
-    let gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    if(type === 'aka') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(440, now);
-        osc.frequency.exponentialRampToValueAtTime(110, now + 0.35);
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-        osc.start(now); osc.stop(now + 0.35);
-    }
-}
-
 const WORLD_WIDTH = 7200;
 const WORLD_HEIGHT = 5400;
 
@@ -299,12 +278,11 @@ let projectiles = [];
 let enemyProjectiles = [];
 let slashes = [];
 let explosions = [];
-let blackHoles = [];      // 내 주위를 도는 파란색 아오 원
+let blackHoles = [];      
 let blueOrbs = [];        
 let purpleProjectiles = []; 
 let enemies = [];
 let highQualityShots = []; 
-let windTrails = [];      
 
 const BOSS_COLORS = [
     { bg: '#e74c3c', aura: '#ff7675', spikes: 5 },
@@ -366,7 +344,7 @@ function triggerVibration(intensity) {
     if (navigator.vibrate) navigator.vibrate(intensity * 15);
 }
 
-function selectChar(type) {
+function startGame(type) {
     initAudio();
     player.charType = type;
     document.getElementById('class-select').style.display = 'none';
@@ -385,11 +363,11 @@ function selectChar(type) {
 
     for(let i=0; i<50; i++) spawnCurse();
     spawnBoss();
-    gameLoop();
+    requestAnimationFrame(gameLoop);
 }
 
-document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
-document.getElementById('card-sukuna').addEventListener('click', () => selectChar('Sukuna'));
+document.getElementById('card-gojo').addEventListener('click', () => startGame('Gojo'));
+document.getElementById('card-sukuna').addEventListener('click', () => startGame('Sukuna'));
 document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
 function getAutoAimAngle() {
@@ -414,12 +392,11 @@ function getAutoAimAngle() {
 function performAutoAttack() {
     if(isGameOver) return;
     let now = Date.now();
-    let attackInterval = (player.charType === 'Gojo') ? 600 : 600;
+    let attackInterval = 600;
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
     let ang = getAutoAimAngle();
-
     addUlt(0.8);
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
@@ -475,10 +452,7 @@ function castSkill(key) {
         addUlt(2.5);
         
         if(player.charType === 'Gojo') {
-            playVoiceAndSound('aka');
             triggerVibration(30);
-            
-            // [요청 반영] 고죠 아오(blackHoles)가 있을 때 아카를 쏘면 그 아카는 자동으로 그(아오)쪽으로 향하게 유도
             let finalTargetX = targetX;
             let finalTargetY = targetY;
             if(blackHoles.length > 0) {
@@ -503,9 +477,7 @@ function castSkill(key) {
         addUlt(4.0);
         
         if(player.charType === 'Gojo') {
-            playVoiceAndSound('ao_voice');
             triggerVibration(25);
-            // [요청 반영] 아오는 파란색깔 원이 내 주위를 나랑 좀 떨어져서(반경 160) 돌아야 함. 몹과 발사체 끌고 감.
             blackHoles.push({
                 orbitAngle: ang, orbitRadius: 160, radius: 90, life: 350, damage: 2500, x: player.x, y: player.y
             });
@@ -521,17 +493,15 @@ function castSkill(key) {
         cooldowns.T = maxCooldowns[player.charType].T;
         if(player.charType === 'Gojo') {
             addUlt(6.0);
-            playVoiceAndSound('purple_voice');
             triggerVibration(45);
             
-            // [요청 반영] 무라사키를 좀만 더 늦게 쓰게(팽창 타이머 및 발사 전 대기 시간을 길게 설정)
             purpleProjectiles.push({
                 x: player.x + Math.cos(ang)*35, 
                 y: player.y + Math.sin(ang)*35,
                 vx: Math.cos(ang) * 11, 
                 vy: Math.sin(ang) * 11,
                 phase: 'expanding', 
-                timer: 110, // 팽창을 훨씬 더 길게 지연시켜 늦게 발사됨
+                timer: 110, 
                 currentRadius: 4,
                 maxRadius: 160,
                 life: 400, 
@@ -563,7 +533,7 @@ function spawnCurse() {
         x: x, y: y, radius: isRanged ? 18 : 22,
         hp: isRanged ? 100 : 150, maxHp: isRanged ? 100 : 150,
         speed: isRanged ? 2.0 : 2.8,
-        isBoss: false, isRanged: isRanged, attackCd: 0
+        isBoss: false, isRanged: isRanged
     });
 }
 
@@ -601,7 +571,7 @@ function spawnBoss() {
         x: bx, y: by, level: cfg.level, name: cfg.name,
         hp: cfg.hp, maxHp: cfg.hp, radius: cfg.radius, speed: cfg.speed, dmg: cfg.dmg,
         color: cfg.color, aura: cfg.aura, spikes: cfg.spikes,
-        isBoss: true, attackCd: 0, skillCd: 0, ultCd: 0
+        isBoss: true
     };
     
     enemies.push(boss);
@@ -741,7 +711,6 @@ function update() {
         }
     });
 
-    // [요청 반영] 아오(blackHoles)가 내 주위를 나랑 좀 떨어져서 회전하며 몹과 적 발사체를 끌고 감
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
         bh.orbitAngle += 0.05;
@@ -797,7 +766,6 @@ function update() {
             p.traveled += Math.hypot(p.vx, p.vy);
             let reachedTarget = p.traveled >= p.maxDist;
 
-            // [요청 반영] 아오로 사람을 죽여서 생긴 잔해(debrisList)에 아카를 쏘면 맵 전체 범위 데미지 겁나 센 자폭 무라사키 폭발 발동!
             let hitDebrisIdx = -1;
             debrisList.forEach((deb, di) => {
                 if(Math.hypot(deb.x - p.x, deb.y - p.y) < deb.radius + p.radius + 40) {
@@ -809,7 +777,6 @@ function update() {
                 let deb = debrisList[hitDebrisIdx];
                 debrisList.splice(hitDebrisIdx, 1);
 
-                // 맵 전체 범위 데미지 및 거대한 자폭 무라사키 폭발
                 explosions.push({
                     x: deb.x, y: deb.y, radius: 40, maxRadius: 3500, color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 999999
                 });
@@ -817,7 +784,7 @@ function update() {
                 triggerVibration(60);
                 showDialogue('💥 잔해 연계 자폭 무라사키 발동!!');
 
-                enemies.forEach(e => { e.hp = 0; }); // 전체 적 처치
+                enemies.forEach(e => { e.hp = 0; });
 
                 projectiles.splice(pi, 1);
                 return;
@@ -901,7 +868,6 @@ function update() {
                 });
             }
 
-            // [요청 반영] 아오로 적을 처치하면 잔해 생성
             debrisList.push({
                 x: e.x, y: e.y, radius: 22, life: 900 
             });
@@ -984,7 +950,6 @@ function draw() {
         ctx.restore();
     });
 
-    // [요청 반영] 아오(blackHoles) 파란색 원 렌더링
     blackHoles.forEach(bh => {
         ctx.save();
         ctx.fillStyle = 'rgba(0, 210, 255, 0.35)';
@@ -1065,28 +1030,23 @@ function draw() {
         ctx.restore();
     });
 
-    // [요청 반영] 원작 고증 고죠 사토루 스킨 (흑발 머리칼 + 검은색 눈 안대 + 원작 의상 복장)
     ctx.save();
     if(player.charType === 'Gojo') {
         let pulse = Math.sin(Date.now() / 150) * 4;
 
-        // 무하한 방어 오라
         ctx.strokeStyle = 'rgba(0, 210, 255, 0.45)';
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(player.x, player.y, 32 + pulse, 0, Math.PI*2); ctx.stroke();
 
-        // 흑발 머리칼 실루엣 (원작 고죠)
         ctx.fillStyle = '#1e272e';
         ctx.beginPath();
         ctx.arc(player.x, player.y - 4, 22, Math.PI, 0, false);
         ctx.fill();
 
-        // 고죠 상의 (검은색 고등학교 교복 자켓)
         ctx.fillStyle = '#2f3542';
         ctx.beginPath(); ctx.arc(player.x, player.y + 2, 20, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 3; ctx.stroke();
 
-        // 검은색 눈 안대 (특징적인 원작 안대 디자인)
         ctx.fillStyle = '#000000';
         ctx.beginPath();
         ctx.rect(player.x - 15, player.y - 10, 30, 8);
