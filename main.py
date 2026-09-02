@@ -169,7 +169,7 @@ game_html = """
                     • 패시브: <strong>무하한 (7초마다 2초간 밀어내기)</strong><br>
                     • E: 아카 「赤」<br>
                     • R: 아오 「蒼」<br>
-                    • T: 허식 「茈」 (원형 투사체 발사)<br>
+                    • T: 허식 「茈」 (거대/완만 원형 투사체)<br>
                     • X: 영역전개
                 </p>
             </div>
@@ -303,7 +303,7 @@ let explosions = [];
 let blackHoles = [];     
 let blueOrbs = [];       
 let purpleEffects = [];   
-let purpleProjectiles = []; // 무라사키 전용 투사체 배열 추가
+let purpleProjectiles = []; 
 let laserBeams = [];
 let meleeAttacks = [];
 let enemies = [];
@@ -494,11 +494,11 @@ function castSkill(key) {
             addUlt(20.0);
             playVoiceAndSound('purple_voice');
             triggerVibration(45);
-            // 허식 무라사키를 원형 투사체로 발사 (날아가는 투사체 등록)
+            // 무라사키를 더 크게(반경 75) 만들고 조금 더 느리게(속도 8.5) 발사
             purpleProjectiles.push({
                 x: player.x, y: player.y,
-                vx: Math.cos(ang) * 14, vy: Math.sin(ang) * 14,
-                radius: 45, maxLife: 150, life: 150, damage: 2500
+                vx: Math.cos(ang) * 8.5, vy: Math.sin(ang) * 8.5,
+                radius: 75, maxLife: 220, life: 220, damage: 3000
             });
         } else if(player.charType === 'Sukuna') {
             addUlt(15.0);
@@ -529,23 +529,23 @@ function triggerPurpleExplosion(x, y, boIndex) {
         blueOrbs.splice(boIndex, 1);
     }
 
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 180; i++) {
         let pAng = Math.random() * Math.PI * 2;
-        let pDist = Math.random() * 500 + 50;
+        let pDist = Math.random() * 650 + 50;
         let pSpeed = Math.random() * 15 + 8;
         purpleEffects.push({
             x: x + Math.cos(pAng) * pDist, y: y + Math.sin(pAng) * pDist,
             targetX: x, targetY: y,
             vx: -Math.cos(pAng) * pSpeed, vy: -Math.sin(pAng) * pSpeed,
-            radius: Math.random() * 10 + 5, life: 50, color: i % 2 === 0 ? '#a855f7' : '#e056fd'
+            radius: Math.random() * 12 + 6, life: 60, color: i % 2 === 0 ? '#a855f7' : '#e056fd'
         });
     }
 
     explosions.push({
-        x: x, y: y, radius: 600, maxRadius: 600,
-        color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 4500
+        x: x, y: y, radius: 750, maxRadius: 750,
+        color: 'rgba(168, 85, 247, 0.95)', life: 45, damage: 5500
     });
-    enemies.forEach(e => { if(Math.hypot(e.x - x, e.y - y) < 600) e.hp -= 4500; });
+    enemies.forEach(e => { if(Math.hypot(e.x - x, e.y - y) < 750) e.hp -= 5500; });
 }
 
 function spawnCurse() {
@@ -1086,17 +1086,17 @@ function draw() {
         ctx.shadowBlur = 0;
     });
 
-    // 허식 무라사키 원형 투사체 렌더링
+    // 허식 무라사키 원형 투사체 렌더링 (확대된 크기 적용)
     purpleProjectiles.forEach(pp => {
         ctx.save();
-        ctx.shadowBlur = 40;
+        ctx.shadowBlur = 60;
         ctx.shadowColor = '#a855f7';
         ctx.fillStyle = '#7000ff';
         ctx.beginPath();
         ctx.arc(pp.x, pp.y, pp.radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#e056fd';
-        ctx.lineWidth = 6;
+        ctx.lineWidth = 8;
         ctx.stroke();
         ctx.restore();
     });
