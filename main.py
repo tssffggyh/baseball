@@ -168,7 +168,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[허식 무라사키 압축-팽창-발사 연출 최종 완성판]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[허식 무라사키 0.8초 팽창 ➔ 0.3초 대기 빛남 ➔ 발사 연출]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -176,7 +176,7 @@ game_html = """
                     • Q: 신속 아오 폭주 (무적 버프)<br>
                     • E: 술식반전 · 「赤」<br>
                     • R: 술식순전 · 「蒼」<br>
-                    • T: 허식 「茈」 (압축 ➔ 팽창 ➔ 팡 발사)<br>
+                    • T: 허식 「茈」 (0.8초 팽창 ➔ 0.3초 대기 ➔ 발사)<br>
                     • X: 무량공처
                 </p>
             </div>
@@ -280,7 +280,7 @@ let speedAoActive = false;
 let speedAoTimer = 0; 
 
 let bloodSplatters = [];
-let permanentCraters = []; // 지형 파괴 잔해 누적
+let permanentCraters = []; 
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
@@ -534,16 +534,19 @@ function castSkill(key) {
             playVoiceAndSound('purple_voice');
             triggerVibration(45);
             
-            // [허식 무라사키 완성 연출]: 압축(시작) ➔ 팽창(growing 단계) ➔ 팡 발사(beam 발사)
+            // [허식 무라사키 개정 연출]: 
+            // phase 1 ('expanding'): 0.8초(48프레임) 동안 작은 원에서 큰 원으로 커짐
+            // phase 2 ('charging'): 0.3초(18프레임) 동안 그 원이 번쩍이며 대기
+            // phase 3 ('firing'): 빛나면서 전방으로 발사되어 날아감
             purpleProjectiles.push({
                 x: player.x + Math.cos(ang)*30, 
                 y: player.y + Math.sin(ang)*30,
-                vx: Math.cos(ang) * 14, 
-                vy: Math.sin(ang) * 14,
-                phase: 'condensing', // 0단계: 아주 작은 초고밀도 점으로 압축되었다가 커지기 시작함
-                condenseTimer: 25,
-                currentRadius: 2,
-                maxRadius: 140,
+                vx: Math.cos(ang) * 15, 
+                vy: Math.sin(ang) * 15,
+                phase: 'expanding', 
+                timer: 48, // 0.8초 (60fps 기준 약 48프레임)
+                currentRadius: 5,
+                maxRadius: 130,
                 life: 300, 
                 damage: 9999, 
                 ang: ang
@@ -754,27 +757,32 @@ function update() {
         if(bs.life <= 0) bloodSplatters.splice(bsi, 1);
     });
 
-    // [허식 무라사키 압축 ➔ 팽창 ➔ 발사 연출 로직 최적화]
+    // [허식 무라사키 3단계 연출 로직 구현]
     purpleProjectiles.forEach((pp, ppi) => {
         pp.life--;
-        if(pp.phase === 'condensing') {
-            pp.condenseTimer--;
-            pp.currentRadius = Math.max(2, pp.currentRadius - 0.2); // 순간적으로 압축되는 연출
-            if(pp.condenseTimer <= 0) {
-                pp.phase = 'expanding';
-                triggerVibration(15);
+        if(pp.phase === 'expanding') {
+            // 1단계: 0.8초(48프레임) 동안 작은 원에서 지정된 크기(maxRadius)까지 점점 커짐
+            pp.timer--;
+            let progress = (48 - pp.timer) / 48;
+            pp.currentRadius = 5 + (pp.maxRadius - 5) * progress;
+            
+            if(pp.timer <= 0) {
+                pp.phase = 'charging';
+                pp.timer = 18; // 2단계: 0.3초(18프레임) 동안 대기 및 빛남
+                triggerVibration(20);
             }
-        } else if(pp.phase === 'expanding') {
-            pp.currentRadius += 7.5; // 거대하게 부풀어 오르는 팽창 단계
-            if(pp.currentRadius >= pp.maxRadius) {
+        } else if(pp.phase === 'charging') {
+            // 2단계: 0.3초 동안 제자리에서 빛나며 대기
+            pp.timer--;
+            if(pp.timer <= 0) {
                 pp.phase = 'firing';
                 triggerVibration(35);
                 permanentCraters.push({ x: pp.x, y: pp.y, radius: pp.maxRadius });
             }
         } else if(pp.phase === 'firing') {
-            // 전방으로 강력한 빔 광속 발사
-            pp.x += pp.vx * 2.6;
-            pp.y += pp.vy * 2.6;
+            // 3단계: 빛나면서 전방으로 강력하게 발사되어 날아감
+            pp.x += pp.vx * 2.8;
+            pp.y += pp.vy * 2.8;
 
             enemies.forEach(e => {
                 let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
@@ -970,7 +978,6 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke();
     }
 
-    // 영구 지형 파괴 흔적 (지진 파열구)
     permanentCraters.forEach(cr => {
         ctx.save();
         ctx.fillStyle = 'rgba(5, 2, 10, 0.65)';
@@ -1010,22 +1017,24 @@ function draw() {
         ctx.restore();
     });
 
-    // 허식 무라사키 렌더링 (초정밀 압축-팽창-발사 애니메이션)
+    // [허식 무라사키 3단계 시각적 렌더링 구현]
     purpleProjectiles.forEach(pp => {
         ctx.save();
-        if(pp.phase === 'condensing') {
-            // 초소형 초고밀도 빛점 압축
-            ctx.fillStyle = '#fff';
-            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.currentRadius * 2, 0, Math.PI*2); ctx.fill();
-            ctx.shadowBlur = 30; ctx.shadowColor = '#a855f7';
-        } else if(pp.phase === 'expanding') {
-            // 거대하게 부풀어 오르는 보라색 구체
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.85)';
+        if(pp.phase === 'expanding') {
+            // 1단계: 0.8초 동안 작은 원에서 큰 원으로 부드럽게 커짐
+            ctx.fillStyle = 'rgba(168, 85, 247, 0.75)';
             ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.currentRadius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke();
-            ctx.shadowBlur = 50; ctx.shadowColor = '#e056fd';
+            ctx.strokeStyle = '#d290ff'; ctx.lineWidth = 3; ctx.stroke();
+            ctx.shadowBlur = 25; ctx.shadowColor = '#a855f7';
+        } else if(pp.phase === 'charging') {
+            // 2단계: 0.3초 동안 원이 강렬하게 빛나며 대기 (블링크/섬광 효과)
+            let isFlash = Math.floor(Date.now() / 40) % 2 === 0;
+            ctx.fillStyle = isFlash ? 'rgba(255, 255, 255, 0.95)' : 'rgba(224, 86, 253, 0.95)';
+            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = isFlash ? 8 : 4; ctx.stroke();
+            ctx.shadowBlur = 60; ctx.shadowColor = '#ffffff';
         } else if(pp.phase === 'firing') {
-            // 발사된 거대 빛의 광선
+            // 3단계: 빛나면서 전방으로 발사되어 날아감
             ctx.fillStyle = '#e056fd';
             ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke();
@@ -1093,7 +1102,6 @@ function draw() {
         ctx.restore();
     }
 
-    // 플레이어 렌더링
     ctx.save();
     ctx.fillStyle = player.charType === 'Gojo' ? '#70a1ff' : (player.charType === 'Sukuna' ? '#ff4757' : '#2ecc71');
     ctx.beginPath(); ctx.arc(player.x, player.y, 22, 0, Math.PI*2); ctx.fill();
