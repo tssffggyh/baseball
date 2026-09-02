@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 자폭 무라사키 & 대범위 아오/아카 개정판")
+st.set_page_config(layout="wide", page_title="주술회전: 영역전개 지속시간 대폭 연장 개정판")
 
 st.markdown("""
     <style>
@@ -119,7 +119,7 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#e056fd;">[대범위 아오/아카 개정판]</span></div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#e056fd;">[영역전개 지속시간 대폭 연장]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -133,15 +133,15 @@ game_html = """
                         <div id="cd-q" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon">
-                        <span class="skill-key">E</span><span id="sk-e">스킬1</span>
+                        <span class="skill-key">E</span><span id="sk-e">아카</span>
                         <div id="cd-e" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon">
-                        <span class="skill-key">R</span><span id="sk-r">스킬2</span>
+                        <span class="skill-key">R</span><span id="sk-r">아오</span>
                         <div id="cd-r" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon">
-                        <span class="skill-key">T</span><span id="sk-t">스킬3</span>
+                        <span class="skill-key">T</span><span id="sk-t">무라사키</span>
                         <div id="cd-t" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon" style="border-color:#ff4757;">
@@ -165,7 +165,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[술식순전 '아오' & 술식반전 '아카' 대범위 확장 패치]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[영역전개 지속시간 대폭 연장 패치]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -173,7 +173,7 @@ game_html = """
                     • Q: 신속 아오 폭주 (무적 버프)<br>
                     • E: 술식반전 · 「赤」 (광역 밀쳐내기 & 자폭 茈 유도)<br>
                     • R: 술식순전 · 「蒼」 (대형 블랙홀 당기기 & 대형 잔해 생성)<br>
-                    • T: 대형 허식 「茈」 / X: 무량공처
+                    • T: 대형 허식 「茈」 / X: 무량공처 (지속시간 대폭 상향)
                 </p>
             </div>
             <div class="card" id="card-sukuna">
@@ -181,7 +181,7 @@ game_html = """
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
                     • E: 해(解) / R: 팔(捌)<br>
-                    • T: 푸가(🔥) / X: 복마어주자
+                    • T: 푸가(🔥) / X: 복마어주자 (지속시간 대폭 상향)
                 </p>
             </div>
             <div class="card" id="card-megumi">
@@ -189,7 +189,7 @@ game_html = """
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
                     • E: 누에 / R: 옥견<br>
-                    • T: 그림자 속박 / X: 마허라
+                    • T: 그림자 속박 / X: 마허라 (지속시간 대폭 상향)
                 </p>
             </div>
         </div>
@@ -464,7 +464,7 @@ function castSkill(key) {
 
     if(key === 'X' && player.charType === 'Gojo') {
         gojoDomainCount++;
-        if(gojoDomainCount >= 3) {
+        if(gojoDomainCount >= 4) {
             showDialogue('더 이상 쓸 수가 없어...');
             cooldowns.X = 24;
             player.ultEnergy = 0;
@@ -488,7 +488,6 @@ function castSkill(key) {
         addUlt(2.5);
         
         if(player.charType === 'Gojo') {
-            // E스킬: 아카 (술식반전 아카) - 대범위 확장 및 잔해 유도
             playVoiceAndSound('aka');
             triggerVibration(30);
             
@@ -510,7 +509,7 @@ function castSkill(key) {
                 x: player.x, y: player.y, 
                 targetX: targetXPos, targetY: targetYPos,
                 vx: finalVx, vy: finalVy,
-                type: 'aka', damage: 3500, radius: 28, // 반경을 더욱 크게 확대
+                type: 'aka', damage: 3500, radius: 28,
                 maxDist: targetOrb ? Math.hypot(targetOrb.x - player.x, targetOrb.y - player.y) : 350, 
                 traveled: 0, targetOrb: targetOrb
             });
@@ -526,11 +525,10 @@ function castSkill(key) {
         addUlt(4.0);
         
         if(player.charType === 'Gojo') {
-            // R스킬: 아오 (술식순전 아오) - 대형 블랙홀 및 대범위 흡수 장치
             playVoiceAndSound('ao_voice');
             triggerVibration(25);
             blackHoles.push({
-                orbitAngle: ang, orbitRadius: 260, radius: 650, life: 180, damage: 3000, x: player.x, y: player.y // 범위 대폭 확장
+                orbitAngle: ang, orbitRadius: 260, radius: 650, life: 180, damage: 3000, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
@@ -563,11 +561,11 @@ function castSkill(key) {
     } else if(key === 'X') {
         player.ultEnergy = 0;
         if(player.charType === 'Gojo') {
-            activeDomain = { type: 'Gojo', timer: 280 };
+            activeDomain = { type: 'Gojo', timer: 1200 }; // 영역전개 지속시간 대폭 연장 (약 4배)
         } else if(player.charType === 'Sukuna') {
-            activeDomain = { type: 'Sukuna', timer: 220 };
+            activeDomain = { type: 'Sukuna', timer: 1000 };
         } else {
-            mahoraga = { x: player.x, y: player.y - 50, life: 600 };
+            mahoraga = { x: player.x, y: player.y - 50, life: 1500 };
         }
         triggerVibration(40);
     }
@@ -803,7 +801,7 @@ function update() {
         });
 
         if(bh.life <= 0) {
-            blueOrbs.push({ x: bh.x, y: bh.y, radius: 150, life: 350 }); // 아오 잔해 크기 확장
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 150, life: 350 });
             explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 400, color: '#3742fa', life: 18, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
