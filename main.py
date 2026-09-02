@@ -531,10 +531,8 @@ function castSkill(key) {
         purpleAudio.currentTime = 0;
         purpleAudio.play().catch(() => {});
 
-        // 위치가 이동해도 원래 자리에 고정되도록 시작 위치(startX, startY) 저장
+        // 움직이는 위치를 따라가도록 등록
         chargingPurples.push({
-            x: player.x, y: player.y,
-            startX: player.x, startY: player.y,
             ang: ang,
             radius: 5,       
             maxRadius: 130,   
@@ -737,9 +735,9 @@ function update() {
         }
 
         if(cp.chargeTimer <= 0) {
-            // 저장해 둔 고정 시작 위치(startX, startY)에서 발사되도록 수정
+            // 발사 순간 플레이어의 현재 위치에서 투사체 생성
             purpleProjectiles.push({
-                x: cp.startX, y: cp.startY,
+                x: player.x, y: player.y,
                 vx: Math.cos(cp.ang) * 14, vy: Math.sin(cp.ang) * 14,
                 radius: cp.maxRadius, maxLife: 300, life: 300, damage: cp.damage, hitEnemies: new Set()
             });
@@ -1172,14 +1170,14 @@ function draw() {
         ctx.shadowBlur = 0;
     });
 
-    // 차징 중인 무라사키 이펙트가 시작 위치(startX, startY)에 고정되도록 렌더링 수정
+    // 차징 중인 무라사키가 플레이어의 현재 위치(player.x, player.y)를 따라다니도록 렌더링
     chargingPurples.forEach(cp => {
         ctx.save();
         ctx.shadowBlur = 40;
         ctx.shadowColor = '#a855f7';
         ctx.fillStyle = '#7000ff';
         ctx.beginPath();
-        ctx.arc(cp.startX, cp.startY, cp.radius, 0, Math.PI * 2);
+        ctx.arc(player.x, player.y, cp.radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#e056fd';
         ctx.lineWidth = 6;
