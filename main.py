@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 무라사키 확대 및 Q 지속시간/데미지 상향 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 체력 회복량 상향 패치")
 
 st.markdown("""
     <style>
@@ -119,7 +119,7 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#2ecc71;">[자동 회복]</span></div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#2ecc71;">[폭풍 재생 상향]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -165,7 +165,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[무라사키 확대 및 Q 지속시간/데미지 상향 패치]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[체력 자동 회복량 대폭 상향 패치]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -486,7 +486,7 @@ function castSkill(key) {
     if(key === 'Q') {
         cooldowns.Q = 30;
         speedAoActive = true;
-        speedAoTimer = 500; // Q 지속시간 상향 (300 ➔ 500)
+        speedAoTimer = 500;
         playVoiceAndSound('ao_voice');
         triggerVibration(25);
         addUlt(3.0);
@@ -540,7 +540,7 @@ function castSkill(key) {
             purpleProjectiles.push({
                 x: player.x, y: player.y,
                 vx: Math.cos(ang) * 9.5, vy: Math.sin(ang) * 9.5,
-                radius: 140, maxLife: 300, life: 300, damage: 9999, hitEnemies: new Set() // 무라사키 크기 대폭 상향 (80 ➔ 140)
+                radius: 140, maxLife: 300, life: 300, damage: 9999, hitEnemies: new Set()
             });
         } else if(player.charType === 'Sukuna') {
             addUlt(5.0);
@@ -640,7 +640,7 @@ setInterval(() => {
 
     if(!isGameOver && Date.now() - lastHitTime >= 3000) {
         if(player.hp < player.maxHp) {
-            player.hp = Math.min(player.maxHp, player.hp + (player.maxHp * 0.005)); 
+            player.hp = Math.min(player.maxHp, player.hp + (player.maxHp * 0.015)); // 회복량 3배 상향 (0.005 ➔ 0.015)
         }
     }
 }, 100);
@@ -663,7 +663,7 @@ function update() {
         enemies.forEach(e => {
             let dist = Math.hypot(e.x - player.x, e.y - player.y);
             if(dist < e.radius + 30) {
-                e.hp -= 120.0; // Q 데미지 상향 (50 ➔ 120)
+                e.hp -= 120.0;
             }
         });
 
@@ -756,7 +756,7 @@ function update() {
         enemies.forEach((e, ei) => {
             let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
             if(dist < e.radius + pp.radius) {
-                e.hp -= 800; // 대형 무라사키 타격 데미지 상향
+                e.hp -= 800;
                 purpleEffects.push({
                     x: e.x + (Math.random()-0.5)*30, y: e.y + (Math.random()-0.5)*30,
                     vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4,
