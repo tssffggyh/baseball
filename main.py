@@ -5,8 +5,8 @@ st.set_page_config(layout="wide", page_title="주술회전: 천공의 별 개정
 
 st.markdown("""
     <style>
-        .main .block-container { max-width: 100% !important; padding: 0rem !important; }
-        iframe { width: 100% !important; border: none; }
+        .main .block-container { max-width: 100% !important; padding: 0rem !important; overflow: hidden !important; }
+        iframe { width: 100% !important; height: 100vh !important; border: none; display: block; }
         header, footer { visibility: hidden; }
     </style>
 """, unsafe_allow_html=True)
@@ -20,63 +20,62 @@ game_html = """
     body {
         background-color: #020204; color: #fff;
         font-family: 'Consolas', monospace;
-        display: flex; justify-content: center; align-items: center;
         width: 100vw; height: 100vh; overflow: hidden;
     }
     #game-container {
         position: relative; width: 100vw; height: 100vh;
         overflow: hidden; background: #000;
     }
-    canvas { display: block; cursor: crosshair; }
+    canvas { display: block; cursor: crosshair; width: 100%; height: 100%; }
     
     #ui-layer {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        pointer-events: none; padding: 20px 30px;
+        pointer-events: none; padding: 15px 25px;
         display: flex; flex-direction: column; justify-content: space-between; z-index: 10;
     }
     .hud-card {
         background: rgba(10, 10, 18, 0.85); backdrop-filter: blur(10px);
-        padding: 15px 25px; border-radius: 12px;
+        padding: 10px 18px; border-radius: 12px;
         border: 1px solid rgba(168, 85, 247, 0.4); box-shadow: 0 8px 32px rgba(0,0,0,0.6);
     }
     .bar-outer {
-        width: 280px; height: 12px; background: rgba(255,255,255,0.1);
-        border-radius: 6px; overflow: hidden; margin: 4px 0 10px 0;
+        width: 240px; height: 10px; background: rgba(255,255,255,0.1);
+        border-radius: 5px; overflow: hidden; margin: 3px 0 8px 0;
     }
     .bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #ff6b81); transition: width 0.1s; }
     .bar-ult { width: 0%; height: 100%; background: linear-gradient(90deg, #a855f7, #e056fd); transition: width 0.1s; }
     
     #boss-hud {
-        position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-        width: 580px; background: rgba(15, 5, 5, 0.9);
-        border: 2px solid #ff4757; border-radius: 10px; padding: 12px 20px;
+        position: absolute; top: 15px; left: 50%; transform: translateX(-50%);
+        width: 480px; background: rgba(15, 5, 5, 0.9);
+        border: 2px solid #ff4757; border-radius: 10px; padding: 8px 15px;
         text-align: center; display: none; z-index: 15;
     }
-    .boss-bar-outer { width: 100%; height: 16px; background: rgba(255,255,255,0.1); border-radius: 8px; overflow: hidden; margin-top: 5px; }
+    .boss-bar-outer { width: 100%; height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; margin-top: 4px; }
     .boss-bar-hp { width: 100%; height: 100%; background: linear-gradient(90deg, #ff4757, #e84118); transition: width 0.1s; }
 
-    .skill-container { display: flex; gap: 8px; margin-top: 8px; }
+    .skill-container { display: flex; gap: 6px; margin-top: 6px; }
     .skill-icon {
-        position: relative; width: 50px; height: 50px; background: rgba(255,255,255,0.08);
-        border: 1px solid #a855f7; border-radius: 10px;
+        position: relative; width: 44px; height: 44px; background: rgba(255,255,255,0.08);
+        border: 1px solid #a855f7; border-radius: 8px;
         display: flex; flex-direction: column; justify-content: space-between; align-items: center;
-        padding: 4px; font-size: 9px; font-weight: bold; color: #fff; overflow: hidden;
+        padding: 3px; font-size: 8px; font-weight: bold; color: #fff; overflow: hidden;
     }
-    .skill-key { font-size: 12px; color: #e056fd; }
+    .skill-key { font-size: 11px; color: #e056fd; }
     .cooldown-overlay {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.75); color: #ff4757; font-size: 14px; font-weight: bold;
+        background: rgba(0, 0, 0, 0.75); color: #ff4757; font-size: 13px; font-weight: bold;
         display: flex; justify-content: center; align-items: center; display: none;
     }
 
     #dialogue-box {
-        position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+        position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
         background: rgba(5, 5, 12, 0.95); border: 2px solid #a855f7;
-        border-radius: 12px; padding: 12px 30px; text-align: center;
+        border-radius: 12px; padding: 10px 25px; text-align: center;
         box-shadow: 0 0 30px rgba(168, 85, 247, 0.8);
         opacity: 0; transition: opacity 0.15s ease-in-out; pointer-events: none; z-index: 20;
     }
-    #dialogue-text { font-size: 24px; font-weight: bold; color: #f3e8ff; letter-spacing: 3px; }
+    #dialogue-text { font-size: 20px; font-weight: bold; color: #f3e8ff; letter-spacing: 2px; }
 
     #class-select, #game-over {
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -84,21 +83,21 @@ game_html = """
         display: flex; flex-direction: column; justify-content: center; z-index: 100;
         align-items: center; pointer-events: auto;
     }
-    .card-group { display: flex; gap: 30px; margin-top: 40px; }
+    .card-group { display: flex; gap: 20px; margin-top: 30px; }
     .card {
         background: rgba(20, 20, 35, 0.7); border: 2px solid rgba(168, 85, 247, 0.3);
-        border-radius: 20px; padding: 30px 20px; width: 290px;
+        border-radius: 16px; padding: 25px 15px; width: 260px;
         text-align: center; cursor: pointer; transition: all 0.3s ease;
     }
     .card:hover {
-        transform: translateY(-10px); border-color: #a855f7;
+        transform: translateY(-8px); border-color: #a855f7;
         box-shadow: 0 15px 35px rgba(168, 85, 247, 0.4); background: rgba(30, 30, 50, 0.9);
     }
-    .card h2 { margin-bottom: 12px; font-size: 24px; }
-    .card p { font-size: 12px; color: #a1a1aa; line-height: 1.6; text-align: left; }
+    .card h2 { margin-bottom: 10px; font-size: 22px; }
+    .card p { font-size: 11px; color: #a1a1aa; line-height: 1.5; text-align: left; }
     
     .restart-btn {
-        margin-top: 30px; padding: 15px 40px; font-size: 20px; font-weight: bold;
+        margin-top: 25px; padding: 12px 35px; font-size: 18px; font-weight: bold;
         color: #fff; background: linear-gradient(90deg, #ff4757, #a855f7);
         border: none; border-radius: 10px; cursor: pointer; transition: 0.2s;
     }
@@ -111,17 +110,17 @@ game_html = """
     <canvas id="gameCanvas"></canvas>
     
     <div id="boss-hud">
-        <div id="boss-name" style="color:#ff4757; font-weight:bold; font-size:16px;">[LV.1] 보스</div>
+        <div id="boss-name" style="color:#ff4757; font-weight:bold; font-size:14px;">[LV.1] 보스</div>
         <div class="boss-bar-outer"><div id="boss-hp-bar" class="boss-bar-hp"></div></div>
     </div>
 
     <div id="ui-layer">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
-                <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#f1c40f;">[천공의 별 궁극버프 탑재]</span></div>
+                <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:15px;">주술사</div>
+                <div style="font-size:9px; color:#aaa; margin-top:3px;">체력 (HP) <span style="color:#f1c40f;">[천공의 별 궁극버프]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
-                <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
+                <div style="font-size:9px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
                 
                 <div class="skill-container">
@@ -152,9 +151,9 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div id="boss-status" style="font-size:14px; color:#ff4757; font-weight:bold;">보스 소환 대기 중...</div>
-                <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:6px;">처치한 보스: 0 / 100</div>
-                <div id="mob-kill-status" style="font-size:13px; color:#a855f7; margin-top:2px; font-weight:bold;">처치한 일반 주령: 0마리</div>
+                <div id="boss-status" style="font-size:13px; color:#ff4757; font-weight:bold;">보스 소환 대기 중...</div>
+                <div id="kill-status" style="font-size:12px; color:#aaa; margin-top:4px;">처치한 보스: 0 / 100</div>
+                <div id="mob-kill-status" style="font-size:12px; color:#a855f7; margin-top:2px; font-weight:bold;">처치한 일반 주령: 0마리</div>
             </div>
         </div>
     </div>
@@ -164,22 +163,22 @@ game_html = """
     </div>
 
     <div id="class-select">
-        <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[Q스킬: 천공의 별 (60초 쿨, 20초 지속, 스턴/무적/아카 데미지 충돌)]</p>
+        <h1 style="color:#f3e8ff; font-size:42px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
+        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[Q스킬: 천공의 별 (60초 쿨, 20초 지속, 스턴/무적/아카 데미지 충돌)]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • Q: 천공의 별 (20초 스턴/무적/고속이동/충돌데미지)<br>
-                    • E: 술식반전 · 「赤」 (광역 밀쳐내기)<br>
-                    • R: 술식순전 · 「蒼」 (대형 블랙홀 당기기)<br>
+                    • Q: 천공의 별 (20초 스턴/무적/이속증가)<br>
+                    • E: 술식반전 · 「赤」<br>
+                    • R: 술식순전 · 「蒼」<br>
                     • T: 대형 허식 「茈」 / X: 무량공처
                 </p>
             </div>
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • Q: 천공의 별 (20초 스턴/무적/고속이동/충돌데미지)<br>
+                    • Q: 천공의 별 (20초 스턴/무적/이속증가)<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
@@ -187,7 +186,7 @@ game_html = """
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • Q: 천공의 별 (20초 스턴/무적/고속이동/충돌데미지)<br>
+                    • Q: 천공의 별 (20초 스턴/무적/이속증가)<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라
                 </p>
@@ -196,8 +195,8 @@ game_html = """
     </div>
 
     <div id="game-over" style="display:none;">
-        <h1 style="color:#ff4757; font-size:56px; letter-spacing:3px;">YOU DIED</h1>
-        <p style="color:#aaa; margin-top:10px; font-size:18px;" id="final-stats">주령들의 공격으로 사망했습니다.</p>
+        <h1 style="color:#ff4757; font-size:48px; letter-spacing:3px;">YOU DIED</h1>
+        <p style="color:#aaa; margin-top:10px; font-size:16px;" id="final-stats">주령들의 공격으로 사망했습니다.</p>
         <button class="restart-btn" id="restart-btn">다시 도전하기</button>
     </div>
 </div>
@@ -234,14 +233,12 @@ function playVoiceAndSound(type) {
     initAudio();
     if(type === 'ao_voice') { aoAudio.currentTime = 0; aoAudio.play().catch(err => {}); return; }
     if(type === 'purple_voice') { purpleAudio.currentTime = 0; purpleAudio.play().catch(err => {}); return; }
-
     if(!audioCtx) return;
     let now = audioCtx.currentTime;
     let osc = audioCtx.createOscillator();
     let gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-
     if(type === 'aka') {
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(440, now);
@@ -262,19 +259,13 @@ let isGameOver = false;
 let screenShake = 0;
 let camera = { x: 0, y: 0 };
 let dialogueTimeout = null;
-
 let lastHitTime = Date.now();
 let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
-
-let limitlessTimer = 0;
-let limitlessActive = true; // 기본적으로 무하한 켜져있음
-
-// [추가] 천공의 별 스킬 관련 변수 (20초 지속, 60초 쿨, 무적, 고속 이동, 아카 데미지 충돌)
+let limitlessActive = true;
 let skyStarActive = false;
 let skyStarTimer = 0;
-
 let bloodSplatters = [];
 
 let player = {
@@ -356,7 +347,7 @@ window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35 * 1.5)); }
 
 function takeDamage(damage) {
-    if(skyStarActive) return; // 천공의 별 지속 중에는 완전 무적
+    if(skyStarActive) return;
     player.hp -= damage; 
     lastHitTime = Date.now();
 }
@@ -429,7 +420,6 @@ function performAutoAttack() {
     player.lastAttack = now;
 
     let ang = getAutoAimAngle();
-
     addUlt(0.8);
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
@@ -477,15 +467,14 @@ function castSkill(key) {
     showDialogue(dialogues[player.charType][key]);
 
     if(key === 'Q') {
-        // [구현] Q스킬: 천공의 별 (60초 쿨, 20초 지속, 무하한 해제, 초고속 이동, 무적, 몹 20초 스턴, 충돌 시 아카 데미지 3500)
         cooldowns.Q = maxCooldowns[player.charType].Q;
         skyStarActive = true;
-        skyStarTimer = 1200; // 20초 (60프레임 * 20)
-        muhanActive = false; // 무하한 발동 안 됨
-        player.speed = player.baseSpeed * 3.2; // 겁나 빨라짐
+        skyStarTimer = 1200;
+        limitlessActive = false;
+        player.speed = player.baseSpeed * 3.2;
 
         enemies.forEach(e => {
-            e.stunTimer = 1200; // 주변 몹들 20초동안 스턴
+            e.stunTimer = 1200;
         });
 
         playVoiceAndSound('ao_voice');
@@ -668,13 +657,12 @@ function update() {
 
     performAutoAttack();
 
-    // 천공의 별 지속시간 관리
     if(skyStarActive) {
         skyStarTimer--;
         if(skyStarTimer <= 0) {
             skyStarActive = false;
-            muhanActive = true; // 무하한 복구
-            player.speed = player.baseSpeed; // 속도 복구
+            limitlessActive = true;
+            player.speed = player.baseSpeed;
         }
     }
 
@@ -924,7 +912,6 @@ function update() {
     });
 
     enemies.forEach((e, ei) => {
-        // 스턴 체크
         if(e.stunTimer > 0) {
             e.stunTimer--;
             e.speed = 0;
@@ -934,8 +921,7 @@ function update() {
             let ang = Math.atan2(player.y - e.y, player.x - e.x);
             let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
-            // [구현] 천공의 별 상태일 때는 무하한 발동이 안 됨 (켜져있지 않음)
-            if(player.charType === 'Gojo' && muhanActive && dist < 130) {
+            if(player.charType === 'Gojo' && limitlessActive && dist < 130) {
                 e.x -= Math.cos(ang) * 14; 
                 e.y -= Math.sin(ang) * 14;
             } else {
@@ -964,7 +950,6 @@ function update() {
                 if(e.skillCd >= 70) {
                     e.skillCd = 0;
                     let patternType = Math.floor(Math.random() * 3);
-                    
                     if(patternType === 0) {
                         for(let i=-2; i<=2; i++) {
                             enemyProjectiles.push({
@@ -1003,11 +988,10 @@ function update() {
             }
         }
 
-        // [구현] 천공의 별 지속 중 닿는 적들에게 아카의 데미지(3500) 적용
         if(skyStarActive) {
             let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
             if(distToPlayer < player.radius + e.radius + 20) {
-                e.hp -= 3500; // 아카 데미지와 동일
+                e.hp -= 3500;
                 purpleEffects.push({
                     x: e.x, y: e.y, vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3,
                     radius: Math.random()*6+3, life: 10, color: '#f1c40f'
@@ -1021,7 +1005,6 @@ function update() {
                 bossLevel++;
                 addUlt(8.0);
                 enemies.splice(ei, 1);
-                
                 if(bossLevel <= 100) {
                     startBossRespawnTimer();
                 } else {
@@ -1034,13 +1017,10 @@ function update() {
                     let bSpd = Math.random() * 5 + 2;
                     bloodSplatters.push({
                         x: e.x, y: e.y,
-                        vx: Math.cos(bAng) * bSpd,
-                        vy: Math.sin(bAng) * bSpd,
-                        radius: Math.random() * 4 + 2,
-                        life: Math.random() * 30 + 20
+                        vx: Math.cos(bAng) * bSpd, vy: Math.sin(bAng) * bSpd,
+                        radius: Math.random() * 4 + 2, life: Math.random() * 30 + 20
                     });
                 }
-
                 normalKillCount++;
                 addUlt(0.5);
                 enemies.splice(ei, 1);
@@ -1076,18 +1056,16 @@ function drawPlayerSprite(p) {
     ctx.restore();
 }
 
-// [구현] 지점이 4개인 별이 캐릭터 위를 천천히 도는 이펙트 함수
 function drawSkyStar(x, y) {
     ctx.save();
     ctx.translate(x, y - 60);
-    let rotAngle = Date.now() * 0.002; // 천천히 회전
+    let rotAngle = Date.now() * 0.002;
     ctx.rotate(rotAngle);
     
     ctx.shadowBlur = 20;
     ctx.shadowColor = '#f1c40f';
     ctx.fillStyle = '#f1c40f';
     
-    // 4개의 지점(꼭짓점)을 가진 별 모양 그리기
     let starRadius = 35;
     for (let i = 0; i < 4; i++) {
         ctx.rotate(Math.PI / 2);
@@ -1172,7 +1150,7 @@ function draw() {
         ctx.restore();
     });
 
-    if(player.charType === 'Gojo' && muhanActive) {
+    if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
         ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
         ctx.lineWidth = 3;
@@ -1314,7 +1292,6 @@ function draw() {
 
     drawPlayerSprite(player);
 
-    // [구현] 천공의 별 지속 중일 때 머리 위 별 이펙트 렌더링
     if(skyStarActive) {
         drawSkyStar(player.x, player.y);
     }
@@ -1332,4 +1309,4 @@ function gameLoop() {
 </html>
 """
 
-components.html(game_html, height=950)
+components.html(game_html, height=850, scrolling=False)
