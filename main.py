@@ -1,15 +1,18 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 영역전개 지속시간 대폭 연장 개정판")
+st.set_page_config(layout="wide", page_title="주술회전: 허식 무라사키 연출 개정판")
 
-st.markdown("""
+st.markdown(
+    """
     <style>
         .main .block-container { max-width: 100% !important; padding: 0rem !important; }
         iframe { width: 100% !important; border: none; }
         header, footer { visibility: hidden; }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 game_html = """
 <!DOCTYPE html>
@@ -165,15 +168,16 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[영역전개 지속시간 대폭 연장 패치]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[허식 무라사키 압축-팽창-발사 연출 적용]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
-                    • E: 술식반전 · 「赤」 (광역 밀쳐내기 & 자폭 茈 유도)<br>
-                    • R: 술식순전 · 「蒼」 (대형 블랙홀 당기기 & 대형 잔해 생성)<br>
-                    • T: 대형 허식 「茈」 / X: 무량공처 (지속시간 대폭 상향)
+                    • E: 술식반전 · 「赤」<br>
+                    • R: 술식순전 · 「蒼」<br>
+                    • T: 허식 「茈」 (응축 ➔ 팽창 ➔ 팡 발사)<br>
+                    • X: 무량공처 (지속시간 대폭 상향)
                 </p>
             </div>
             <div class="card" id="card-sukuna">
@@ -181,7 +185,7 @@ game_html = """
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
                     • E: 해(解) / R: 팔(捌)<br>
-                    • T: 푸가(🔥) / X: 복마어주자 (지속시간 대폭 상향)
+                    • T: 푸가(🔥) / X: 복마어주자
                 </p>
             </div>
             <div class="card" id="card-megumi">
@@ -189,7 +193,7 @@ game_html = """
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
                     • E: 누에 / R: 옥견<br>
-                    • T: 그림자 속박 / X: 마허라 (지속시간 대폭 상향)
+                    • T: 그림자 속박 / X: 마허라
                 </p>
             </div>
         </div>
@@ -276,6 +280,7 @@ let speedAoActive = false;
 let speedAoTimer = 0; 
 
 let bloodSplatters = [];
+let permanentcraters = []; // 지형 파괴 잔해 누적용
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
@@ -306,7 +311,6 @@ let slashes = [];
 let explosions = [];
 let blackHoles = [];     
 let blueOrbs = [];       
-let purpleEffects = [];   
 let purpleProjectiles = []; 
 let laserBeams = [];
 let meleeAttacks = [];
@@ -490,28 +494,11 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             playVoiceAndSound('aka');
             triggerVibration(30);
-            
-            let targetOrb = blueOrbs.length > 0 ? blueOrbs[0] : null;
-            let finalVx = Math.cos(ang)*18;
-            let finalVy = Math.sin(ang)*18;
-            let targetXPos = targetX;
-            let targetYPos = targetY;
-
-            if(targetOrb) {
-                let orbAng = Math.atan2(targetOrb.y - player.y, targetOrb.x - player.x);
-                finalVx = Math.cos(orbAng) * 22;
-                finalVy = Math.sin(orbAng) * 22;
-                targetXPos = targetOrb.x;
-                targetYPos = targetOrb.y;
-            }
-
             projectiles.push({
                 x: player.x, y: player.y, 
-                targetX: targetXPos, targetY: targetYPos,
-                vx: finalVx, vy: finalVy,
-                type: 'aka', damage: 3500, radius: 28,
-                maxDist: targetOrb ? Math.hypot(targetOrb.x - player.x, targetOrb.y - player.y) : 350, 
-                traveled: 0, targetOrb: targetOrb
+                targetX: targetX, targetY: targetY,
+                vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
+                type: 'aka', damage: 3500, radius: 28, maxDist: 350, traveled: 0
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=-2; i<=2; i++) {
@@ -545,11 +532,20 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             addUlt(6.0);
             playVoiceAndSound('purple_voice');
-            triggerVibration(35);
+            triggerVibration(45);
+            
+            // [개선된 무라사키 로직]: 압축(시작) ➔ 팽창(growing 단계) ➔ 팡 발사(beam 발사)
             purpleProjectiles.push({
-                x: player.x, y: player.y,
-                vx: Math.cos(ang) * 9.5, vy: Math.sin(ang) * 9.5,
-                radius: 140, maxLife: 300, life: 300, damage: 9999, hitEnemies: new Set()
+                x: player.x + Math.cos(ang)*30, 
+                y: player.y + Math.sin(ang)*30,
+                vx: Math.cos(ang) * 14, 
+                vy: Math.sin(ang) * 14,
+                phase: 'expanding', // 1단계: 팽창하며 커지는 구체 단계
+                currentRadius: 5,
+                maxRadius: 130,
+                life: 250, 
+                damage: 9999, 
+                ang: ang
             });
         } else if(player.charType === 'Sukuna') {
             addUlt(5.0);
@@ -561,7 +557,7 @@ function castSkill(key) {
     } else if(key === 'X') {
         player.ultEnergy = 0;
         if(player.charType === 'Gojo') {
-            activeDomain = { type: 'Gojo', timer: 1200 }; // 영역전개 지속시간 대폭 연장 (약 4배)
+            activeDomain = { type: 'Gojo', timer: 1200 };
         } else if(player.charType === 'Sukuna') {
             activeDomain = { type: 'Sukuna', timer: 1000 };
         } else {
@@ -757,22 +753,29 @@ function update() {
         if(bs.life <= 0) bloodSplatters.splice(bsi, 1);
     });
 
+    // [무라사키 팽창 및 발사 업데이트 로직]
     purpleProjectiles.forEach((pp, ppi) => {
-        pp.x += pp.vx;
-        pp.y += pp.vy;
         pp.life--;
-
-        enemies.forEach((e, ei) => {
-            let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
-            if(dist < e.radius + pp.radius) {
-                e.hp -= 800;
-                purpleEffects.push({
-                    x: e.x + (Math.random()-0.5)*30, y: e.y + (Math.random()-0.5)*30,
-                    vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4,
-                    radius: Math.random()*8+4, life: 15, color: '#e056fd'
-                });
+        if(pp.phase === 'expanding') {
+            pp.currentRadius += 6.5; // 점점 커지는 원
+            if(pp.currentRadius >= pp.maxRadius) {
+                pp.phase = 'firing'; // 최대 크기 도달 시 팡 하고 발사 단계로 전환
+                triggerVibration(30);
+                // 시전 위치에 영구적인 잔해(지형 패인 흔적) 기록
+                permanentcraters.push({ x: pp.x, y: pp.y, radius: pp.maxRadius });
             }
-        });
+        } else if(pp.phase === 'firing') {
+            // 일직선으로 단숨에 뻗어나가는 빔 속사
+            pp.x += pp.vx * 2.2;
+            pp.y += pp.vy * 2.2;
+
+            enemies.forEach(e => {
+                let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
+                if(dist < e.radius + pp.maxRadius) {
+                    e.hp -= 3000;
+                }
+            });
+        }
 
         if(pp.life <= 0 || pp.x < 0 || pp.x > WORLD_WIDTH || pp.y < 0 || pp.y > WORLD_HEIGHT) {
             purpleProjectiles.splice(ppi, 1);
@@ -845,25 +848,8 @@ function update() {
         p.x += p.vx; p.y += p.vy;
 
         if(p.type === 'aka') {
-            if(p.targetOrb) {
-                let orbExists = blueOrbs.includes(p.targetOrb);
-                if(orbExists) {
-                    let reAng = Math.atan2(p.targetOrb.y - p.y, p.targetOrb.x - p.x);
-                    p.vx = Math.cos(reAng) * 22;
-                    p.vy = Math.sin(reAng) * 22;
-                }
-            }
-
             p.traveled += Math.hypot(p.vx, p.vy);
             let reachedTarget = p.traveled >= p.maxDist;
-            let hitOrb = false;
-
-            blueOrbs.forEach((bo, boi) => {
-                if(Math.hypot(bo.x - p.x, bo.y - p.y) < bo.radius + p.radius) {
-                    hitOrb = true;
-                    blueOrbs.splice(boi, 1);
-                }
-            });
 
             let hitEnemy = false;
             enemies.forEach(e => {
@@ -872,32 +858,16 @@ function update() {
                 }
             });
 
-            if(reachedTarget || hitEnemy || hitOrb) {
-                if(hitOrb || (p.targetOrb && Math.hypot(p.x - p.targetOrb.x, p.y - p.targetOrb.y) < 120)) {
-                    playVoiceAndSound('purple_voice');
-                    showDialogue('「자폭 허식 · 茈」');
-                    triggerVibration(50);
-
-                    explosions.push({
-                        x: p.x, y: p.y, radius: 40, maxRadius: 1100, color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 10000
-                    });
-
-                    enemies.forEach(e => {
-                        e.hp -= 10000;
-                        e.hp -= e.maxHp * 0.5;
-                    });
-                } else {
-                    explosions.push({
-                        x: p.x, y: p.y, radius: 30, maxRadius: 320, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
-                    });
-                    triggerVibration(25);
-                    enemies.forEach(e => {
-                        if(Math.hypot(e.x - p.x, e.y - p.y) < 320) {
-                            e.hp -= p.damage;
-                        }
-                    });
-                }
-
+            if(reachedTarget || hitEnemy) {
+                explosions.push({
+                    x: p.x, y: p.y, radius: 30, maxRadius: 320, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
+                });
+                triggerVibration(25);
+                enemies.forEach(e => {
+                    if(Math.hypot(e.x - p.x, e.y - p.y) < 320) {
+                        e.hp -= p.damage;
+                    }
+                });
                 projectiles.splice(pi, 1);
                 return;
             }
@@ -925,11 +895,6 @@ function update() {
                 }
             }
         });
-    });
-
-    purpleEffects.forEach((pe, pei) => {
-        pe.x += pe.vx; pe.y += pe.vy; pe.life--;
-        if(pe.life <= 0) purpleEffects.splice(pei, 1);
     });
 
     explosions.forEach((ex, exi) => {
@@ -967,7 +932,6 @@ function update() {
 
         e.attackCd = (e.attackCd || 0) + 1;
         e.skillCd = (e.skillCd || 0) + 1;
-        e.ultCd = (e.ultCd || 0) + 1;
 
         if(e.isRanged && e.attackCd >= 80 && dist < 550 && e.speed > 0) {
             e.attackCd = 0;
@@ -977,32 +941,21 @@ function update() {
             });
         }
 
-        if(e.isBoss && e.speed > 0) {
-            if(e.skillCd >= 70) {
-                e.skillCd = 0;
-                let patternType = Math.floor(Math.random() * 3);
-                
-                if(patternType === 0) {
-                    for(let i=-2; i<=2; i++) {
-                        enemyProjectiles.push({
-                            x: e.x, y: e.y, vx: Math.cos(ang + i*0.22)*11, vy: Math.sin(ang + i*0.22)*11,
-                            damage: e.dmg * 0.7, radius: 8
-                        });
-                    }
-                } else if(patternType === 1) {
-                    explosions.push({
-                        x: player.x + (Math.random()-0.5)*120, y: player.y + (Math.random()-0.5)*120,
-                        radius: 20, maxRadius: 150, color: 'rgba(231, 76, 60, 0.65)', life: 25, damage: e.dmg * 1.1
+        if(e.isBoss && e.speed > 0 && e.skillCd >= 70) {
+            e.skillCd = 0;
+            let patternType = Math.floor(Math.random() * 3);
+            if(patternType === 0) {
+                for(let i=-2; i<=2; i++) {
+                    enemyProjectiles.push({
+                        x: e.x, y: e.y, vx: Math.cos(ang + i*0.22)*11, vy: Math.sin(ang + i*0.22)*11,
+                        damage: e.dmg * 0.7, radius: 8
                     });
-                } else {
-                    for(let i=0; i<8; i++) {
-                        let rAng = (Math.PI * 2 / 8) * i;
-                        enemyProjectiles.push({
-                            x: e.x, y: e.y, vx: Math.cos(rAng)*7.5, vy: Math.sin(rAng)*7.5,
-                            damage: e.dmg * 0.8, radius: 7
-                        });
-                    }
                 }
+            } else {
+                explosions.push({
+                    x: player.x + (Math.random()-0.5)*120, y: player.y + (Math.random()-0.5)*120,
+                    radius: 20, maxRadius: 150, color: 'rgba(231, 76, 60, 0.65)', life: 25, damage: e.dmg * 1.1
+                });
             }
         }
 
@@ -1025,26 +978,16 @@ function update() {
                 bossLevel++;
                 addUlt(8.0);
                 enemies.splice(ei, 1);
-                
-                if(bossLevel <= 100) {
-                    startBossRespawnTimer();
-                } else {
-                    document.getElementById('boss-status').innerText = `🏆 모든 보스 제령 완료!`;
-                    showDialogue(`🎉 축하합니다! 100단계 보스 정복!`);
-                }
+                if(bossLevel <= 100) startBossRespawnTimer();
             } else {
                 for(let b=0; b<12; b++) {
                     let bAng = Math.random() * Math.PI * 2;
                     let bSpd = Math.random() * 5 + 2;
                     bloodSplatters.push({
-                        x: e.x, y: e.y,
-                        vx: Math.cos(bAng) * bSpd,
-                        vy: Math.sin(bAng) * bSpd,
-                        radius: Math.random() * 4 + 2,
-                        life: Math.random() * 30 + 20
+                        x: e.x, y: e.y, vx: Math.cos(bAng)*bSpd, vy: Math.sin(bAng)*bSpd,
+                        radius: Math.random()*4+2, life: Math.random()*30+20
                     });
                 }
-
                 normalKillCount++;
                 addUlt(0.5);
                 enemies.splice(ei, 1);
@@ -1107,12 +1050,8 @@ function drawEnemySprite(e) {
         if(e.isRanged) {
             ctx.fillStyle = '#8e44ad';
             ctx.beginPath();
-            ctx.moveTo(0, -e.radius);
-            ctx.lineTo(e.radius, 0);
-            ctx.lineTo(0, e.radius);
-            ctx.lineTo(-e.radius, 0);
-            ctx.closePath();
-            ctx.fill();
+            ctx.moveTo(0, -e.radius); ctx.lineTo(e.radius, 0); ctx.lineTo(0, e.radius); ctx.lineTo(-e.radius, 0);
+            ctx.closePath(); ctx.fill();
             ctx.strokeStyle = '#e056fd'; ctx.lineWidth = 2; ctx.stroke();
         } else {
             ctx.fillStyle = '#1e272e';
@@ -1134,40 +1073,40 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.translate(-camera.x, -camera.y);
 
+    // 격자 배경 및 영구적 크레이터(잔해) 표시
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.06)'; ctx.lineWidth = 1;
+    for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
+    for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke(); }
+
+    permanentcraters.forEach(cr => {
+        ctx.fillStyle = 'rgba(12, 12, 22, 0.85)';
+        ctx.beginPath(); ctx.arc(cr.x, cr.y, cr.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)'; ctx.lineWidth = 3; ctx.stroke();
+    });
+
     windTrails.forEach(wt => {
         let alpha = wt.life / 15;
         ctx.save();
         ctx.strokeStyle = `rgba(180, 230, 255, ${alpha})`;
         ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(wt.x, wt.y, wt.radius, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(wt.x, wt.y, wt.radius, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
     });
 
     if(speedAoActive) {
         ctx.save();
         ctx.strokeStyle = 'rgba(255, 215, 0, 0.9)';
-        ctx.lineWidth = 4;
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = '#ffd700';
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, 45, 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.lineWidth = 4; ctx.shadowBlur = 25; ctx.shadowColor = '#ffd700';
+        ctx.beginPath(); ctx.arc(player.x, player.y, 45, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
     }
 
     if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
         ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
-        ctx.lineWidth = 3;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = '#70a1ff';
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, 130, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = 'rgba(112, 161, 255, 0.06)';
-        ctx.fill();
+        ctx.lineWidth = 3; ctx.shadowBlur = 20; ctx.shadowColor = '#70a1ff';
+        ctx.beginPath(); ctx.arc(player.x, player.y, 130, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(112, 161, 255, 0.06)'; ctx.fill();
         ctx.restore();
     }
 
@@ -1187,15 +1126,9 @@ function draw() {
         }
     }
 
-    ctx.strokeStyle = 'rgba(168, 85, 247, 0.06)'; ctx.lineWidth = 1;
-    for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
-    for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke(); }
-
     bloodSplatters.forEach(bs => {
         ctx.fillStyle = '#c0392b';
-        ctx.beginPath();
-        ctx.arc(bs.x, bs.y, bs.radius, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(bs.x, bs.y, bs.radius, 0, Math.PI * 2); ctx.fill();
     });
 
     blackHoles.forEach(bh => {
@@ -1215,17 +1148,20 @@ function draw() {
         ctx.shadowBlur = 0;
     });
 
+    // [무라사키 렌더링 연출]: 콩알 압축 ➔ 팽창 원 ➔ 팡 발사 빔
     purpleProjectiles.forEach(pp => {
         ctx.save();
         ctx.shadowBlur = 90;
         ctx.shadowColor = '#a855f7';
-        ctx.fillStyle = '#7000ff';
-        ctx.beginPath();
-        ctx.arc(pp.x, pp.y, pp.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#e056fd';
-        ctx.lineWidth = 14;
-        ctx.stroke();
+        if(pp.phase === 'expanding') {
+            ctx.fillStyle = '#7000ff';
+            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.currentRadius, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#e056fd'; ctx.lineWidth = 8; ctx.stroke();
+        } else {
+            ctx.fillStyle = '#7000ff';
+            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 12; ctx.stroke();
+        }
         ctx.restore();
     });
 
@@ -1248,9 +1184,7 @@ function draw() {
         ctx.rotate(ma.ang);
         ctx.strokeStyle = ma.isBoss ? '#ff4757' : '#ff6b81';
         ctx.lineWidth = ma.isBoss ? 6 : 4;
-        ctx.beginPath();
-        ctx.arc(0, 0, ma.radius, -Math.PI/3, Math.PI/3);
-        ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, ma.radius, -Math.PI/3, Math.PI/3); ctx.stroke();
         ctx.restore();
     });
 
@@ -1265,11 +1199,6 @@ function draw() {
     highQualityShots.forEach(hs => {
         ctx.fillStyle = hs.color;
         ctx.beginPath(); ctx.arc(hs.x, hs.y, hs.radius, 0, Math.PI*2); ctx.fill();
-    });
-
-    purpleEffects.forEach(pe => {
-        ctx.fillStyle = pe.color;
-        ctx.beginPath(); ctx.arc(pe.x, pe.y, pe.radius, 0, Math.PI*2); ctx.fill();
     });
 
     explosions.forEach(ex => {
