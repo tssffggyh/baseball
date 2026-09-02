@@ -209,6 +209,64 @@ game_html = """
 </div>
 
 <script>
+// 웹 오디오 API 합성 사운드 시스템 (브라우저 자동 재생 정책 우회 및 호환성 확보)
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function playSound(type) {
+    if (!audioCtx) return;
+    try {
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        let now = audioCtx.currentTime;
+
+        if (type === 'shoot') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(150, now + 0.1);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'skill') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(900, now + 0.25);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+            osc.start(now);
+            osc.stop(now + 0.25);
+        } else if (type === 'explosion') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(120, now);
+            osc.frequency.linearRampToValueAtTime(30, now + 0.4);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+            osc.start(now);
+            osc.stop(now + 0.4);
+        } else if (type === 'hit') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.linearRampToValueAtTime(50, now + 0.08);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+            osc.start(now);
+            osc.stop(now + 0.08);
+        }
+    } catch(e) {}
+}
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -301,6 +359,7 @@ function getBossData(lvl) {
 }
 
 window.addEventListener('keydown', e => {
+    initAudio();
     let k = e.key.toLowerCase();
     keys[k] = true;
     if(k === 'q') castSkill('Q');
@@ -310,12 +369,14 @@ window.addEventListener('keydown', e => {
     if(k === 'x') castSkill('X');
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+window.addEventListener('click', () => { initAudio(); });
 
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35 * 1.5)); }
 
 function takeDamage(damage) {
     player.hp -= damage; 
     lastHitTime = Date.now();
+    playSound('hit');
 }
 
 function showDialogue(text) {
@@ -333,6 +394,7 @@ function triggerVibration(intensity) {
 }
 
 function startGame(type) {
+    initAudio();
     player.charType = type;
     document.getElementById('class-select').style.display = 'none';
     
@@ -386,6 +448,7 @@ function performAutoAttack() {
     let ang = getAutoAimAngle();
     addUlt(0.8);
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
+    playSound('shoot');
 
     if(player.charType === 'Gojo') {
         let shotX = player.x + Math.cos(ang) * 20;
@@ -413,6 +476,8 @@ function castSkill(key) {
     let ang = getAutoAimAngle();
     let targetX = player.x + Math.cos(ang) * 250;
     let targetY = player.y + Math.sin(ang) * 250;
+
+    playSound('skill');
 
     if(key === 'X' && player.charType === 'Gojo') {
         gojoDomainCount++;
@@ -481,6 +546,7 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             addUlt(6.0);
             triggerVibration(45);
+            playSound('explosion');
             
             purpleProjectiles.push({
                 x: player.x + Math.cos(ang)*35, 
@@ -497,10 +563,12 @@ function castSkill(key) {
             });
         } else {
             addUlt(5.0);
+            playSound('explosion');
             explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 4000});
         }
     } else if(key === 'X') {
         player.ultEnergy = 0;
+        playSound('explosion');
         if(player.charType === 'Gojo') {
             activeDomain = { type: 'Gojo', timer: 1200 };
         } else {
@@ -681,6 +749,7 @@ function update() {
             if(pp.timer <= 0) {
                 pp.phase = 'firing';
                 triggerVibration(45);
+                playSound('explosion');
                 permanentCraters.push({ x: pp.x, y: pp.y, radius: pp.maxRadius * 1.5 });
             }
         } else if(pp.phase === 'firing') {
@@ -771,6 +840,7 @@ function update() {
                 });
                 permanentCraters.push({ x: deb.x, y: deb.y, radius: 2500 });
                 triggerVibration(60);
+                playSound('explosion');
                 showDialogue('💥 잔해 연계 자폭 무라사키 발동!!');
 
                 enemies.forEach(e => { e.hp = 0; });
@@ -793,6 +863,7 @@ function update() {
                 permanentCraters.push({ x: p.x, y: p.y, radius: 380 });
                 projectiles.splice(pi, 1);
                 triggerVibration(25);
+                playSound('explosion');
             }
         } else {
             enemies.forEach(e => {
