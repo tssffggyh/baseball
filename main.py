@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 오토에임 + 평타 데미지 & 속도 추가 하향 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 무라사키 확대 및 Q 지속시간/데미지 상향 패치")
 
 st.markdown("""
     <style>
@@ -165,20 +165,20 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[평타 데미지 및 공속 추가 하향 패치 적용] 오토에임 및 Q 5초 무적 활성화</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[무라사키 확대 및 Q 지속시간/데미지 상향 패치]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (5초 무적)<br>
+                    • Q: 신속 아오 폭주 (강력한 무적 버프)<br>
                     • E: 아카 「赤」 / R: 아오 「蒼」<br>
-                    • T: 허식 「茈」 / X: 무량공처
+                    • T: 대형 허식 「茈」 / X: 무량공처
                 </p>
             </div>
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (5초 무적)<br>
+                    • Q: 신속 아오 폭주 (강력한 무적 버프)<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
@@ -186,7 +186,7 @@ game_html = """
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (5초 무적)<br>
+                    • Q: 신속 아오 폭주 (강력한 무적 버프)<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라
                 </p>
@@ -426,7 +426,6 @@ function getAutoAimAngle() {
 function performAutoAttack() {
     if(isGameOver) return;
     let now = Date.now();
-    // 평타 발사 속도(쿨타임)를 더 낮춤 (고죠: 700ms, 스쿠나/메구미: 600ms)
     let attackInterval = (player.charType === 'Gojo') ? 700 : 600;
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
@@ -444,7 +443,6 @@ function performAutoAttack() {
     if(player.charType === 'Gojo') {
         let shotX = player.x + Math.cos(ang) * 20;
         let shotY = player.y + Math.sin(ang) * 20;
-        // 평타 데미지를 한 번 더 낮춤 (250 -> 80)
         projectiles.push({
             x: shotX, y: shotY, vx: Math.cos(ang)*16, vy: Math.sin(ang)*16,
             damage: 80, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
@@ -456,10 +454,8 @@ function performAutoAttack() {
             });
         }
     } else if(player.charType === 'Sukuna') {
-        // 스쿠나 평타 데미지를 한 번 더 낮춤 (200 -> 70)
         slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 70});
     } else {
-        // 메구미 평타 데미지를 한 번 더 낮춤 (180 -> 60)
         projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 60, radius: 8, color: '#2ecc71', type:'normal'});
     }
 }
@@ -490,7 +486,7 @@ function castSkill(key) {
     if(key === 'Q') {
         cooldowns.Q = 30;
         speedAoActive = true;
-        speedAoTimer = 300; 
+        speedAoTimer = 500; // Q 지속시간 상향 (300 ➔ 500)
         playVoiceAndSound('ao_voice');
         triggerVibration(25);
         addUlt(3.0);
@@ -544,7 +540,7 @@ function castSkill(key) {
             purpleProjectiles.push({
                 x: player.x, y: player.y,
                 vx: Math.cos(ang) * 9.5, vy: Math.sin(ang) * 9.5,
-                radius: 80, maxLife: 300, life: 300, damage: 9999, hitEnemies: new Set()
+                radius: 140, maxLife: 300, life: 300, damage: 9999, hitEnemies: new Set() // 무라사키 크기 대폭 상향 (80 ➔ 140)
             });
         } else if(player.charType === 'Sukuna') {
             addUlt(5.0);
@@ -666,8 +662,8 @@ function update() {
 
         enemies.forEach(e => {
             let dist = Math.hypot(e.x - player.x, e.y - player.y);
-            if(dist < e.radius + 20) {
-                e.hp -= 50.0; 
+            if(dist < e.radius + 30) {
+                e.hp -= 120.0; // Q 데미지 상향 (50 ➔ 120)
             }
         });
 
@@ -760,7 +756,7 @@ function update() {
         enemies.forEach((e, ei) => {
             let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
             if(dist < e.radius + pp.radius) {
-                e.hp -= 500; 
+                e.hp -= 800; // 대형 무라사키 타격 데미지 상향
                 purpleEffects.push({
                     x: e.x + (Math.random()-0.5)*30, y: e.y + (Math.random()-0.5)*30,
                     vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4,
@@ -1167,14 +1163,14 @@ function draw() {
 
     purpleProjectiles.forEach(pp => {
         ctx.save();
-        ctx.shadowBlur = 70;
+        ctx.shadowBlur = 90;
         ctx.shadowColor = '#a855f7';
         ctx.fillStyle = '#7000ff';
         ctx.beginPath();
         ctx.arc(pp.x, pp.y, pp.radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#e056fd';
-        ctx.lineWidth = 10;
+        ctx.lineWidth = 14;
         ctx.stroke();
         ctx.restore();
     });
