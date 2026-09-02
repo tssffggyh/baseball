@@ -168,15 +168,15 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[허식 무라사키 0.8초 팽창 ➔ 0.3초 대기 빛남 ➔ 발사 연출]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[고죠 울트라 하이퀄리티 스킨 + 초소형 아오 + 지연형 허식 무라사키 + 잔해 아카 연계 자폭]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
-                    • E: 술식반전 · 「赤」<br>
-                    • R: 술식순전 · 「蒼」<br>
-                    • T: 허식 「茈」 (0.8초 팽창 ➔ 0.3초 대기 ➔ 발사)<br>
+                    • E: 술식반전 · 「赤」 (잔해 기폭 연계)<br>
+                    • R: 술식순전 · 「蒼」 (초소형화)<br>
+                    • T: 허식 「茈」 (지연형 팽창 ➔ 늦게 발사)<br>
                     • X: 무량공처
                 </p>
             </div>
@@ -281,6 +281,7 @@ let speedAoTimer = 0;
 
 let bloodSplatters = [];
 let permanentCraters = []; 
+let debrisList = []; 
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
@@ -291,7 +292,7 @@ let player = {
 
 let cooldowns = { Q: 0, E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { Q: 29, E: 8, R: 15, T: 24, X: 0 },
+    Gojo: { Q: 29, E: 5, R: 13, T: 16, X: 0 },
     Sukuna: { Q: 29, E: 7, R: 14, T: 21, X: 0 },
     Megumi: { Q: 29, E: 8, R: 15, T: 23, X: 0 }
 };
@@ -514,8 +515,9 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             playVoiceAndSound('ao_voice');
             triggerVibration(25);
+            // 아오 크기를 훨씬 작게 축소 (반경 70으로 대폭 축소)
             blackHoles.push({
-                orbitAngle: ang, orbitRadius: 260, radius: 650, life: 180, damage: 3000, x: player.x, y: player.y
+                orbitAngle: ang, orbitRadius: 80, radius: 140, life: 180, damage: 3000, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
@@ -534,20 +536,17 @@ function castSkill(key) {
             playVoiceAndSound('purple_voice');
             triggerVibration(45);
             
-            // [허식 무라사키 개정 연출]: 
-            // phase 1 ('expanding'): 0.8초(48프레임) 동안 작은 원에서 큰 원으로 커짐
-            // phase 2 ('charging'): 0.3초(18프레임) 동안 그 원이 번쩍이며 대기
-            // phase 3 ('firing'): 빛나면서 전방으로 발사되어 날아감
+            // 무라사키를 조금 더 늦게 나가게 타이머와 팽창 단계를 더 길게 설정 (팽창 타이머 80, 대기 30)
             purpleProjectiles.push({
                 x: player.x + Math.cos(ang)*30, 
                 y: player.y + Math.sin(ang)*30,
-                vx: Math.cos(ang) * 15, 
-                vy: Math.sin(ang) * 15,
+                vx: Math.cos(ang) * 13, 
+                vy: Math.sin(ang) * 13,
                 phase: 'expanding', 
-                timer: 48, // 0.8초 (60fps 기준 약 48프레임)
-                currentRadius: 5,
-                maxRadius: 130,
-                life: 300, 
+                timer: 80, 
+                currentRadius: 4,
+                maxRadius: 140,
+                life: 350, 
                 damage: 9999, 
                 ang: ang
             });
@@ -757,22 +756,24 @@ function update() {
         if(bs.life <= 0) bloodSplatters.splice(bsi, 1);
     });
 
-    // [허식 무라사키 3단계 연출 로직 구현]
+    debrisList.forEach((d, di) => {
+        d.life--;
+        if(d.life <= 0) debrisList.splice(di, 1);
+    });
+
     purpleProjectiles.forEach((pp, ppi) => {
         pp.life--;
         if(pp.phase === 'expanding') {
-            // 1단계: 0.8초(48프레임) 동안 작은 원에서 지정된 크기(maxRadius)까지 점점 커짐
             pp.timer--;
-            let progress = (48 - pp.timer) / 48;
-            pp.currentRadius = 5 + (pp.maxRadius - 5) * progress;
+            let progress = (80 - pp.timer) / 80;
+            pp.currentRadius = 4 + (pp.maxRadius - 4) * progress;
             
             if(pp.timer <= 0) {
                 pp.phase = 'charging';
-                pp.timer = 18; // 2단계: 0.3초(18프레임) 동안 대기 및 빛남
+                pp.timer = 25; 
                 triggerVibration(20);
             }
         } else if(pp.phase === 'charging') {
-            // 2단계: 0.3초 동안 제자리에서 빛나며 대기
             pp.timer--;
             if(pp.timer <= 0) {
                 pp.phase = 'firing';
@@ -780,9 +781,8 @@ function update() {
                 permanentCraters.push({ x: pp.x, y: pp.y, radius: pp.maxRadius });
             }
         } else if(pp.phase === 'firing') {
-            // 3단계: 빛나면서 전방으로 강력하게 발사되어 날아감
-            pp.x += pp.vx * 2.8;
-            pp.y += pp.vy * 2.8;
+            pp.x += pp.vx * 2.5;
+            pp.y += pp.vy * 2.5;
 
             enemies.forEach(e => {
                 let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
@@ -813,8 +813,8 @@ function update() {
         });
 
         if(bh.life <= 0) {
-            blueOrbs.push({ x: bh.x, y: bh.y, radius: 150, life: 350 });
-            explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 400, color: '#3742fa', life: 18, damage: bh.damage});
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 90, life: 350 });
+            explosions.push({x: bh.x, y: bh.y, radius: 150, maxRadius: 240, color: '#3742fa', life: 18, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
     });
@@ -854,6 +854,30 @@ function update() {
         if(p.type === 'aka') {
             p.traveled += Math.hypot(p.vx, p.vy);
             let reachedTarget = p.traveled >= p.maxDist;
+
+            let hitDebrisIdx = -1;
+            debrisList.forEach((deb, di) => {
+                if(Math.hypot(deb.x - p.x, deb.y - p.y) < deb.radius + p.radius) {
+                    hitDebrisIdx = di;
+                }
+            });
+
+            if(hitDebrisIdx !== -1) {
+                let deb = debrisList[hitDebrisIdx];
+                debrisList.splice(hitDebrisIdx, 1);
+
+                explosions.push({
+                    x: deb.x, y: deb.y, radius: 20, maxRadius: 450, color: 'rgba(168, 85, 247, 0.95)', life: 30, damage: 15000
+                });
+                permanentCraters.push({ x: deb.x, y: deb.y, radius: 450 });
+                triggerVibration(50);
+                showDialogue('자폭 무라사키 발동!');
+
+                player.hp = Math.max(1, player.hp * 0.5);
+
+                projectiles.splice(pi, 1);
+                return;
+            }
 
             let hitEnemy = false;
             enemies.forEach(e => {
@@ -933,6 +957,10 @@ function update() {
                 });
             }
 
+            debrisList.push({
+                x: e.x, y: e.y, radius: 18, life: 600 
+            });
+
             if(e.isBoss) {
                 defeatedBosses++;
                 bossLevel++;
@@ -988,6 +1016,16 @@ function draw() {
         ctx.restore();
     });
 
+    debrisList.forEach(deb => {
+        ctx.save();
+        ctx.fillStyle = '#4b4b65';
+        ctx.beginPath(); ctx.arc(deb.x, deb.y, deb.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#e056fd'; ctx.font = '9px Consolas'; ctx.textAlign = 'center';
+        ctx.fillText('잔해', deb.x, deb.y - deb.radius - 4);
+        ctx.restore();
+    });
+
     bloodSplatters.forEach(bs => {
         ctx.fillStyle = bs.color;
         ctx.beginPath(); ctx.arc(bs.x, bs.y, bs.radius, 0, Math.PI*2); ctx.fill();
@@ -1017,24 +1055,20 @@ function draw() {
         ctx.restore();
     });
 
-    // [허식 무라사키 3단계 시각적 렌더링 구현]
     purpleProjectiles.forEach(pp => {
         ctx.save();
         if(pp.phase === 'expanding') {
-            // 1단계: 0.8초 동안 작은 원에서 큰 원으로 부드럽게 커짐
             ctx.fillStyle = 'rgba(168, 85, 247, 0.75)';
             ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.currentRadius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#d290ff'; ctx.lineWidth = 3; ctx.stroke();
             ctx.shadowBlur = 25; ctx.shadowColor = '#a855f7';
         } else if(pp.phase === 'charging') {
-            // 2단계: 0.3초 동안 원이 강렬하게 빛나며 대기 (블링크/섬광 효과)
             let isFlash = Math.floor(Date.now() / 40) % 2 === 0;
             ctx.fillStyle = isFlash ? 'rgba(255, 255, 255, 0.95)' : 'rgba(224, 86, 253, 0.95)';
             ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#ffffff'; ctx.lineWidth = isFlash ? 8 : 4; ctx.stroke();
             ctx.shadowBlur = 60; ctx.shadowColor = '#ffffff';
         } else if(pp.phase === 'firing') {
-            // 3단계: 빛나면서 전방으로 발사되어 날아감
             ctx.fillStyle = '#e056fd';
             ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke();
@@ -1102,19 +1136,46 @@ function draw() {
         ctx.restore();
     }
 
+    // [고죠 울트라 하이퀄리티 스킨 렌더링 - 더 디테일한 무하한 오라 및 복장 연출]
     ctx.save();
-    ctx.fillStyle = player.charType === 'Gojo' ? '#70a1ff' : (player.charType === 'Sukuna' ? '#ff4757' : '#2ecc71');
-    ctx.beginPath(); ctx.arc(player.x, player.y, 22, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    if(player.charType === 'Gojo') {
+        let pulse = Math.sin(Date.now() / 120) * 6;
+        
+        // 외곽 무하한 결계 링 2중 효과
+        ctx.strokeStyle = 'rgba(0, 210, 255, 0.6)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(player.x, player.y, 34 + pulse, 0, Math.PI*2); ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(112, 161, 255, 0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(player.x, player.y, 44 - pulse, 0, Math.PI*2); ctx.stroke();
+
+        // 고죠 캐릭터 본체 (하이퀄리티 디자인)
+        ctx.fillStyle = '#0652dd';
+        ctx.beginPath(); ctx.arc(player.x, player.y, 23, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 4; ctx.stroke();
+
+        // 눈가 안대 디자인 및 푸른 안광 디테일
+        ctx.fillStyle = '#1e272e';
+        ctx.beginPath(); ctx.rect(player.x - 14, player.y - 7, 28, 6); ctx.fill();
+        ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 1; ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(player.x + player.facing * 5, player.y - 4, 3.5, 0, Math.PI*2); ctx.fill();
+    } else {
+        ctx.fillStyle = player.charType === 'Sukuna' ? '#ff4757' : '#2ecc71';
+        ctx.beginPath(); ctx.arc(player.x, player.y, 22, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    }
 
     if(limitlessActive) {
         ctx.strokeStyle = 'rgba(112, 161, 255, 0.75)';
         ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.arc(player.x, player.y, 42, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(player.x, player.y, 48, 0, Math.PI*2); ctx.stroke();
     }
 
     ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Consolas'; ctx.textAlign = 'center';
-    ctx.fillText(player.charType === 'Gojo' ? '고죠 사토루' : (player.charType === 'Sukuna' ? '스쿠나' : '메구미'), player.x, player.y - 32);
+    ctx.fillText(player.charType === 'Gojo' ? '고죠 사토루' : (player.charType === 'Sukuna' ? '스쿠나' : '메구미'), player.x, player.y - 40);
     ctx.restore();
 
     ctx.restore();
