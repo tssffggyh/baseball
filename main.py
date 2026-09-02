@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 아오 크기 확장 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 오토에임 패치")
 
 st.markdown("""
     <style>
@@ -126,7 +126,7 @@ game_html = """
                 
                 <div class="skill-container">
                     <div class="skill-icon" style="border-color:#3498db;">
-                        <span class="skill-key" style="color:#3498db;">L-Click</span><span>기본공격</span>
+                        <span class="skill-key" style="color:#3498db;">L-Click</span><span>오토에임</span>
                     </div>
                     <div class="skill-icon">
                         <span class="skill-key">E</span><span id="sk-e">스킬1</span>
@@ -148,7 +148,7 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 WASD 이동 | 좌클릭 공격 | E,R,T,X 스킬</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 WASD 이동 | 좌클릭/스킬 자동 조준(오토에임)</div>
                 <div id="boss-status" style="font-size:14px; color:#ff4757; margin-top:6px; font-weight:bold;">보스 소환 대기 중...</div>
                 <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:2px;">처치한 보스: 0 / 100</div>
             </div>
@@ -161,7 +161,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오.</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (오토에임 활성화)</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -219,7 +219,6 @@ let defeatedBosses = 0;
 let isGameOver = false;
 let screenShake = 0;
 let camera = { x: 0, y: 0 };
-let mouseWorld = { x: 0, y: 0 };
 let dialogueTimeout = null;
 
 let lastHitTime = Date.now();
@@ -289,10 +288,24 @@ function getBossData(lvl) {
     };
 }
 
-window.addEventListener('mousemove', e => {
-    mouseWorld.x = e.clientX + camera.x;
-    mouseWorld.y = e.clientY + camera.y;
-});
+// 오토에임 함수: 가장 가까운 적을 탐색하여 조준 각도(Angle) 또는 목표 좌표 반환
+function getAutoAimTarget() {
+    if(enemies.length === 0) return { x: player.x + player.facing * 100, y: player.y, angle: player.facing > 0 ? 0 : Math.PI };
+    
+    let closest = enemies[0];
+    let minDist = Math.hypot(closest.x - player.x, closest.y - player.y);
+    
+    for(let i = 1; i < enemies.length; i++) {
+        let dist = Math.hypot(enemies[i].x - player.x, enemies[i].y - player.y);
+        if(dist < minDist) {
+            minDist = dist;
+            closest = enemies[i];
+        }
+    }
+    
+    let angle = Math.atan2(closest.y - player.y, closest.x - player.x);
+    return { x: closest.x, y: closest.y, angle: angle };
+}
 
 window.addEventListener('mousedown', e => { if(e.button === 0) basicAttack(); });
 
@@ -354,7 +367,9 @@ function basicAttack() {
     player.lastAttack = now;
 
     addUlt(2.5);
-    let ang = Math.atan2(mouseWorld.y - player.y, mouseWorld.x - player.x);
+    let target = getAutoAimTarget();
+    let ang = target.angle;
+    player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
     if(player.charType === 'Gojo') {
         projectiles.push({
@@ -373,9 +388,11 @@ function castSkill(key) {
     if(cooldowns[key] > 0) return;
     if(key === 'X' && player.ultEnergy < player.maxUlt) return;
 
-    let targetX = mouseWorld.x;
-    let targetY = mouseWorld.y;
-    let ang = Math.atan2(targetY - player.y, targetX - player.x);
+    let target = getAutoAimTarget();
+    let targetX = target.x;
+    let targetY = target.y;
+    let ang = target.angle;
+    player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
     if(key === 'X' && player.charType === 'Gojo') {
         gojoDomainCount++;
@@ -417,12 +434,11 @@ function castSkill(key) {
         
         if(player.charType === 'Gojo') {
             triggerVibration(20);
-            // 아오: 대형 크기로 플레이어 주변을 3초간 회전
             blackHoles.push({
                 orbitAngle: ang,
-                orbitRadius: 240, // 궤도 확장
-                radius: 400,      // 흡입 및 타격 범위 대폭 확대
-                life: 180,        // 3초 (60fps)
+                orbitRadius: 240, 
+                radius: 400,      
+                life: 180,        
                 damage: 220,
                 x: player.x,
                 y: player.y
@@ -639,12 +655,10 @@ function update() {
         if(mahoraga.life <= 0) mahoraga = null;
     }
 
-    // 대형 아오(회전 블랙홀) 업뎃 로직
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
-        bh.orbitAngle += 0.06; // 회전 속도
+        bh.orbitAngle += 0.06;
 
-        // 위치 업데이트: 플레이어 주위를 더 넓은 궤도로 회전
         bh.x = player.x + Math.cos(bh.orbitAngle) * bh.orbitRadius;
         bh.y = player.y + Math.sin(bh.orbitAngle) * bh.orbitRadius;
 
@@ -658,7 +672,6 @@ function update() {
             }
         });
 
-        // 3초 회전 종료 후 그 자리에 더 큰 파란색 잔해 구체 생성
         if(bh.life <= 0) {
             blueOrbs.push({ x: bh.x, y: bh.y, radius: 95, life: 350 });
             explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 260, color: '#3742fa', life: 18, damage: bh.damage});
@@ -922,7 +935,7 @@ function draw() {
     blackHoles.forEach(bh => {
         ctx.shadowBlur = 45; ctx.shadowColor = '#3742fa';
         ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
-        ctx.beginPath(); ctx.arc(bh.x, bh.y, 85, 0, Math.PI*2); ctx.fill(); // 아오 본체 시각 크기 확대
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, 85, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 6; ctx.stroke();
         ctx.shadowBlur = 0;
     });
