@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 체력 회복량 상향 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 아오 발사체 흡수 및 쿨타임/궁극기 상향 패치")
 
 st.markdown("""
     <style>
@@ -119,7 +119,7 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#2ecc71;">[폭풍 재생 상향]</span></div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#2ecc71;">[아오 흡수 & 쿨타임/궁극기 가속 패치]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -165,20 +165,20 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[체력 자동 회복량 대폭 상향 패치]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[아오 발사체 흡수 & 쿨타임/궁극기 가속 패치]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (강력한 무적 버프)<br>
-                    • E: 아카 「赤」 / R: 아오 「蒼」<br>
+                    • Q: 신속 아오 폭주 (무적 버프)<br>
+                    • E: 아카 「赤」 / R: 아오 「蒼」 (적 및 발사체 흡수)<br>
                     • T: 대형 허식 「茈」 / X: 무량공처
                 </p>
             </div>
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (강력한 무적 버프)<br>
+                    • Q: 신속 아오 폭주 (무적 버프)<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
@@ -186,7 +186,7 @@ game_html = """
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (강력한 무적 버프)<br>
+                    • Q: 신속 아오 폭주 (무적 버프)<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라
                 </p>
@@ -287,10 +287,11 @@ let player = {
 };
 
 let cooldowns = { Q: 0, E: 0, R: 0, T: 0, X: 0 };
+// 기존 쿨타임에서 각 1초씩 단축
 let maxCooldowns = {
-    Gojo: { Q: 30, E: 9, R: 16, T: 25, X: 0 },
-    Sukuna: { Q: 30, E: 8, R: 15, T: 22, X: 0 },
-    Megumi: { Q: 30, E: 9, R: 16, T: 24, X: 0 }
+    Gojo: { Q: 29, E: 8, R: 15, T: 24, X: 0 },
+    Sukuna: { Q: 29, E: 7, R: 14, T: 21, X: 0 },
+    Megumi: { Q: 29, E: 8, R: 15, T: 23, X: 0 }
 };
 
 let dialogues = {
@@ -355,7 +356,8 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35)); }
+// 궁극기 충전량 1.5배 상향 적용
+function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35 * 1.5)); }
 
 function takeDamage(damage) {
     if(speedAoActive) return; 
@@ -473,7 +475,7 @@ function castSkill(key) {
         gojoDomainCount++;
         if(gojoDomainCount >= 3) {
             showDialogue('더 이상 쓸 수가 없어...');
-            cooldowns.X = 25;
+            cooldowns.X = 24;
             player.ultEnergy = 0;
             gojoDomainCount = 0;
             triggerVibration(40);
@@ -484,7 +486,7 @@ function castSkill(key) {
     showDialogue(dialogues[player.charType][key]);
 
     if(key === 'Q') {
-        cooldowns.Q = 30;
+        cooldowns.Q = maxCooldowns[player.charType].Q;
         speedAoActive = true;
         speedAoTimer = 500;
         playVoiceAndSound('ao_voice');
@@ -640,7 +642,7 @@ setInterval(() => {
 
     if(!isGameOver && Date.now() - lastHitTime >= 3000) {
         if(player.hp < player.maxHp) {
-            player.hp = Math.min(player.maxHp, player.hp + (player.maxHp * 0.015)); // 회복량 3배 상향 (0.005 ➔ 0.015)
+            player.hp = Math.min(player.maxHp, player.hp + (player.maxHp * 0.015));
         }
     }
 }, 100);
@@ -770,6 +772,7 @@ function update() {
         }
     });
 
+    // 아오(블랙홀) 및 잔류 구체가 적과 적 발사체를 동시에 빨아들이고 흡수하도록 수정
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
         bh.orbitAngle += 0.06;
@@ -785,6 +788,13 @@ function update() {
             }
         });
 
+        // 적 발사체 흡수 (아오 범위 내로 들어오면 소멸)
+        enemyProjectiles.forEach((ep, epi) => {
+            if(Math.hypot(bh.x - ep.x, bh.y - ep.y) < bh.radius) {
+                enemyProjectiles.splice(epi, 1);
+            }
+        });
+
         if(bh.life <= 0) {
             blueOrbs.push({ x: bh.x, y: bh.y, radius: 95, life: 350 });
             explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 260, color: '#3742fa', life: 18, damage: bh.damage});
@@ -794,6 +804,12 @@ function update() {
 
     blueOrbs.forEach((bo, boi) => {
         bo.life--;
+        // 잔류 구체(블랙홀 터진 자리)도 적 발사체를 지속적으로 빨아들여 흡수
+        enemyProjectiles.forEach((ep, epi) => {
+            if(Math.hypot(bo.x - ep.x, bo.y - ep.y) < bo.radius) {
+                enemyProjectiles.splice(epi, 1);
+            }
+        });
         if(bo.life <= 0) blueOrbs.splice(boi, 1);
     });
 
