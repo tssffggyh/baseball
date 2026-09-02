@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 고죠 보이스 커스텀 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 고죠 무하한 패치")
 
 st.markdown("""
     <style>
@@ -148,7 +148,7 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 고죠 아카·아오·무라사키 보이스 적용</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🛡️ 무하한 패시브 적용 (7초 주기 / 2초 지속)</div>
                 <div id="boss-status" style="font-size:14px; color:#ff4757; margin-top:6px; font-weight:bold;">보스 소환 대기 중...</div>
                 <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:2px;">처치한 보스: 0 / 100</div>
             </div>
@@ -166,32 +166,27 @@ game_html = """
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 기본공격: 자동 발사 (요와이모)<br>
+                    • 패시브: <strong>무하한 (7초마다 2초간 밀어내기)</strong><br>
                     • E: 아카 「赤」<br>
-                    • R: 아오 「蒼」 (보이스 적용!)<br>
-                    • T: 무라사키 「허식」 (보이스 적용!)<br>
-                    • X: 영역전개 (사운드 제외)<br>
-                    • <strong>★잔해에 아카 맞추면 자폭 무라사키</strong>
+                    • R: 아오 「蒼」<br>
+                    • T: 무라사키 「허식」<br>
+                    • X: 영역전개 (사운드 제외)
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
                     • 기본공격: 자동 참격<br>
-                    • E: 해(解)<br>
-                    • R: 팔(捌)<br>
-                    • T: 푸가(🔥)<br>
-                    • X: 영역전개 「복마어주자」
+                    • E: 해(解) / R: 팔(捌)<br>
+                    • T: 푸가(🔥) / X: 복마어주자
                 </p>
             </div>
             <div class="card" onclick="selectChar('Megumi')">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
                     • 기본공격: 자동 투사체<br>
-                    • E: 누에<br>
-                    • R: 옥견<br>
-                    • T: 그림자 속박<br>
-                    • X: 마허라 소환
+                    • E: 누에 / R: 옥견<br>
+                    • T: 그림자 속박 / X: 마허라
                 </p>
             </div>
         </div>
@@ -215,15 +210,12 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// 요와이모 보이스
 const yowaimoAudio = new Audio('https://www.myinstants.com/media/sounds/yowai-mo-gojo-77212.mp3');
 yowaimoAudio.volume = 0.8;
 
-// 아오 보이스
 const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
 aoAudio.volume = 1.0;
 
-// 무라사키 보이스
 const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
 purpleAudio.volume = 1.0;
 
@@ -241,24 +233,9 @@ function initAudio() {
 
 function playVoiceAndSound(type) {
     initAudio();
-
-    if(type === 'yowaimo') {
-        yowaimoAudio.currentTime = 0;
-        yowaimoAudio.play().catch(err => {});
-        return;
-    }
-
-    if(type === 'ao_voice') {
-        aoAudio.currentTime = 0;
-        aoAudio.play().catch(err => {});
-        return;
-    }
-
-    if(type === 'purple_voice') {
-        purpleAudio.currentTime = 0;
-        purpleAudio.play().catch(err => {});
-        return;
-    }
+    if(type === 'yowaimo') { yowaimoAudio.currentTime = 0; yowaimoAudio.play().catch(err => {}); return; }
+    if(type === 'ao_voice') { aoAudio.currentTime = 0; aoAudio.play().catch(err => {}); return; }
+    if(type === 'purple_voice') { purpleAudio.currentTime = 0; purpleAudio.play().catch(err => {}); return; }
 
     if(!audioCtx) return;
     let now = audioCtx.currentTime;
@@ -292,6 +269,11 @@ let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
 
+// 무하한 타이머 변수 (7초 주기, 2초 지속)
+let limitlessTimer = 0;
+let limitlessActive = false;
+let limitlessDurationCounter = 0;
+
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
     speed: 6.5, hp: 300, maxHp: 300,
@@ -300,7 +282,6 @@ let player = {
 };
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
-
 let maxCooldowns = {
     Gojo: { E: 5, R: 10, T: 16, X: 0 },
     Sukuna: { E: 4, R: 9, T: 14, X: 0 },
@@ -495,13 +476,7 @@ function castSkill(key) {
             playVoiceAndSound('ao_voice');
             triggerVibration(20);
             blackHoles.push({
-                orbitAngle: ang,
-                orbitRadius: 240, 
-                radius: 400,      
-                life: 180,        
-                damage: 220,
-                x: player.x,
-                y: player.y
+                orbitAngle: ang, orbitRadius: 240, radius: 400, life: 180, damage: 220, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
@@ -520,8 +495,7 @@ function castSkill(key) {
             playVoiceAndSound('purple_voice');
             triggerVibration(35);
             laserBeams.push({
-                x: player.x, y: player.y, ang: ang, length: 2400, width: 80,
-                life: 30, damage: 1200
+                x: player.x, y: player.y, ang: ang, length: 2400, width: 80, life: 30, damage: 1200
             });
         } else if(player.charType === 'Sukuna') {
             addUlt(15.0);
@@ -661,6 +635,23 @@ function update() {
     if(isGameOver) return;
     if(screenShake > 0) screenShake--;
     if(player.hp <= 0) { triggerGameOver(); return; }
+
+    // 고종(Gojo)일 경우 7초마다 2초간 무하한 밀어내기 처리
+    if(player.charType === 'Gojo') {
+        limitlessTimer += 0.016; // 대략 60fps 기준
+        if(!limitlessActive && limitlessTimer >= 7.0) {
+            limitlessActive = true;
+            limitlessDurationCounter = 120; // 2초간 지속 (60fps * 2)
+            showDialogue('「무하한」 발동!');
+        }
+        if(limitlessActive) {
+            limitlessDurationCounter--;
+            if(limitlessDurationCounter <= 0) {
+                limitlessActive = false;
+                limitlessTimer = 0; // 카운트 리셋
+            }
+        }
+    }
 
     let dx = 0, dy = 0;
     if(keys['a']) { dx -= 1; player.facing = -1; }
@@ -845,12 +836,18 @@ function update() {
         let ang = Math.atan2(player.y - e.y, player.x - e.x);
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
-        if(e.isRanged && dist < 300) {
-            e.x -= Math.cos(ang) * e.speed;
-            e.y -= Math.sin(ang) * e.speed;
+        // 무하한 활성화 상태일 때 일정 반경(예: 180px) 안으로 들어오는 적들을 강력하게 밀어냄
+        if(player.charType === 'Gojo' && limitlessActive && dist < 180) {
+            e.x -= Math.cos(ang) * 12; // 강제 밀어내기 속도
+            e.y -= Math.sin(ang) * 12;
         } else {
-            e.x += Math.cos(ang) * e.speed;
-            e.y += Math.sin(ang) * e.speed;
+            if(e.isRanged && dist < 300) {
+                e.x -= Math.cos(ang) * e.speed;
+                e.y -= Math.sin(ang) * e.speed;
+            } else {
+                e.x += Math.cos(ang) * e.speed;
+                e.y += Math.sin(ang) * e.speed;
+            }
         }
 
         e.attackCd = (e.attackCd || 0) + 1;
@@ -1019,6 +1016,21 @@ function draw() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.translate(-camera.x, -camera.y);
+
+    // 고조 무하한 활성화 시 플레이어 주변에 방어 오라 원 표시
+    if(player.charType === 'Gojo' && limitlessActive) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(112, 161, 255, 0.75)';
+        ctx.lineWidth = 4;
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = '#70a1ff';
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, 180, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(112, 161, 255, 0.08)';
+        ctx.fill();
+        ctx.restore();
+    }
 
     if(activeDomain) {
         if(activeDomain.type === 'Gojo') {
