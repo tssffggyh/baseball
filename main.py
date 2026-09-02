@@ -1081,10 +1081,7 @@ function draw() {
     }
 
     ctx.strokeStyle = 'rgba(168, 85, 247, 0.06)'; ctx.lineWidth = 1;
-    for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
-    for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
-
-    blackHoles.forEach(bh => {
+    for(let x=0; x<WORLD_WIDTH; ctx.beginPath(); ctx.lineTo(WORLD_WIDTH,y); ctx.lineTo(x,WORLD_HEIGHT); ctx.moveTo(0,y); ctx.moveTo(x,0); ctx.stroke(); for(let x+="100)" y="0;" y+="100)" y<WORLD_HEIGHT; { }> {
         ctx.shadowBlur = 45; ctx.shadowColor = '#3742fa';
         ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
         ctx.beginPath(); ctx.arc(bh.x, bh.y, 85, 0, Math.PI*2); ctx.fill();
@@ -1217,4 +1214,3 @@ function gameLoop() {
 """
 
 components.html(game_html, height=950)
-```[cite: 1]
