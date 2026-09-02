@@ -160,14 +160,14 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:42px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[T스킬: 허식 「茈」 (작은 원에서 점점 커진 뒤 강력하게 발사 + 효과음)]</p>
+        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[T스킬: 허식 「茈」 (2초간 천천히 차징 후 발사)]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • E: 술식반전 · 「赤」<br>
-                    • R: 술식순전 · 「蒼」<br>
-                    • T: 허식 「茈」 (효과음 포함)<br>
+                    • R: 술식순전 · 「蒼」 (쿨타임 감소)<br>
+                    • T: 허식 「茈」 (차징 시간 증가)<br>
                     • X: 무량공처
                 </p>
             </div>
@@ -175,7 +175,7 @@ game_html = """
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
                     • E: 해(解) / R: 팔(捌)<br>
-                    • T: 푸가(🔥) (효과음 포함)<br>
+                    • T: 푸가(🔥)<br>
                     • X: 복마어주자
                 </p>
             </div>
@@ -183,7 +183,7 @@ game_html = """
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
                     • E: 누에 / R: 옥견<br>
-                    • T: 그림자 폭발 (효과음 포함)<br>
+                    • T: 그림자 폭발<br>
                     • X: 마허라
                 </p>
             </div>
@@ -211,7 +211,6 @@ resizeCanvas();
 const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
 aoAudio.volume = 1.0;
 
-// 무라사키 효과음 추가 (볼륨을 0.3으로 약간 줄임)
 const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
 purpleAudio.volume = 0.3;
 
@@ -273,9 +272,9 @@ let player = {
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { E: 8, R: 15, T: 24, X: 0 },
-    Sukuna: { E: 7, R: 14, T: 21, X: 0 },
-    Megumi: { E: 8, R: 15, T: 23, X: 0 }
+    Gojo: { E: 8, R: 7, T: 16, X: 0 },    // R(아오)와 T(무라사키) 쿨타임 대폭 감소
+    Sukuna: { E: 7, R: 7, T: 14, X: 0 },
+    Megumi: { E: 8, R: 7, T: 15, X: 0 }
 };
 
 let dialogues = {
@@ -522,16 +521,16 @@ function castSkill(key) {
         addUlt(6.0);
         triggerVibration(35);
 
-        // 무라사키 시전 시 효과음 재생 (볼륨 낮춘 상태)
         purpleAudio.currentTime = 0;
         purpleAudio.play().catch(() => {});
 
+        // chargeTimer를 120 (약 2초)으로 늘려 천천히 차징되도록 설정
         chargingPurples.push({
             x: player.x, y: player.y,
             ang: ang,
-            radius: 10,       
+            radius: 5,       
             maxRadius: 130,   
-            chargeTimer: 45,  
+            chargeTimer: 120,  
             damage: 9999
         });
     } else if(key === 'X') {
@@ -697,8 +696,9 @@ function update() {
 
     chargingPurples.forEach((cp, cpi) => {
         cp.chargeTimer--;
+        // 2초(120프레임) 동안 아주 서서히 크기가 커지도록 계수 조절 (0.03 -> 0.02)
         if(cp.radius < cp.maxRadius) {
-            cp.radius += (cp.maxRadius - cp.radius) * 0.15;
+            cp.radius += (cp.maxRadius - cp.radius) * 0.02;
         }
 
         if(cp.chargeTimer <= 0) {
