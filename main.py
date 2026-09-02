@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 무라사키 투사체 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 밸런스 패치 & 평타 고퀄리티화")
 
 st.markdown("""
     <style>
@@ -126,7 +126,7 @@ game_html = """
                 
                 <div class="skill-container">
                     <div class="skill-icon" style="border-color:#3498db;">
-                        <span class="skill-key" style="color:#3498db;">AUTO</span><span>오토평타</span>
+                        <span class="skill-key" style="color:#3498db;">AUTO</span><span>평타</span>
                     </div>
                     <div class="skill-icon">
                         <span class="skill-key">E</span><span id="sk-e">스킬1</span>
@@ -148,7 +148,7 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🛡️ 무하한 패시브 적용 (7초 주기 / 2초 지속)</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🛡️ 무하한 패시브 (범위 축소 / 3초 지속)</div>
                 <div id="boss-status" style="font-size:14px; color:#ff4757; margin-top:6px; font-weight:bold;">보스 소환 대기 중...</div>
                 <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:2px;">처치한 보스: 0 / 100</div>
             </div>
@@ -166,17 +166,16 @@ game_html = """
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 패시브: <strong>무하한 (7초마다 2초간 밀어내기)</strong><br>
-                    • E: 아카 「赤」<br>
-                    • R: 아오 「蒼」<br>
-                    • T: 허식 「茈」 (거대/완만 원형 투사체)<br>
-                    • X: 영역전개
+                    • 패시브: <strong>무하한 (범위 축소 / 3초 지속)</strong><br>
+                    • 평타: 고출력 주력탄 (0.5초 느림, 고퀄리티 연출)<br>
+                    • E: 아카 「赤」 / R: 아오 「蒼」<br>
+                    • T: 허식 「茈」 (폭발 없음) / X: 무량공처
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • 기본공격: 자동 참격<br>
+                    • 기본공격: 참격 연사<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
@@ -184,7 +183,7 @@ game_html = """
             <div class="card" onclick="selectChar('Megumi')">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • 기본공격: 자동 투사체<br>
+                    • 기본공격: 그림자 투사체<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라
                 </p>
@@ -281,10 +280,11 @@ let player = {
 };
 
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
+// 쿨타임 대폭 상향 적용
 let maxCooldowns = {
-    Gojo: { E: 5, R: 10, T: 16, X: 0 },
-    Sukuna: { E: 4, R: 9, T: 14, X: 0 },
-    Megumi: { E: 5, R: 10, T: 15, X: 0 }
+    Gojo: { E: 9, R: 16, T: 25, X: 0 },
+    Sukuna: { E: 8, R: 15, T: 22, X: 0 },
+    Megumi: { E: 9, R: 16, T: 24, X: 0 }
 };
 
 let dialogues = {
@@ -307,6 +307,7 @@ let purpleProjectiles = [];
 let laserBeams = [];
 let meleeAttacks = [];
 let enemies = [];
+let highQualityShots = []; // 고죠 고퀄 평타 파티클용
 
 const BOSS_COLORS = [
     { bg: '#e74c3c', aura: '#ff7675', spikes: 5 },
@@ -399,7 +400,10 @@ function selectChar(type) {
 function basicAttack() {
     if(isGameOver) return;
     let now = Date.now();
-    if(now - player.lastAttack < 550) return;
+    
+    // 고죠 사토루 평타 딜레이 0.5초 더 느리게 적용 (기존 550ms -> 1050ms)
+    let attackInterval = (player.charType === 'Gojo') ? 1050 : 550;
+    if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
     addUlt(3.5);
@@ -413,10 +417,20 @@ function basicAttack() {
     }
 
     if(player.charType === 'Gojo') {
+        // 고퀄리티 고죠 평타 (고출력 주력탄 + 오라 파티클 트레일 연동)
+        let shotX = player.x + Math.cos(ang) * 20;
+        let shotY = player.y + Math.sin(ang) * 20;
         projectiles.push({
-            x: player.x, y: player.y, vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
-            damage: 65, radius: 11, color: '#70a1ff', type:'gojo_basic'
+            x: shotX, y: shotY, vx: Math.cos(ang)*16, vy: Math.sin(ang)*16,
+            damage: 95, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
         });
+        // 발사 이펙트 파티클
+        for(let i=0; i<8; i++) {
+            highQualityShots.push({
+                x: shotX, y: shotY, vx: Math.cos(ang + (Math.random()-0.5)*0.5)*(Math.random()*6+3), vy: Math.sin(ang + (Math.random()-0.5)*0.5)*(Math.random()*6+3),
+                radius: Math.random()*5+2, life: 18, color: '#70a1ff'
+            });
+        }
     } else if(player.charType === 'Sukuna') {
         slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 60});
     } else {
@@ -439,7 +453,7 @@ function castSkill(key) {
         gojoDomainCount++;
         if(gojoDomainCount >= 3) {
             showDialogue('더 이상 쓸 수가 없어...');
-            cooldowns.X = 20;
+            cooldowns.X = 25;
             player.ultEnergy = 0;
             gojoDomainCount = 0;
             triggerVibration(40);
@@ -493,8 +507,7 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             addUlt(20.0);
             playVoiceAndSound('purple_voice');
-            triggerVibration(45);
-            // 무라사키를 더 크게(반경 75) 만들고 조금 더 느리게(속도 8.5) 발사
+            triggerVibration(30);
             purpleProjectiles.push({
                 x: player.x, y: player.y,
                 vx: Math.cos(ang) * 8.5, vy: Math.sin(ang) * 8.5,
@@ -518,34 +531,6 @@ function castSkill(key) {
         }
         triggerVibration(40);
     }
-}
-
-function triggerPurpleExplosion(x, y, boIndex) {
-    playVoiceAndSound('purple_voice');
-    showDialogue('허식 「무라사키」 대폭발!');
-    triggerVibration(80);
-
-    if(boIndex !== undefined && boIndex !== null && boIndex >= 0 && boIndex < blueOrbs.length) {
-        blueOrbs.splice(boIndex, 1);
-    }
-
-    for (let i = 0; i < 180; i++) {
-        let pAng = Math.random() * Math.PI * 2;
-        let pDist = Math.random() * 650 + 50;
-        let pSpeed = Math.random() * 15 + 8;
-        purpleEffects.push({
-            x: x + Math.cos(pAng) * pDist, y: y + Math.sin(pAng) * pDist,
-            targetX: x, targetY: y,
-            vx: -Math.cos(pAng) * pSpeed, vy: -Math.sin(pAng) * pSpeed,
-            radius: Math.random() * 12 + 6, life: 60, color: i % 2 === 0 ? '#a855f7' : '#e056fd'
-        });
-    }
-
-    explosions.push({
-        x: x, y: y, radius: 750, maxRadius: 750,
-        color: 'rgba(168, 85, 247, 0.95)', life: 45, damage: 5500
-    });
-    enemies.forEach(e => { if(Math.hypot(e.x - x, e.y - y) < 750) e.hp -= 5500; });
 }
 
 function spawnCurse() {
@@ -640,7 +625,7 @@ function update() {
         limitlessTimer += 0.016; 
         if(!limitlessActive && limitlessTimer >= 7.0) {
             limitlessActive = true;
-            limitlessDurationCounter = 120; 
+            limitlessDurationCounter = 180; // 지속시간 1초 증가 (기존 120 -> 180프레임 = 3초)
             showDialogue('「무하한」 발동!');
         }
         if(limitlessActive) {
@@ -710,22 +695,20 @@ function update() {
         if(mahoraga.life <= 0) mahoraga = null;
     }
 
-    // 허식 무라사키 투사체 업데이트 및 충돌 처리
     purpleProjectiles.forEach((pp, ppi) => {
         pp.x += pp.vx;
         pp.y += pp.vy;
         pp.life--;
 
-        // 적들과 충돌 검사
+        let hit = false;
         enemies.forEach(e => {
             if(Math.hypot(e.x - pp.x, e.y - pp.y) < e.radius + pp.radius) {
                 e.hp -= pp.damage;
+                hit = true;
             }
         });
 
-        // 수명이 다하거나 맵 끝에 도달하면 대폭발 일으키고 소멸
-        if(pp.life <= 0 || pp.x < 0 || pp.x > WORLD_WIDTH || pp.y < 0 || pp.y > WORLD_HEIGHT) {
-            triggerPurpleExplosion(pp.x, pp.y);
+        if(hit || pp.life <= 0 || pp.x < 0 || pp.x > WORLD_WIDTH || pp.y < 0 || pp.y > WORLD_HEIGHT) {
             purpleProjectiles.splice(ppi, 1);
         }
     });
@@ -802,31 +785,34 @@ function update() {
         if(ma.life <= 0) meleeAttacks.splice(mai, 1);
     });
 
+    highQualityShots.forEach((hs, hsi) => {
+        hs.x += hs.vx; hs.y += hs.vy; hs.life--;
+        if(hs.life <= 0) highQualityShots.splice(hsi, 1);
+    });
+
     projectiles.forEach((p, pi) => {
         p.x += p.vx; p.y += p.vy;
 
-        if(p.type === 'aka') {
-            for(let boi = 0; boi < blueOrbs.length; boi++) {
-                let bo = blueOrbs[boi];
-                if(Math.hypot(p.x - bo.x, p.y - bo.y) < bo.radius + 20) {
-                    triggerPurpleExplosion(bo.x, bo.y, boi);
-                    projectiles.splice(pi, 1);
-                    return;
-                }
-            }
-
-            if(Math.hypot(p.targetX - p.x, p.targetY - p.y) < 25) {
-                triggerVibration(24);
-                explosions.push({x: p.x, y: p.y, radius: 160, maxRadius: 160, color: '#ff4757', life: 20, damage: p.damage});
-                projectiles.splice(pi, 1);
-                return;
+        if(p.type === 'gojo_hq_basic') {
+            p.trailTimer--;
+            if(p.trailTimer <= 0) {
+                p.trailTimer = 3;
+                highQualityShots.push({ x: p.x, y: p.y, vx: 0, vy: 0, radius: 4, life: 10, color: '#00d2ff' });
             }
         }
 
         enemies.forEach((e) => {
             if(Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
                 e.hp -= p.damage;
-                if(p.type === 'normal' || p.type === 'gojo_basic') projectiles.splice(pi, 1);
+                if(p.type === 'normal' || p.type === 'gojo_hq_basic') {
+                    for(let i=0; i<5; i++) {
+                        highQualityShots.push({
+                            x: p.x, y: p.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
+                            radius: Math.random()*3+2, life: 12, color: '#ffffff'
+                        });
+                    }
+                    projectiles.splice(pi, 1);
+                }
             }
         });
     });
@@ -855,9 +841,10 @@ function update() {
         let ang = Math.atan2(player.y - e.y, player.x - e.x);
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
-        if(player.charType === 'Gojo' && limitlessActive && dist < 180) {
-            e.x -= Math.cos(ang) * 12; 
-            e.y -= Math.sin(ang) * 12;
+        // 무하한 범위 축소 적용 (반경 180 -> 130)
+        if(player.charType === 'Gojo' && limitlessActive && dist < 130) {
+            e.x -= Math.cos(ang) * 14; 
+            e.y -= Math.sin(ang) * 14;
         } else {
             if(e.isRanged && dist < 300) {
                 e.x -= Math.cos(ang) * e.speed;
@@ -1035,16 +1022,17 @@ function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.translate(-camera.x, -camera.y);
 
+    // 무하한 범위 축소 반영 (반경 130)
     if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
-        ctx.strokeStyle = 'rgba(112, 161, 255, 0.75)';
-        ctx.lineWidth = 4;
-        ctx.shadowBlur = 25;
+        ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = '#70a1ff';
         ctx.beginPath();
-        ctx.arc(player.x, player.y, 180, 0, Math.PI * 2);
+        ctx.arc(player.x, player.y, 130, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.fillStyle = 'rgba(112, 161, 255, 0.08)';
+        ctx.fillStyle = 'rgba(112, 161, 255, 0.06)';
         ctx.fill();
         ctx.restore();
     }
@@ -1086,7 +1074,6 @@ function draw() {
         ctx.shadowBlur = 0;
     });
 
-    // 허식 무라사키 원형 투사체 렌더링 (확대된 크기 적용)
     purpleProjectiles.forEach(pp => {
         ctx.save();
         ctx.shadowBlur = 60;
@@ -1153,6 +1140,11 @@ function draw() {
         ctx.stroke();
     });
 
+    highQualityShots.forEach(hs => {
+        ctx.fillStyle = hs.color;
+        ctx.beginPath(); ctx.arc(hs.x, hs.y, hs.radius, 0, Math.PI*2); ctx.fill();
+    });
+
     purpleEffects.forEach(pe => {
         ctx.fillStyle = pe.color;
         ctx.beginPath(); ctx.arc(pe.x, pe.y, pe.radius, 0, Math.PI*2); ctx.fill();
@@ -1164,11 +1156,18 @@ function draw() {
     });
 
     projectiles.forEach(p => {
-        ctx.shadowBlur = p.type === 'gojo_basic' ? 15 : 0;
-        ctx.shadowColor = '#70a1ff';
-        ctx.fillStyle = p.color || (p.type === 'aka' ? '#ff4757' : '#3742fa');
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.save();
+        if(p.type === 'gojo_hq_basic') {
+            ctx.shadowBlur = 20; ctx.shadowColor = '#00d2ff';
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 4; ctx.stroke();
+        } else {
+            ctx.shadowBlur = 10; ctx.shadowColor = '#70a1ff';
+            ctx.fillStyle = p.color || (p.type === 'aka' ? '#ff4757' : '#3742fa');
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
     });
 
     drawPlayerSprite(player);
