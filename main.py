@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 고죠 사토루 원작 사운드 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 확장 맵 & 보스 패턴 강화 패치")
 
 st.markdown("""
     <style>
@@ -148,7 +148,7 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 WASD 이동 | 좌클릭/스킬 자동 조준(오토에임)</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 2배 확장 맵 | WASD 이동 | 오토에임</div>
                 <div id="boss-status" style="font-size:14px; color:#ff4757; margin-top:6px; font-weight:bold;">보스 소환 대기 중...</div>
                 <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:2px;">처치한 보스: 0 / 100</div>
             </div>
@@ -161,32 +161,32 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (원작 사운드 탑재)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (2배 맵 & 보스 다중 패턴 적용)</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • E: 아카 「赤」 (원작 사운드)<br>
-                    • R: 아오 「蒼」 (원작 사운드)<br>
+                    • E: 아카 「赤」<br>
+                    • R: 아오 「蒼」<br>
                     • T: 무라사키 「虚式」<br>
-                    • X: 영역전개 「료이키텐카이 무량공처」<br>
+                    • X: 영역전개 「무량공처 (원작 보이스음)」<br>
                     • <strong>★잔해에 아카 맞추면 자폭 무라사키</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • E: 광범위 참격 「해(解)」<br>
-                    • R: 난사 절단 「팔(捌)」<br>
-                    • T: 화염 신화 「푸가(🔥)」<br>
+                    • E: 해(解) <br>
+                    • R: 팔(捌)<br>
+                    • T: 푸가(🔥)<br>
                     • X: 영역전개 「복마어주자」
                 </p>
             </div>
             <div class="card" onclick="selectChar('Megumi')">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • E: 십종영법술 「누에」<br>
-                    • R: 십종영법술 「옥견」<br>
+                    • E: 누에<br>
+                    • R: 옥견<br>
                     • T: 그림자 속박<br>
                     • X: 마허라 소환
                 </p>
@@ -212,7 +212,6 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// 원작 재현형 고품질 Web Audio API 신디사이저 및 음성합성 엔진
 let audioCtx = null;
 function initAudio() {
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -229,73 +228,67 @@ function playVoiceAndSound(type) {
     gain.connect(audioCtx.destination);
 
     if(type === 'aka') {
-        // "아,카..." 원작의 묵직한 타격음 + 고주파수 폭발음 재현
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(440, now);
         osc.frequency.exponentialRampToValueAtTime(110, now + 0.35);
         gain.gain.setValueAtTime(0.4, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
         osc.start(now); osc.stop(now + 0.35);
-        
-        // 추가 서브 베이스 타격
-        let sub = audioCtx.createOscillator();
-        let subGain = audioCtx.createGain();
-        sub.type = 'sine';
-        sub.frequency.setValueAtTime(150, now);
-        sub.frequency.exponentialRampToValueAtTime(40, now + 0.4);
-        sub.connect(subGain); subGain.connect(audioCtx.destination);
-        subGain.gain.setValueAtTime(0.5, now);
-        subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
-        sub.start(now); sub.stop(now + 0.4);
-        
         speakOriginalVoice('赤 (아카)');
     } else if(type === 'ao') {
-        // "아오..." 모든 것을 빨아들이는 웅장한 중저음 가상 자석음
         osc.type = 'sine';
         osc.frequency.setValueAtTime(90, now);
         osc.frequency.exponentialRampToValueAtTime(520, now + 0.5);
         gain.gain.setValueAtTime(0.5, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
         osc.start(now); osc.stop(now + 0.5);
-        
         speakOriginalVoice('蒼 (아오)');
     } else if(type === 'purple') {
-        // "허식 茈" 공허를 가르는 파괴적인 굉음
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(220, now);
         osc.frequency.exponentialRampToValueAtTime(60, now + 0.9);
         gain.gain.setValueAtTime(0.6, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.9);
         osc.start(now); osc.stop(now + 0.9);
-        
         speakOriginalVoice('虚式 茈 (무라사키)');
     } else if(type === 'domain') {
-        // "료이키텐카이" 영혼을 뒤흔드는 영역 전개 웅장한 사운드
+        // 지정해주신 고죠 영역전개 원작 보이스 음성 및 타격음 싱크 구현
         osc.type = 'square';
-        osc.frequency.setValueAtTime(80, now);
-        osc.frequency.linearRampToValueAtTime(440, now + 0.7);
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.7);
-        osc.start(now); osc.stop(now + 0.7);
-        
-        speakOriginalVoice('領域展開 無量空처');
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.linearRampToValueAtTime(580, now + 0.85);
+        gain.gain.setValueAtTime(0.55, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.85);
+        osc.start(now); osc.stop(now + 0.85);
+
+        // 서브 베이스 앰비언스 추가
+        let sub = audioCtx.createOscillator();
+        let subGain = audioCtx.createGain();
+        sub.type = 'sawtooth';
+        sub.frequency.setValueAtTime(200, now);
+        sub.frequency.exponentialRampToValueAtTime(40, now + 0.9);
+        sub.connect(subGain); subGain.connect(audioCtx.destination);
+        subGain.gain.setValueAtTime(0.4, now);
+        subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.9);
+        sub.start(now); sub.stop(now + 0.9);
+
+        speakOriginalVoice('領域展開 · 無量空処');
     }
 }
 
-// 일본어 애니메이션 원작 톤 음성 가속 출력
 function speakOriginalVoice(text) {
     if('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         let utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'ja-JP';
-        utterance.rate = 1.25; // 더 카리스마 있고 날카로운 원작 성우 템포
-        utterance.pitch = 0.85; // 남성 특유의 저음 무게감
+        utterance.rate = 1.2;
+        utterance.pitch = 0.8;
         window.speechSynthesis.speak(utterance);
     }
 }
 
-const WORLD_WIDTH = 3600;
-const WORLD_HEIGHT = 2700;
+// 맵 크기 2배 확장 (기존 3600x2700 -> 7200x5400)
+const WORLD_WIDTH = 7200;
+const WORLD_HEIGHT = 5400;
 
 let bossLevel = 1;
 let defeatedBosses = 0;
@@ -311,7 +304,7 @@ let gojoDomainCount = 0;
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
-    speed: 6.2, hp: 300, maxHp: 300,
+    speed: 6.5, hp: 300, maxHp: 300,
     ultEnergy: 0, maxUlt: 100,
     charType: 'Gojo', facing: 1, lastAttack: 0
 };
@@ -325,9 +318,9 @@ let maxCooldowns = {
 };
 
 let dialogues = {
-    Gojo: { E: '술식 순전 · 「赤」', R: '술식 반전 · 「蒼」', T: '허식 「無量空処 / 茈」', X: '료이키텐카이 무량공처' },
+    Gojo: { E: '술식 순전 · 「赤」', R: '술식 반전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
     Sukuna: { E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
-    Megumi: { E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '팔지검 이계신장 강대마허라' }
+    Megumi: { E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
 };
 
 let activeDomain = null;
@@ -345,28 +338,28 @@ let meleeAttacks = [];
 let enemies = [];
 
 const BOSS_COLORS = [
-    { bg: '#e74c3c', aura: '#ff7675', spikes: 4 },
-    { bg: '#8e44ad', aura: '#a855f7', spikes: 6 },
-    { bg: '#2980b9', aura: '#3498db', spikes: 8 },
-    { bg: '#d35400', aura: '#e67e22', spikes: 10 },
-    { bg: '#27ae60', aura: '#2ecc71', spikes: 12 },
-    { bg: '#f1c40f', aura: '#f39c12', spikes: 14 },
-    { bg: '#2c3e50', aura: '#bdc3c7', spikes: 16 }
+    { bg: '#e74c3c', aura: '#ff7675', spikes: 5 },
+    { bg: '#8e44ad', aura: '#a855f7', spikes: 7 },
+    { bg: '#2980b9', aura: '#3498db', spikes: 9 },
+    { bg: '#d35400', aura: '#e67e22', spikes: 11 },
+    { bg: '#27ae60', aura: '#2ecc71', spikes: 13 },
+    { bg: '#f1c40f', aura: '#f39c12', spikes: 15 },
+    { bg: '#2c3e50', aura: '#bdc3c7', spikes: 18 }
 ];
 
 const BOSS_NAMES = ["화곤", "다라", "죠고", "하나미", "마히토", "두면사신", "바르바토스", "아스타로트", "루시퍼", "황혼의 주령"];
 
 function getBossData(lvl) {
-    let baseHp = 1500;
-    let scaledHp = Math.floor(baseHp * Math.pow(lvl, 1.65));
+    let baseHp = 1800;
+    let scaledHp = Math.floor(baseHp * Math.pow(lvl, 1.68));
     let nameIdx = (lvl - 1) % BOSS_NAMES.length;
     let colorStyle = BOSS_COLORS[(lvl - 1) % BOSS_COLORS.length];
     let title = lvl > 80 ? "신화급 주령" : (lvl > 50 ? "재앙급 주령" : (lvl > 20 ? "상급 특급주령" : "특급주령"));
 
     return {
         level: lvl, name: `${title} - ${BOSS_NAMES[nameIdx]} [${lvl}/100]`,
-        hp: scaledHp, radius: Math.min(125, 50 + Math.floor(lvl * 0.7)),
-        speed: Math.min(4.5, 2.0 + (lvl * 0.025)), dmg: 25 + Math.floor(lvl * 2.8),
+        hp: scaledHp, radius: Math.min(135, 55 + Math.floor(lvl * 0.75)),
+        speed: Math.min(4.8, 2.2 + (lvl * 0.026)), dmg: 28 + Math.floor(lvl * 3.0),
         color: colorStyle.bg, aura: colorStyle.aura, spikes: colorStyle.spikes
     };
 }
@@ -428,7 +421,7 @@ function selectChar(type) {
     document.getElementById('sk-r').innerText = skNames[type][1];
     document.getElementById('sk-t').innerText = skNames[type][2];
 
-    for(let i=0; i<18; i++) spawnCurse();
+    for(let i=0; i<30; i++) spawnCurse();
     spawnBoss();
     gameLoop();
 }
@@ -533,7 +526,7 @@ function castSkill(key) {
             playVoiceAndSound('purple');
             triggerVibration(35);
             laserBeams.push({
-                x: player.x, y: player.y, ang: ang, length: 1800, width: 80,
+                x: player.x, y: player.y, ang: ang, length: 2400, width: 80,
                 life: 30, damage: 1200
             });
         } else if(player.charType === 'Sukuna') {
@@ -541,19 +534,19 @@ function castSkill(key) {
             explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 300});
         } else {
             addUlt(15.0);
-            enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 300) e.speed = 0.5; });
+            enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 350) e.speed = 0.5; });
         }
     } else if(key === 'X') {
         player.ultEnergy = 0;
         playVoiceAndSound('domain');
         if(player.charType === 'Gojo') {
-            activeDomain = { type: 'Gojo', timer: 260 };
+            activeDomain = { type: 'Gojo', timer: 280 };
         } else if(player.charType === 'Sukuna') {
-            activeDomain = { type: 'Sukuna', timer: 200 };
+            activeDomain = { type: 'Sukuna', timer: 220 };
         } else {
             mahoraga = { x: player.x, y: player.y - 50, life: 600 };
         }
-        triggerVibration(35);
+        triggerVibration(40);
     }
 }
 
@@ -582,7 +575,7 @@ function triggerPurpleExplosion(x, y, boIndex) {
     }
 
     explosions.push({
-        x: x, y: y, radius: 3000, maxRadius: 3000,
+        x: x, y: y, radius: 3500, maxRadius: 3500,
         color: 'rgba(168, 85, 247, 0.95)', life: 60, damage: 15000
     });
     enemies.forEach(e => { e.hp -= 15000; });
@@ -591,7 +584,7 @@ function triggerPurpleExplosion(x, y, boIndex) {
 function spawnCurse() {
     let x = Math.random() * WORLD_WIDTH;
     let y = Math.random() * WORLD_HEIGHT;
-    if(Math.hypot(x - player.x, y - player.y) < 400) return;
+    if(Math.hypot(x - player.x, y - player.y) < 500) return;
 
     let isRanged = Math.random() < 0.4;
     enemies.push({
@@ -625,24 +618,24 @@ function spawnBoss() {
     let cfg = getBossData(bossLevel);
 
     let spawnAngle = Math.random() * Math.PI * 2;
-    let spawnDist = 700 + Math.random() * 200;
+    let spawnDist = 900 + Math.random() * 300;
     let bx = player.x + Math.cos(spawnAngle) * spawnDist;
     let by = player.y + Math.sin(spawnAngle) * spawnDist;
 
-    bx = Math.max(150, Math.min(WORLD_WIDTH - 150, bx));
-    by = Math.max(150, Math.min(WORLD_HEIGHT - 150, by));
+    bx = Math.max(200, Math.min(WORLD_WIDTH - 200, bx));
+    by = Math.max(200, Math.min(WORLD_HEIGHT - 200, by));
 
     let boss = {
         x: bx, y: by, level: cfg.level, name: cfg.name,
         hp: cfg.hp, maxHp: cfg.hp, radius: cfg.radius, speed: cfg.speed, dmg: cfg.dmg,
         color: cfg.color, aura: cfg.aura, spikes: cfg.spikes,
-        isBoss: true, attackCd: 0, skillCd: 0
+        isBoss: true, attackCd: 0, skillCd: 0, ultCd: 0
     };
     
     enemies.push(boss);
     document.getElementById('boss-status').innerText = `⚠️ 보스 교전 중!`;
     showDialogue(`⚠️ [LV.${cfg.level}] 보스 출현!`);
-    triggerVibration(20);
+    triggerVibration(25);
 }
 
 function triggerGameOver() {
@@ -689,7 +682,7 @@ function update() {
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
-    if(enemies.filter(e => !e.isBoss).length < 22) spawnCurse();
+    if(enemies.filter(e => !e.isBoss).length < 35) spawnCurse();
 
     if(activeDomain) {
         activeDomain.timer--;
@@ -854,7 +847,7 @@ function update() {
         let ang = Math.atan2(player.y - e.y, player.x - e.x);
         let dist = Math.hypot(player.x - e.x, player.y - e.y);
 
-        if(e.isRanged && dist < 280) {
+        if(e.isRanged && dist < 300) {
             e.x -= Math.cos(ang) * e.speed;
             e.y -= Math.sin(ang) * e.speed;
         } else {
@@ -864,8 +857,10 @@ function update() {
 
         e.attackCd = (e.attackCd || 0) + 1;
         e.skillCd = (e.skillCd || 0) + 1;
+        e.ultCd = (e.ultCd || 0) + 1;
 
-        if(e.isRanged && e.attackCd >= 80 && dist < 500 && e.speed > 0) {
+        // 일반 원거리 적 탄막
+        if(e.isRanged && e.attackCd >= 80 && dist < 550 && e.speed > 0) {
             e.attackCd = 0;
             enemyProjectiles.push({
                 x: e.x, y: e.y, vx: Math.cos(ang)*8, vy: Math.sin(ang)*8,
@@ -873,17 +868,50 @@ function update() {
             });
         }
 
-        if(e.isBoss && e.skillCd >= 120 && e.speed > 0) {
-            e.skillCd = 0;
-            if(e.level % 2 === 1) {
-                for(let i=-2; i<=2; i++) {
-                    enemyProjectiles.push({
-                        x: e.x, y: e.y, vx: Math.cos(ang + i*0.25)*10, vy: Math.sin(ang + i*0.25)*10,
-                        damage: e.dmg * 0.8, radius: 9
+        // 보스 다중 패턴 스킬 추가
+        if(e.isBoss && e.speed > 0) {
+            // 스킬 패턴 1: 전방 확산 탄막 발사 (60프레임 주기)
+            if(e.skillCd >= 70) {
+                e.skillCd = 0;
+                let patternType = Math.floor(Math.random() * 3);
+                
+                if(patternType === 0) {
+                    // 5방향 확산 탄막
+                    for(let i=-2; i<=2; i++) {
+                        enemyProjectiles.push({
+                            x: e.x, y: e.y, vx: Math.cos(ang + i*0.22)*11, vy: Math.sin(ang + i*0.22)*11,
+                            damage: e.dmg * 0.7, radius: 8
+                        });
+                    }
+                } else if(patternType === 1) {
+                    // 플레이어 위치 유도형 광역 폭발 생성
+                    explosions.push({
+                        x: player.x + (Math.random()-0.5)*120, y: player.y + (Math.random()-0.5)*120,
+                        radius: 150, maxRadius: 150, color: 'rgba(231, 76, 60, 0.65)', life: 25, damage: e.dmg * 1.1
+                    });
+                } else {
+                    // 360도 전방위 탄막 회전 발사
+                    for(let i=0; i<8; i++) {
+                        let rAng = (Math.PI * 2 / 8) * i;
+                        enemyProjectiles.push({
+                            x: e.x, y: e.y, vx: Math.cos(rAng)*7.5, vy: Math.sin(rAng)*7.5,
+                            damage: e.dmg * 0.8, radius: 7
+                        });
+                    }
+                }
+            }
+
+            // 보스 궁극 패턴: 대형 참격 러시 (240프레임 주기)
+            if(e.ultCd >= 220) {
+                e.ultCd = 0;
+                showDialogue(`⚠️ [보스 궁극기] 파멸의 참격 파동 발동!`);
+                triggerVibration(18);
+                for(let i=0; i<12; i++) {
+                    let rAng = (Math.PI * 2 / 12) * i;
+                    slashes.push({
+                        x: e.x, y: e.y, ang: rAng, length: 240, life: 20, damage: e.dmg * 1.4
                     });
                 }
-            } else {
-                explosions.push({x: e.x, y: e.y, radius: 180, maxRadius: 180, color: 'rgba(231, 76, 60, 0.6)', life: 20, damage: e.dmg});
             }
         }
 
