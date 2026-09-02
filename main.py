@@ -164,7 +164,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:42px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[Q스킬: 천공의 별 (시전 즉시 광역 스턴 / 3초 지속 무적·이속증가·무하한해제·아카데미지 / 쿨타임 8초)]</p>
+        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[Q스킬: 천공의 별 (시전 즉시 광역 스턴 / 3초간 무하한 유지 후 꺼짐 / 쿨타임 8초)]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -263,12 +263,12 @@ let lastHitTime = Date.now();
 let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
-let limitlessActive = true;
 
-// Q스킬 상태 관리 변수
+// Q스킬 상태 관리 변수 (기본적으로 무하한 켜져 있는 상태)
+let limitlessActive = true; 
 let skyStarCasting = false;   
 let skyStarCastTimer = 0;     
-let skyStarActive = false;    // 버프 적용 중 상태 (무적, 이속증가, 무하한 꺼짐)
+let skyStarActive = false;    // 버프 적용 중 상태 (무적, 이속증가)
 let skyStarTimer = 0;         // 지속 시간 카운트 (3초 = 180프레임)
 let bloodSplatters = [];
 
@@ -473,8 +473,8 @@ function castSkill(key) {
     if(key === 'Q') {
         cooldowns.Q = maxCooldowns[player.charType].Q;
         skyStarCasting = true;        
-        skyStarCastTimer = 60;        // 1초간 정지 후 발동
-        limitlessActive = false;      
+        skyStarCastTimer = 30;        // 0.5초간 선딜 후 발동
+        limitlessActive = false;      // Q 시전 직후 무하한 일시 꺼짐
         
         enemies.forEach(e => {
             let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
@@ -665,7 +665,8 @@ function update() {
         if(skyStarCastTimer <= 0) {
             skyStarCasting = false;
             skyStarActive = true;
-            skyStarTimer = 180; // 3초 지속 (60프레임 * 3)
+            skyStarTimer = 180; // 딱 3초간 지속 (60프레임 * 3)
+            limitlessActive = true; // 3초 동안 무하한 켜짐
             player.speed = player.baseSpeed * 3.5; 
             triggerVibration(40);
         }
@@ -676,7 +677,7 @@ function update() {
             skyStarTimer--;
             if(skyStarTimer <= 0) {
                 skyStarActive = false;
-                limitlessActive = true; 
+                limitlessActive = false; // 3초가 지나면 무하한이 꺼짐!
                 player.speed = player.baseSpeed;
             }
         }
@@ -809,7 +810,7 @@ function update() {
     enemyProjectiles.forEach((ep, epi) => {
         ep.x += ep.vx; ep.y += ep.vy;
 
-        // 무하한이 활성화되어 있고 고죠일 때 발사체가 닿으면 소멸
+        // 무하한이 활성화되어 있을 때 발사체가 반경 70에 닿으면 즉시 소멸
         let limitlessRadius = 70;
         if(player.charType === 'Gojo' && limitlessActive && Math.hypot(player.x - ep.x, player.y - ep.y) < limitlessRadius + ep.radius) {
             enemyProjectiles.splice(epi, 1);
@@ -1174,7 +1175,7 @@ function draw() {
         ctx.restore();
     });
 
-    // 무하한 범위 축소 (반경 70)
+    // 무하한 범위 축소 (반경 70) 및 상태 표시
     if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
         ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
