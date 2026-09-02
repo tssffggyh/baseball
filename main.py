@@ -148,9 +148,8 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🛡️ 무하한 패시브 (범위 130 / 3초 지속)</div>
-                <div id="boss-status" style="font-size:14px; color:#ff4757; margin-top:6px; font-weight:bold;">보스 소환 대기 중...</div>
-                <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:2px;">처치한 보스: 0 / 100</div>
+                <div id="boss-status" style="font-size:14px; color:#ff4757; font-weight:bold;">보스 소환 대기 중...</div>
+                <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:6px;">처치한 보스: 0 / 100</div>
                 <div id="mob-kill-status" style="font-size:13px; color:#a855f7; margin-top:2px; font-weight:bold;">처치한 일반 주령: 0마리</div>
             </div>
         </div>
@@ -167,7 +166,6 @@ game_html = """
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 패시브: <strong>무하한 (범위 130 / 3초 지속)</strong><br>
                     • 평타: 고출력 주력탄<br>
                     • E: 아카 「赤」 / R: 아오 「蒼」<br>
                     • T: 허식 「茈」 / X: 무량공처
@@ -396,7 +394,6 @@ function selectChar(type) {
     gameLoop();
 }
 
-// 이벤트 리스너 바인딩 (클릭 오류 방지)
 document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
 document.getElementById('card-sukuna').addEventListener('click', () => selectChar('Sukuna'));
 document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
@@ -629,7 +626,6 @@ function update() {
         if(!limitlessActive && limitlessTimer >= 7.0) {
             limitlessActive = true;
             limitlessDurationCounter = 180; 
-            showDialogue('「무하한」 발동!');
         }
         if(limitlessActive) {
             limitlessDurationCounter--;
