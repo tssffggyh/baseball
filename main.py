@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 원작 보이스 사운드 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 오토 평타 및 원작 보이스 최종 패치")
 
 st.markdown("""
     <style>
@@ -126,7 +126,7 @@ game_html = """
                 
                 <div class="skill-container">
                     <div class="skill-icon" style="border-color:#3498db;">
-                        <span class="skill-key" style="color:#3498db;">L-Click</span><span>오토에임</span>
+                        <span class="skill-key" style="color:#3498db;">AUTO</span><span>오토평타</span>
                     </div>
                     <div class="skill-icon">
                         <span class="skill-key">E</span><span id="sk-e">스킬1</span>
@@ -148,7 +148,7 @@ game_html = """
             </div>
             
             <div class="hud-card" style="text-align:right;">
-                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 2배 확장 맵 | WASD 이동 | 오토에임</div>
+                <div style="font-size:16px; font-weight:bold; color:#a855f7;">🎮 완전 자동 평타 + 스킬 | WASD 이동</div>
                 <div id="boss-status" style="font-size:14px; color:#ff4757; margin-top:6px; font-weight:bold;">보스 소환 대기 중...</div>
                 <div id="kill-status" style="font-size:13px; color:#aaa; margin-top:2px;">처치한 보스: 0 / 100</div>
             </div>
@@ -161,21 +161,23 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (요청하신 고죠 영역전개 원작 보이스 연동)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (평타 자동 발사 적용)</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
+                    • 기본공격: <strong>완전 자동 발사</strong><br>
                     • E: 아카 「赤」<br>
                     • R: 아오 「蒼」<br>
                     • T: 무라사키 「虚式」<br>
-                    • X: 영역전개 「무량공처 (원작 보이스음)」<br>
+                    • X: 영역전개 「무량공처 (원작 보이스)」<br>
                     • <strong>★잔해에 아카 맞추면 자폭 무라사키</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
+                    • 기본공격: 자동 참격<br>
                     • E: 해(解) <br>
                     • R: 팔(捌)<br>
                     • T: 푸가(🔥)<br>
@@ -185,6 +187,7 @@ game_html = """
             <div class="card" onclick="selectChar('Megumi')">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
+                    • 기본공격: 자동 투사체<br>
                     • E: 누에<br>
                     • R: 옥견<br>
                     • T: 그림자 속박<br>
@@ -212,8 +215,7 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-// 보내주신 마이인스턴츠 링크의 실제 직접 스트리밍 MP3 파일 주소
-const domainAudio = new Audio('https://www.myinstants.com/media/sounds/gojo-domain-expansion-60533.mp3');
+const domainAudio = new Audio('https://audio.com/vertex-az17/audio/gojo-domain-expansion-60533');
 domainAudio.volume = 1.0;
 
 let audioCtx = null;
@@ -231,7 +233,7 @@ function playVoiceAndSound(type) {
     
     if(type === 'domain') {
         domainAudio.currentTime = 0;
-        domainAudio.play().catch(err => console.log("Audio play error:", err));
+        domainAudio.play().catch(err => console.log("Domain Audio play error:", err));
         return;
     }
 
@@ -344,7 +346,7 @@ function getBossData(lvl) {
 }
 
 function getAutoAimTarget() {
-    if(enemies.length === 0) return { x: player.x + player.facing * 100, y: player.y, angle: player.facing > 0 ? 0 : Math.PI };
+    if(enemies.length === 0) return { x: player.x + player.facing * 100, y: player.y, angle: player.facing > 0 ? 0 : Math.PI, dist: 9999 };
     let closest = enemies[0];
     let minDist = Math.hypot(closest.x - player.x, closest.y - player.y);
     for(let i = 1; i < enemies.length; i++) {
@@ -352,10 +354,9 @@ function getAutoAimTarget() {
         if(dist < minDist) { minDist = dist; closest = enemies[i]; }
     }
     let angle = Math.atan2(closest.y - player.y, closest.x - player.x);
-    return { x: closest.x, y: closest.y, angle: angle };
+    return { x: closest.x, y: closest.y, angle: angle, dist: minDist };
 }
 
-window.addEventListener('mousedown', e => { if(e.button === 0) basicAttack(); });
 window.addEventListener('keydown', e => {
     initAudio();
     let k = e.key.toLowerCase();
@@ -408,23 +409,23 @@ function selectChar(type) {
 function basicAttack() {
     if(isGameOver) return;
     let now = Date.now();
-    if(now - player.lastAttack < 160) return;
+    if(now - player.lastAttack < 180) return;
     player.lastAttack = now;
 
-    addUlt(2.5);
+    addUlt(2.0);
     let target = getAutoAimTarget();
     let ang = target.angle;
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
     if(player.charType === 'Gojo') {
         projectiles.push({
-            x: player.x, y: player.y, vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
-            damage: 45, radius: 10, color: '#70a1ff', type:'gojo_basic'
+            x: player.x, y: player.y, vx: Math.cos(ang)*20, vy: Math.sin(ang)*20,
+            damage: 48, radius: 10, color: '#70a1ff', type:'gojo_basic'
         });
     } else if(player.charType === 'Sukuna') {
         slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 45});
     } else {
-        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 30, radius: 7, color: '#2ecc71', type:'normal'});
+        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, damage: 32, radius: 7, color: '#2ecc71', type:'normal'});
     }
 }
 
@@ -661,6 +662,12 @@ function update() {
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
+    // 사정거리 내에 적이 있으면 평타 자동 발사 (오토 파이어)
+    let target = getAutoAimTarget();
+    if(target.dist < 850) {
+        basicAttack();
+    }
+
     if(enemies.filter(e => !e.isBoss).length < 35) spawnCurse();
 
     if(activeDomain) {
@@ -692,11 +699,11 @@ function update() {
 
     if(mahoraga) {
         mahoraga.life--;
-        let target = activeBosses[0] || enemies[0];
-        if(target) {
-            let ang = Math.atan2(target.y - mahoraga.y, target.x - mahoraga.x);
+        let bossTarget = activeBosses[0] || enemies[0];
+        if(bossTarget) {
+            let ang = Math.atan2(bossTarget.y - mahoraga.y, bossTarget.x - mahoraga.x);
             mahoraga.x += Math.cos(ang) * 4.5; mahoraga.y += Math.sin(ang) * 4.5;
-            if(Math.hypot(target.x - mahoraga.x, target.y - mahoraga.y) < 60) target.hp -= 25;
+            if(Math.hypot(bossTarget.x - mahoraga.x, bossTarget.y - mahoraga.y) < 60) bossTarget.hp -= 25;
         }
         if(mahoraga.life <= 0) mahoraga = null;
     }
