@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 오토에임 + Q 5초 무적 & 잔몹 원킬/출혈 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 오토에임 + 평타 하향 & 잔몹 대량 소환 패치")
 
 st.markdown("""
     <style>
@@ -165,7 +165,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[오토에임 활성화] Q: 5초간 무적 + 이속 폭증 + 닿는 적 아오 지속딜 | 잔몹 원킬 & 출혈 연출 적용</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[평타 하향 & 잔몹 대량 소환 패치 적용] 오토에임 및 Q 5초 무적 활성화</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -274,11 +274,10 @@ let limitlessTimer = 0;
 let limitlessActive = false;
 let limitlessDurationCounter = 0;
 
-// Q 스킬 버프 변수 (5초 무적 + 이속 폭증 + 닿는 적 지속 데미지)
 let speedAoActive = false;
 let speedAoTimer = 0; 
 
-let bloodSplatters = []; // 잔몹 죽을 때 튀는 피 이펙트 배열
+let bloodSplatters = [];
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
@@ -358,9 +357,8 @@ window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35)); }
 
-// Q 스킬 5초 무적 적용을 위한 체력 감소 함수 수정
 function takeDamage(damage) {
-    if(speedAoActive) return; // Q 스킬 사용 중(5초 무적)에는 데미지를 받지 않음
+    if(speedAoActive) return; 
     player.hp -= damage; 
     lastHitTime = Date.now();
 }
@@ -396,7 +394,8 @@ function selectChar(type) {
     document.getElementById('sk-r').innerText = skNames[type][2];
     document.getElementById('sk-t').innerText = skNames[type][3];
 
-    for(let i=0; i<30; i++) spawnCurse();
+    // 게임 시작 시 잔몹 소환량 대폭 증가 (50마리)
+    for(let i=0; i<50; i++) spawnCurse();
     spawnBoss();
     gameLoop();
 }
@@ -406,7 +405,6 @@ document.getElementById('card-sukuna').addEventListener('click', () => selectCha
 document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
 document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
-// [오토에임 기능] 가장 가까운 적을 자동으로 탐색하여 조준 각도 반환
 function getAutoAimAngle() {
     if(enemies.length === 0) return 0;
     let closestEnemy = null;
@@ -433,7 +431,6 @@ function performAutoAttack() {
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
-    // 마우스 대신 오토에임 함수로 각도 자동 계산
     let ang = getAutoAimAngle();
 
     addUlt(0.8);
@@ -447,9 +444,10 @@ function performAutoAttack() {
     if(player.charType === 'Gojo') {
         let shotX = player.x + Math.cos(ang) * 20;
         let shotY = player.y + Math.sin(ang) * 20;
+        // 평타 데미지 낮춤 (950 -> 250)
         projectiles.push({
             x: shotX, y: shotY, vx: Math.cos(ang)*16, vy: Math.sin(ang)*16,
-            damage: 950, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
+            damage: 250, radius: 14, color: '#00d2ff', type:'gojo_hq_basic', trailTimer: 25
         });
         for(let i=0; i<8; i++) {
             highQualityShots.push({
@@ -458,9 +456,11 @@ function performAutoAttack() {
             });
         }
     } else if(player.charType === 'Sukuna') {
-        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 800});
+        // 스쿠나 평타 참격 데미지 낮춤 (800 -> 200)
+        slashes.push({x: player.x + Math.cos(ang)*30, y: player.y + Math.sin(ang)*30, ang: ang, length: 80, life: 6, damage: 200});
     } else {
-        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 600, radius: 8, color: '#2ecc71', type:'normal'});
+        // 메구미 평타 데미지 낮춤 (600 -> 180)
+        projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 180, radius: 8, color: '#2ecc71', type:'normal'});
     }
 }
 
@@ -488,7 +488,6 @@ function castSkill(key) {
     showDialogue(dialogues[player.charType][key]);
 
     if(key === 'Q') {
-        // Q 스킬: 30초 쿨타임, 5초(300프레임) 동안 무적 + 이속 폭증 + 닿는 적 아오 지속 데미지
         cooldowns.Q = 30;
         speedAoActive = true;
         speedAoTimer = 300; 
@@ -575,7 +574,7 @@ function spawnCurse() {
     let isRanged = Math.random() < 0.4;
     enemies.push({
         x: x, y: y, radius: isRanged ? 18 : 22,
-        hp: isRanged ? 100 : 150, maxHp: isRanged ? 100 : 150, // 잔몹 체력을 낮게 설정하여 데미지 증가 시 원킬 가능
+        hp: isRanged ? 100 : 150, maxHp: isRanged ? 100 : 150,
         speed: isRanged ? 2.0 : 2.8,
         isBoss: false, isRanged: isRanged, attackCd: 0
     });
@@ -657,7 +656,6 @@ function update() {
 
     performAutoAttack();
 
-    // Q 스킬 (신속 아오 버프): 5초 무적 + 이속 폭증 + 닿는 적 아오 지속 데미지
     if(speedAoActive) {
         speedAoTimer--;
         player.speed = player.baseSpeed * 2.5; 
@@ -669,7 +667,7 @@ function update() {
         enemies.forEach(e => {
             let dist = Math.hypot(e.x - player.x, e.y - player.y);
             if(dist < e.radius + 20) {
-                e.hp -= 50.0; // 닿는 적에게 강력한 지속 데미지
+                e.hp -= 50.0; 
             }
         });
 
@@ -709,7 +707,8 @@ function update() {
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
-    if(enemies.filter(e => !e.isBoss).length < 35) spawnCurse();
+    // 잔몹 소환량을 80마리 이상으로 대폭 증가
+    if(enemies.filter(e => !e.isBoss).length < 80) spawnCurse();
 
     if(activeDomain) {
         activeDomain.timer--;
@@ -747,7 +746,6 @@ function update() {
         if(wt.life <= 0) windTrails.splice(wti, 1);
     });
 
-    // 피 흘림(출혈) 이펙트 업데이트
     bloodSplatters.forEach((bs, bsi) => {
         bs.life--;
         bs.x += bs.vx;
@@ -986,7 +984,6 @@ function update() {
                     showDialogue(`🎉 축하합니다! 100단계 보스 정복!`);
                 }
             } else {
-                // [잔몹 죽을 때 피 흘리는 연출] 사망 위치에 피 파티클 다수 생성
                 for(let b=0; b<12; b++) {
                     let bAng = Math.random() * Math.PI * 2;
                     let bSpd = Math.random() * 5 + 2;
@@ -1099,7 +1096,6 @@ function draw() {
         ctx.restore();
     });
 
-    // Q 스킬(5초 무적) 활성화 시 플레이어 주위에 화려한 무적 보호막 시각 효과 렌더링
     if(speedAoActive) {
         ctx.save();
         ctx.strokeStyle = 'rgba(255, 215, 0, 0.9)';
@@ -1146,7 +1142,6 @@ function draw() {
     for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
     for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke(); }
 
-    // 피 흘림(출혈) 입자 렌더링
     bloodSplatters.forEach(bs => {
         ctx.fillStyle = '#c0392b';
         ctx.beginPath();
