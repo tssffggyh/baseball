@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 확장 맵 & 보스 패턴 강화 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 원작 보이스 사운드 패치")
 
 st.markdown("""
     <style>
@@ -161,7 +161,7 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (2배 맵 & 보스 다중 패턴 적용)</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (원작 링크 사운드 연동)</p>
         <div class="card-group">
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
@@ -212,15 +212,31 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+// 원작 보이스 링크(myinstants) 오디오 엘리먼트 초기화
+const domainAudio = new Audio('https://www.myinstants.com/media/sounds/gojo-domain-expansion-60533.mp3');
+domainAudio.volume = 1.0;
+
 let audioCtx = null;
 function initAudio() {
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(domainAudio.paused) {
+        domainAudio.play().catch(() => {});
+        domainAudio.pause();
+        domainAudio.currentTime = 0;
+    }
 }
 
 function playVoiceAndSound(type) {
     initAudio();
-    if(!audioCtx) return;
     
+    if(type === 'domain') {
+        // 보내주신 원작 고죠 영역전개 링크 음원 재생
+        domainAudio.currentTime = 0;
+        domainAudio.play().catch(err => console.log("Audio play error:", err));
+        return;
+    }
+
+    if(!audioCtx) return;
     let now = audioCtx.currentTime;
     let osc = audioCtx.createOscillator();
     let gain = audioCtx.createGain();
@@ -234,7 +250,6 @@ function playVoiceAndSound(type) {
         gain.gain.setValueAtTime(0.4, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
         osc.start(now); osc.stop(now + 0.35);
-        speakOriginalVoice('赤 (아카)');
     } else if(type === 'ao') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(90, now);
@@ -242,7 +257,6 @@ function playVoiceAndSound(type) {
         gain.gain.setValueAtTime(0.5, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
         osc.start(now); osc.stop(now + 0.5);
-        speakOriginalVoice('蒼 (아오)');
     } else if(type === 'purple') {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(220, now);
@@ -250,43 +264,9 @@ function playVoiceAndSound(type) {
         gain.gain.setValueAtTime(0.6, now);
         gain.gain.exponentialRampToValueAtTime(0.01, now + 0.9);
         osc.start(now); osc.stop(now + 0.9);
-        speakOriginalVoice('虚式 茈 (무라사키)');
-    } else if(type === 'domain') {
-        // 지정해주신 고죠 영역전개 원작 보이스 음성 및 타격음 싱크 구현
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(120, now);
-        osc.frequency.linearRampToValueAtTime(580, now + 0.85);
-        gain.gain.setValueAtTime(0.55, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.85);
-        osc.start(now); osc.stop(now + 0.85);
-
-        // 서브 베이스 앰비언스 추가
-        let sub = audioCtx.createOscillator();
-        let subGain = audioCtx.createGain();
-        sub.type = 'sawtooth';
-        sub.frequency.setValueAtTime(200, now);
-        sub.frequency.exponentialRampToValueAtTime(40, now + 0.9);
-        sub.connect(subGain); subGain.connect(audioCtx.destination);
-        subGain.gain.setValueAtTime(0.4, now);
-        subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.9);
-        sub.start(now); sub.stop(now + 0.9);
-
-        speakOriginalVoice('領域展開 · 無量空処');
     }
 }
 
-function speakOriginalVoice(text) {
-    if('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        let utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'ja-JP';
-        utterance.rate = 1.2;
-        utterance.pitch = 0.8;
-        window.speechSynthesis.speak(utterance);
-    }
-}
-
-// 맵 크기 2배 확장 (기존 3600x2700 -> 7200x5400)
 const WORLD_WIDTH = 7200;
 const WORLD_HEIGHT = 5400;
 
@@ -859,7 +839,6 @@ function update() {
         e.skillCd = (e.skillCd || 0) + 1;
         e.ultCd = (e.ultCd || 0) + 1;
 
-        // 일반 원거리 적 탄막
         if(e.isRanged && e.attackCd >= 80 && dist < 550 && e.speed > 0) {
             e.attackCd = 0;
             enemyProjectiles.push({
@@ -868,15 +847,12 @@ function update() {
             });
         }
 
-        // 보스 다중 패턴 스킬 추가
         if(e.isBoss && e.speed > 0) {
-            // 스킬 패턴 1: 전방 확산 탄막 발사 (60프레임 주기)
             if(e.skillCd >= 70) {
                 e.skillCd = 0;
                 let patternType = Math.floor(Math.random() * 3);
                 
                 if(patternType === 0) {
-                    // 5방향 확산 탄막
                     for(let i=-2; i<=2; i++) {
                         enemyProjectiles.push({
                             x: e.x, y: e.y, vx: Math.cos(ang + i*0.22)*11, vy: Math.sin(ang + i*0.22)*11,
@@ -884,13 +860,11 @@ function update() {
                         });
                     }
                 } else if(patternType === 1) {
-                    // 플레이어 위치 유도형 광역 폭발 생성
                     explosions.push({
                         x: player.x + (Math.random()-0.5)*120, y: player.y + (Math.random()-0.5)*120,
                         radius: 150, maxRadius: 150, color: 'rgba(231, 76, 60, 0.65)', life: 25, damage: e.dmg * 1.1
                     });
                 } else {
-                    // 360도 전방위 탄막 회전 발사
                     for(let i=0; i<8; i++) {
                         let rAng = (Math.PI * 2 / 8) * i;
                         enemyProjectiles.push({
@@ -901,7 +875,6 @@ function update() {
                 }
             }
 
-            // 보스 궁극 패턴: 대형 참격 러시 (240프레임 주기)
             if(e.ultCd >= 220) {
                 e.ultCd = 0;
                 showDialogue(`⚠️ [보스 궁극기] 파멸의 참격 파동 발동!`);
