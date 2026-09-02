@@ -122,7 +122,7 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#e056fd;">[영역전개 지속시간 대폭 연장]</span></div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP)</div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -168,15 +168,15 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[고죠 울트라 하이퀄리티 스킨 + 초소형 아오 + 지연형 허식 무라사키 + 잔해 아카 연계 자폭]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[허식 무라사키: 압축 ➔ 팽창 ➔ 팡 발사 연출]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
-                    • E: 술식반전 · 「赤」 (잔해 기폭 연계)<br>
-                    • R: 술식순전 · 「蒼」 (초소형화)<br>
-                    • T: 허식 「茈」 (지연형 팽창 ➔ 늦게 발사)<br>
+                    • E: 술식반전 · 「赤」<br>
+                    • R: 술식순전 · 「蒼」<br>
+                    • T: 허식 「茈」 (응축 ➔ 팽창 ➔ 팡 발사)<br>
                     • X: 무량공처
                 </p>
             </div>
@@ -280,8 +280,7 @@ let speedAoActive = false;
 let speedAoTimer = 0; 
 
 let bloodSplatters = [];
-let permanentCraters = []; 
-let debrisList = []; 
+let permanentCraters = []; // 지형 파괴 크레이터 및 잔해 누적 배열
 
 let player = {
     x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2,
@@ -292,7 +291,7 @@ let player = {
 
 let cooldowns = { Q: 0, E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { Q: 29, E: 5, R: 13, T: 16, X: 0 },
+    Gojo: { Q: 29, E: 8, R: 15, T: 24, X: 0 },
     Sukuna: { Q: 29, E: 7, R: 14, T: 21, X: 0 },
     Megumi: { Q: 29, E: 8, R: 15, T: 23, X: 0 }
 };
@@ -310,9 +309,9 @@ let projectiles = [];
 let enemyProjectiles = [];
 let slashes = [];
 let explosions = [];
-let blackHoles = [];      
-let blueOrbs = [];        
-let purpleProjectiles = []; 
+let blackHoles = [];     
+let blueOrbs = [];       
+let purpleProjectiles = []; // 무라사키 오브젝트 배열
 let laserBeams = [];
 let meleeAttacks = [];
 let enemies = [];
@@ -515,9 +514,8 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             playVoiceAndSound('ao_voice');
             triggerVibration(25);
-            // 아오 크기를 훨씬 작게 축소 (반경 70으로 대폭 축소)
             blackHoles.push({
-                orbitAngle: ang, orbitRadius: 80, radius: 140, life: 180, damage: 3000, x: player.x, y: player.y
+                orbitAngle: ang, orbitRadius: 260, radius: 650, life: 180, damage: 3000, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
@@ -534,19 +532,18 @@ function castSkill(key) {
         if(player.charType === 'Gojo') {
             addUlt(6.0);
             playVoiceAndSound('purple_voice');
-            triggerVibration(45);
+            triggerVibration(50);
             
-            // 무라사키를 조금 더 늦게 나가게 타이머와 팽창 단계를 더 길게 설정 (팽창 타이머 80, 대기 30)
+            // [수정된 무라사키 시스템]: 플레이어 전방에 생성 ➔ 콩알 압축 상태로 대기 ➔ 점점 커지는 팽창(growing) ➔ 팡 발사(beam)
             purpleProjectiles.push({
-                x: player.x + Math.cos(ang)*30, 
-                y: player.y + Math.sin(ang)*30,
-                vx: Math.cos(ang) * 13, 
-                vy: Math.sin(ang) * 13,
-                phase: 'expanding', 
-                timer: 80, 
-                currentRadius: 4,
-                maxRadius: 140,
-                life: 350, 
+                x: player.x + Math.cos(ang)*35, 
+                y: player.y + Math.sin(ang)*35,
+                vx: Math.cos(ang) * 16, 
+                vy: Math.sin(ang) * 16,
+                phase: 'expanding', // 1단계: 크기가 점점 커지는 팽창 단계
+                currentRadius: 4,     // 시작은 콩알만큼 아주 작게 압축
+                maxRadius: 110,       // 최대 팽창 크기
+                life: 300, 
                 damage: 9999, 
                 ang: ang
             });
@@ -756,34 +753,23 @@ function update() {
         if(bs.life <= 0) bloodSplatters.splice(bsi, 1);
     });
 
-    debrisList.forEach((d, di) => {
-        d.life--;
-        if(d.life <= 0) debrisList.splice(di, 1);
-    });
-
+    // [무라사키 팽창 ➔ 팡 발사 ➔ 적절한 잔해 크기 반영 로직]
     purpleProjectiles.forEach((pp, ppi) => {
         pp.life--;
         if(pp.phase === 'expanding') {
-            pp.timer--;
-            let progress = (80 - pp.timer) / 80;
-            pp.currentRadius = 4 + (pp.maxRadius - 4) * progress;
-            
-            if(pp.timer <= 0) {
-                pp.phase = 'charging';
-                pp.timer = 25; 
-                triggerVibration(20);
-            }
-        } else if(pp.phase === 'charging') {
-            pp.timer--;
-            if(pp.timer <= 0) {
-                pp.phase = 'firing';
+            pp.currentRadius += 5.0; // 원이 점점 커짐 (팽창 단계)
+            if(pp.currentRadius >= pp.maxRadius) {
+                pp.phase = 'firing'; // 최대 크기 도달 직후 '팡' 하고 전방으로 일직선 발사
                 triggerVibration(35);
-                permanentCraters.push({ x: pp.x, y: pp.y, radius: pp.maxRadius });
+                
+                // [잔해 크기 개선]: 과도하게 크지 않고 원이 팽창했던 크기에 알맞은 크레이터(잔해 흔적)만 남김
+                permanentCraters.push({ x: pp.x, y: pp.y, radius: pp.maxRadius * 0.85 });
             }
         } else if(pp.phase === 'firing') {
             pp.x += pp.vx * 2.5;
             pp.y += pp.vy * 2.5;
 
+            // 빔 경로상의 적 대미지 처리
             enemies.forEach(e => {
                 let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
                 if(dist < e.radius + pp.maxRadius) {
@@ -812,15 +798,26 @@ function update() {
             }
         });
 
+        enemyProjectiles.forEach((ep, epi) => {
+            if(Math.hypot(bh.x - ep.x, bh.y - ep.y) < bh.radius) {
+                enemyProjectiles.splice(epi, 1);
+            }
+        });
+
         if(bh.life <= 0) {
-            blueOrbs.push({ x: bh.x, y: bh.y, radius: 90, life: 350 });
-            explosions.push({x: bh.x, y: bh.y, radius: 150, maxRadius: 240, color: '#3742fa', life: 18, damage: bh.damage});
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 150, life: 350 });
+            explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 400, color: '#3742fa', life: 18, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
     });
 
     blueOrbs.forEach((bo, boi) => {
         bo.life--;
+        enemyProjectiles.forEach((ep, epi) => {
+            if(Math.hypot(bo.x - ep.x, bo.y - ep.y) < bo.radius) {
+                enemyProjectiles.splice(epi, 1);
+            }
+        });
         if(bo.life <= 0) blueOrbs.splice(boi, 1);
     });
 
@@ -855,30 +852,6 @@ function update() {
             p.traveled += Math.hypot(p.vx, p.vy);
             let reachedTarget = p.traveled >= p.maxDist;
 
-            let hitDebrisIdx = -1;
-            debrisList.forEach((deb, di) => {
-                if(Math.hypot(deb.x - p.x, deb.y - p.y) < deb.radius + p.radius) {
-                    hitDebrisIdx = di;
-                }
-            });
-
-            if(hitDebrisIdx !== -1) {
-                let deb = debrisList[hitDebrisIdx];
-                debrisList.splice(hitDebrisIdx, 1);
-
-                explosions.push({
-                    x: deb.x, y: deb.y, radius: 20, maxRadius: 450, color: 'rgba(168, 85, 247, 0.95)', life: 30, damage: 15000
-                });
-                permanentCraters.push({ x: deb.x, y: deb.y, radius: 450 });
-                triggerVibration(50);
-                showDialogue('자폭 무라사키 발동!');
-
-                player.hp = Math.max(1, player.hp * 0.5);
-
-                projectiles.splice(pi, 1);
-                return;
-            }
-
             let hitEnemy = false;
             enemies.forEach(e => {
                 if(Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
@@ -890,198 +863,338 @@ function update() {
                 explosions.push({
                     x: p.x, y: p.y, radius: 30, maxRadius: 320, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
                 });
-                permanentCraters.push({ x: p.x, y: p.y, radius: 320 });
-                projectiles.splice(pi, 1);
                 triggerVibration(25);
+                enemies.forEach(e => {
+                    if(Math.hypot(e.x - p.x, e.y - p.y) < 320) {
+                        e.hp -= p.damage;
+                    }
+                });
+                projectiles.splice(pi, 1);
+                return;
             }
-        } else {
-            enemies.forEach(e => {
-                if(Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
-                    e.hp -= p.damage;
+        }
+
+        if(p.type === 'gojo_hq_basic') {
+            p.trailTimer--;
+            if(p.trailTimer <= 0) {
+                p.trailTimer = 3;
+                highQualityShots.push({ x: p.x, y: p.y, vx: 0, vy: 0, radius: 4, life: 10, color: '#00d2ff' });
+            }
+        }
+
+        enemies.forEach((e) => {
+            if(p.type !== 'aka' && Math.hypot(e.x - p.x, e.y - p.y) < e.radius + p.radius) {
+                e.hp -= p.damage;
+                if(p.type === 'normal' || p.type === 'gojo_hq_basic') {
+                    for(let i=0; i<5; i++) {
+                        highQualityShots.push({
+                            x: p.x, y: p.y, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
+                            radius: Math.random()*3+2, life: 12, color: '#ffffff'
+                        });
+                    }
                     projectiles.splice(pi, 1);
                 }
-            });
-        }
+            }
+        });
+    });
+
+    explosions.forEach((ex, exi) => {
+        ex.life--;
+        if(ex.radius < ex.maxRadius) ex.radius += (ex.maxRadius - ex.radius) * 0.2;
+        enemies.forEach(e => { if(Math.hypot(e.x - ex.x, e.y - ex.y) < ex.radius) e.hp -= ex.damage / 15; });
+        if(ex.life <= 0) explosions.splice(exi, 1);
     });
 
     slashes.forEach((s, si) => {
         s.life--;
-        enemies.forEach(e => {
-            if(Math.hypot(e.x - s.x, e.y - s.y) < e.radius + 30) {
-                e.hp -= s.damage;
-            }
-        });
+        enemies.forEach(e => { if(Math.hypot(e.x - s.x, e.y - s.y) < s.length / 2) e.hp -= s.damage / 4; });
         if(s.life <= 0) slashes.splice(si, 1);
     });
 
-    explosions.forEach((ex, exi) => {
-        ex.radius += (ex.maxRadius - ex.radius) * 0.2;
-        ex.life--;
-        enemies.forEach(e => {
-            if(Math.hypot(e.x - ex.x, e.y - ex.y) < ex.radius + e.radius) {
-                e.hp -= (ex.damage / 10);
-            }
-        });
-        if(ex.life <= 0) explosions.splice(exi, 1);
-    });
+    enemies.forEach((e, ei) => {
+        if(activeDomain && activeDomain.type === 'Gojo') e.speed = 0;
+        else e.speed = e.isBoss ? e.speed : (e.isRanged ? 2.0 : 2.8);
 
-    enemies.forEach((e, idx) => {
-        if(activeDomain && activeDomain.type === 'Gojo') {
-            // 정지
+        let ang = Math.atan2(player.y - e.y, player.x - e.x);
+        let dist = Math.hypot(player.x - e.x, player.y - e.y);
+
+        if(player.charType === 'Gojo' && limitlessActive && dist < 130) {
+            e.x -= Math.cos(ang) * 14; 
+            e.y -= Math.sin(ang) * 14;
         } else {
-            let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
-            let ang = Math.atan2(player.y - e.y, player.x - e.x);
-            
-            if(e.isBoss) {
-                e.x += Math.cos(ang) * e.speed;
-                e.y += Math.sin(ang) * e.speed;
-
-                if(distToPlayer < 70) {
-                    takeDamage(e.dmg * 0.1);
-                }
+            if(e.isRanged && dist < 300) {
+                e.x -= Math.cos(ang) * e.speed;
+                e.y -= Math.sin(ang) * e.speed;
             } else {
                 e.x += Math.cos(ang) * e.speed;
                 e.y += Math.sin(ang) * e.speed;
-                if(distToPlayer < e.radius + 15) {
-                    takeDamage(1.2);
+            }
+        }
+
+        e.attackCd = (e.attackCd || 0) + 1;
+        e.skillCd = (e.skillCd || 0) + 1;
+
+        if(e.isRanged && e.attackCd >= 80 && dist < 550 && e.speed > 0) {
+            e.attackCd = 0;
+            enemyProjectiles.push({
+                x: e.x, y: e.y, vx: Math.cos(ang)*8, vy: Math.sin(ang)*8,
+                damage: 18, radius: 6
+            });
+        }
+
+        if(e.isBoss && e.speed > 0 && e.skillCd >= 70) {
+            e.skillCd = 0;
+            let patternType = Math.floor(Math.random() * 3);
+            if(patternType === 0) {
+                for(let i=-2; i<=2; i++) {
+                    enemyProjectiles.push({
+                        x: e.x, y: e.y, vx: Math.cos(ang + i*0.22)*11, vy: Math.sin(ang + i*0.22)*11,
+                        damage: e.dmg * 0.7, radius: 8
+                    });
                 }
+            } else {
+                explosions.push({
+                    x: player.x + (Math.random()-0.5)*120, y: player.y + (Math.random()-0.5)*120,
+                    radius: 20, maxRadius: 150, color: 'rgba(231, 76, 60, 0.65)', life: 25, damage: e.dmg * 1.1
+                });
+            }
+        }
+
+        if(!e.isRanged && dist < e.radius + 30 && e.speed > 0) {
+            if(e.attackCd >= (e.isBoss ? 20 : 40)) {
+                e.attackCd = 0;
+                let dmg = e.isBoss ? e.dmg : 14;
+                takeDamage(dmg);
+                triggerVibration(e.isBoss ? 15 : 6);
+                meleeAttacks.push({
+                    x: (e.x + player.x) / 2, y: (e.y + player.y) / 2,
+                    ang: ang, radius: e.isBoss ? e.radius + 10 : 25, life: 10, isBoss: e.isBoss
+                });
             }
         }
 
         if(e.hp <= 0) {
-            for(let i=0; i<12; i++) {
-                bloodSplatters.push({
-                    x: e.x, y: e.y,
-                    vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8,
-                    radius: Math.random()*6+3, life: 60, color: e.isBoss ? '#ff4757' : '#a855f7'
-                });
-            }
-
-            debrisList.push({
-                x: e.x, y: e.y, radius: 18, life: 600 
-            });
-
             if(e.isBoss) {
                 defeatedBosses++;
                 bossLevel++;
-                document.getElementById('kill-status').innerText = `처치한 보스: ${defeatedBosses} / 100`;
-                enemies.splice(idx, 1);
-
-                if(bossLevel <= 100) {
-                    startBossRespawnTimer();
-                } else {
-                    showDialogue('🎉 모든 주령을 토벌했습니다!');
-                }
+                addUlt(8.0);
+                enemies.splice(ei, 1);
+                if(bossLevel <= 100) startBossRespawnTimer();
             } else {
+                for(let b=0; b<12; b++) {
+                    let bAng = Math.random() * Math.PI * 2;
+                    let bSpd = Math.random() * 5 + 2;
+                    bloodSplatters.push({
+                        x: e.x, y: e.y, vx: Math.cos(bAng)*bSpd, vy: Math.sin(bAng)*bSpd,
+                        radius: Math.random()*4+2, life: Math.random()*30+20
+                    });
+                }
                 normalKillCount++;
-                document.getElementById('mob-kill-status').innerText = `처치한 일반 주령: ${normalKillCount}마리`;
-                addUlt(2.0);
-                enemies.splice(idx, 1);
+                addUlt(0.5);
+                enemies.splice(ei, 1);
             }
         }
     });
 
-    let hpPct = Math.max(0, (player.hp / player.maxHp) * 100);
-    let ultPct = Math.max(0, (player.ultEnergy / player.maxUlt) * 100);
-    document.getElementById('hp-bar').style.width = hpPct + '%';
-    document.getElementById('ult-bar').style.width = ultPct + '%';
+    document.getElementById('hp-bar').style.width = Math.max(0, (player.hp / player.maxHp * 100)) + '%';
+    document.getElementById('ult-bar').style.width = Math.min(100, (player.ultEnergy / player.maxUlt * 100)) + '%';
+    document.getElementById('kill-status').innerText = `처치한 보스: ${defeatedBosses} / 100`;
+    document.getElementById('mob-kill-status').innerText = `처치한 일반 주령: ${normalKillCount}마리`;
+}
+
+function drawPlayerSprite(p) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(p.facing, 1);
+
+    if(p.charType === 'Gojo') {
+        ctx.shadowBlur = 20; ctx.shadowColor = '#70a1ff';
+        ctx.fillStyle = '#0a0a14'; ctx.fillRect(-10, -16, 20, 32);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(-9, -32, 18, 12);
+        ctx.fillStyle = '#70a1ff'; ctx.fillRect(-7, -24, 14, 4);
+        ctx.shadowBlur = 0;
+    } else if(p.charType === 'Sukuna') {
+        ctx.fillStyle = '#111'; ctx.fillRect(-10, -16, 20, 32);
+        ctx.fillStyle = '#ff7675'; ctx.fillRect(-9, -32, 18, 10);
+        ctx.fillStyle = '#ff4757'; ctx.fillRect(-6, -24, 12, 3);
+    } else {
+        ctx.fillStyle = '#0f172a'; ctx.fillRect(-10, -16, 20, 32);
+        ctx.fillStyle = '#1e293b'; ctx.fillRect(-11, -34, 22, 12);
+    }
+    ctx.restore();
+}
+
+function drawEnemySprite(e) {
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    if(e.isBoss) {
+        ctx.shadowBlur = 25 + Math.floor(e.level / 4); ctx.shadowColor = e.aura;
+        ctx.fillStyle = e.color;
+        ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
+        
+        ctx.fillStyle = e.aura;
+        for(let i=0; i<e.spikes; i++) {
+            let spikeAng = (Math.PI * 2 / e.spikes) * i;
+            let sx = Math.cos(spikeAng) * (e.radius + 12);
+            let sy = Math.sin(spikeAng) * (e.radius + 12);
+            ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI*2); ctx.fill();
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ff4757';
+        ctx.font = 'bold 16px Consolas';
+        ctx.textAlign = 'center';
+        ctx.fillText(`[LV.${e.level}]`, 0, -e.radius - 18);
+    } else {
+        if(e.isRanged) {
+            ctx.fillStyle = '#8e44ad';
+            ctx.beginPath();
+            ctx.moveTo(0, -e.radius); ctx.lineTo(e.radius, 0); ctx.lineTo(0, e.radius); ctx.lineTo(-e.radius, 0);
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#e056fd'; ctx.lineWidth = 2; ctx.stroke();
+        } else {
+            ctx.fillStyle = '#1e272e';
+            ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#57606f'; ctx.lineWidth = 2; ctx.stroke();
+            
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath(); ctx.arc(-6, -4, 4, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(6, -4, 4, 0, Math.PI*2); ctx.fill();
+        }
+    }
+    ctx.restore();
 }
 
 function draw() {
-    ctx.fillStyle = '#020204';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
     ctx.save();
-    let shakeX = (Math.random() - 0.5) * screenShake;
-    let shakeY = (Math.random() - 0.5) * screenShake;
-    ctx.translate(Math.floor(-camera.x + shakeX), Math.floor(-camera.y + shakeY));
+    if(screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
 
-    ctx.strokeStyle = 'rgba(168, 85, 247, 0.08)';
-    ctx.lineWidth = 1;
-    let gridSize = 120;
-    for(let x=0; x<=WORLD_WIDTH; x+=gridSize) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke();
-    }
-    for(let y=0; y<=WORLD_HEIGHT; y+=gridSize) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke();
-    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.translate(-camera.x, -camera.y);
 
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.06)'; ctx.lineWidth = 1;
+    for(let x=0; x<WORLD_WIDTH; x+=100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
+    for(let y=0; y<WORLD_HEIGHT; y+=100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke(); }
+
+    // 적당한 크기로 조절된 지형 파괴 크레이터 및 잔해 렌더링
     permanentCraters.forEach(cr => {
-        ctx.save();
-        ctx.fillStyle = 'rgba(5, 2, 10, 0.65)';
-        ctx.beginPath(); ctx.arc(cr.x, cr.y, cr.radius * 0.85, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)';
-        ctx.lineWidth = 4;
-        ctx.stroke();
-        ctx.restore();
-    });
-
-    debrisList.forEach(deb => {
-        ctx.save();
-        ctx.fillStyle = '#4b4b65';
-        ctx.beginPath(); ctx.arc(deb.x, deb.y, deb.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = '#e056fd'; ctx.font = '9px Consolas'; ctx.textAlign = 'center';
-        ctx.fillText('잔해', deb.x, deb.y - deb.radius - 4);
-        ctx.restore();
-    });
-
-    bloodSplatters.forEach(bs => {
-        ctx.fillStyle = bs.color;
-        ctx.beginPath(); ctx.arc(bs.x, bs.y, bs.radius, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(14, 14, 24, 0.88)';
+        ctx.beginPath(); ctx.arc(cr.x, cr.y, cr.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.3)'; ctx.lineWidth = 3; ctx.stroke();
     });
 
     windTrails.forEach(wt => {
+        let alpha = wt.life / 15;
         ctx.save();
-        ctx.strokeStyle = `rgba(112, 161, 255, ${wt.alpha})`;
+        ctx.strokeStyle = `rgba(180, 230, 255, ${alpha})`;
         ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(wt.x, wt.y, wt.radius, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(wt.x, wt.y, wt.radius, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
     });
 
-    blueOrbs.forEach(bo => {
+    if(speedAoActive) {
         ctx.save();
-        ctx.fillStyle = 'rgba(55, 66, 250, 0.18)';
-        ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#3742fa'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.9)';
+        ctx.lineWidth = 4; ctx.shadowBlur = 25; ctx.shadowColor = '#ffd700';
+        ctx.beginPath(); ctx.arc(player.x, player.y, 45, 0, Math.PI * 2); ctx.stroke();
         ctx.restore();
+    }
+
+    if(player.charType === 'Gojo' && limitlessActive) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
+        ctx.lineWidth = 3; ctx.shadowBlur = 20; ctx.shadowColor = '#70a1ff';
+        ctx.beginPath(); ctx.arc(player.x, player.y, 130, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(112, 161, 255, 0.06)'; ctx.fill();
+        ctx.restore();
+    }
+
+    if(activeDomain) {
+        if(activeDomain.type === 'Gojo') {
+            ctx.fillStyle = 'rgba(5, 5, 20, 0.85)';
+            ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
+            ctx.fillStyle = '#70a1ff';
+            for(let i=0; i<30; i++) {
+                let sx = camera.x + (Math.sin(i * 99 + Date.now()*0.002) * 0.5 + 0.5) * canvas.width;
+                let sy = camera.y + (Math.cos(i * 33 + Date.now()*0.002) * 0.5 + 0.5) * canvas.height;
+                ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill();
+            }
+        } else {
+            ctx.fillStyle = 'rgba(40, 5, 5, 0.75)';
+            ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
+        }
+    }
+
+    bloodSplatters.forEach(bs => {
+        ctx.fillStyle = '#c0392b';
+        ctx.beginPath(); ctx.arc(bs.x, bs.y, bs.radius, 0, Math.PI * 2); ctx.fill();
     });
 
     blackHoles.forEach(bh => {
-        ctx.save();
-        ctx.fillStyle = 'rgba(10, 10, 30, 0.85)';
-        ctx.beginPath(); ctx.arc(bh.x, bh.y, bh.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 4; ctx.stroke();
-        ctx.restore();
+        ctx.shadowBlur = 55; ctx.shadowColor = '#3742fa';
+        ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, 140, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 8; ctx.stroke();
+        ctx.shadowBlur = 0;
     });
 
+    blueOrbs.forEach(bo => {
+        let alpha = bo.life / 350;
+        ctx.shadowBlur = 70; ctx.shadowColor = '#0026ff';
+        ctx.fillStyle = `rgba(0, 38, 255, ${alpha})`;
+        ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 10; ctx.stroke();
+        ctx.shadowBlur = 0;
+    });
+
+    // [무라사키 팽창 연출 렌더링]: 작게 시작해 점차 팽창하다가 '팡' 발사되는 빔
     purpleProjectiles.forEach(pp => {
         ctx.save();
+        ctx.shadowBlur = 80;
+        ctx.shadowColor = '#a855f7';
         if(pp.phase === 'expanding') {
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.75)';
-            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.currentRadius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#d290ff'; ctx.lineWidth = 3; ctx.stroke();
-            ctx.shadowBlur = 25; ctx.shadowColor = '#a855f7';
-        } else if(pp.phase === 'charging') {
-            let isFlash = Math.floor(Date.now() / 40) % 2 === 0;
-            ctx.fillStyle = isFlash ? 'rgba(255, 255, 255, 0.95)' : 'rgba(224, 86, 253, 0.95)';
-            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = isFlash ? 8 : 4; ctx.stroke();
-            ctx.shadowBlur = 60; ctx.shadowColor = '#ffffff';
-        } else if(pp.phase === 'firing') {
-            ctx.fillStyle = '#e056fd';
-            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke();
-            ctx.shadowBlur = 70; ctx.shadowColor = '#a855f7';
+            ctx.fillStyle = '#7000ff';
+            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.currentRadius, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#e056fd'; ctx.lineWidth = 6; ctx.stroke();
+        } else {
+            ctx.fillStyle = '#7000ff';
+            ctx.beginPath(); ctx.arc(pp.x, pp.y, pp.maxRadius, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 10; ctx.stroke();
         }
         ctx.restore();
     });
 
-    explosions.forEach(ex => {
+    if(mahoraga) {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(mahoraga.x, mahoraga.y, 30, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 4; ctx.stroke();
+    }
+
+    enemies.forEach(e => drawEnemySprite(e));
+
+    enemyProjectiles.forEach(ep => {
+        ctx.fillStyle = '#ff4757';
+        ctx.beginPath(); ctx.arc(ep.x, ep.y, ep.radius, 0, Math.PI*2); ctx.fill();
+    });
+
+    meleeAttacks.forEach(ma => {
         ctx.save();
-        ctx.fillStyle = ex.color;
-        ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.radius, 0, Math.PI*2); ctx.fill();
+        ctx.translate(ma.x, ma.y);
+        ctx.rotate(ma.ang);
+        ctx.strokeStyle = ma.isBoss ? '#ff4757' : '#ff6b81';
+        ctx.lineWidth = ma.isBoss ? 6 : 4;
+        ctx.beginPath(); ctx.arc(0, 0, ma.radius, -Math.PI/3, Math.PI/3); ctx.stroke();
         ctx.restore();
+    });
+
+    slashes.forEach(s => {
+        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(s.x - Math.cos(s.ang)*s.length/2, s.y - Math.sin(s.ang)*s.length/2);
+        ctx.lineTo(s.x + Math.cos(s.ang)*s.length/2, s.y + Math.sin(s.ang)*s.length/2);
+        ctx.stroke();
     });
 
     highQualityShots.forEach(hs => {
@@ -1089,95 +1202,32 @@ function draw() {
         ctx.beginPath(); ctx.arc(hs.x, hs.y, hs.radius, 0, Math.PI*2); ctx.fill();
     });
 
+    explosions.forEach(ex => {
+        ctx.fillStyle = ex.color;
+        ctx.beginPath(); ctx.arc(ex.x, ex.y, ex.radius, 0, Math.PI*2); ctx.fill();
+    });
+
     projectiles.forEach(p => {
-        ctx.fillStyle = p.color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
-    });
-
-    enemyProjectiles.forEach(ep => {
-        ctx.fillStyle = ep.color;
-        ctx.beginPath(); ctx.arc(ep.x, ep.y, ep.radius, 0, Math.PI*2); ctx.fill();
-    });
-
-    slashes.forEach(s => {
         ctx.save();
-        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(s.x + Math.cos(s.ang)*s.length, s.y + Math.sin(s.ang)*s.length);
-        ctx.stroke();
+        if(p.type === 'gojo_hq_basic') {
+            ctx.shadowBlur = 20; ctx.shadowColor = '#00d2ff';
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 4; ctx.stroke();
+        } else if(p.type === 'aka') {
+            ctx.shadowBlur = 35; ctx.shadowColor = '#ff4757';
+            ctx.fillStyle = '#ff6b81';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
+        } else {
+            ctx.shadowBlur = 10; ctx.shadowColor = '#70a1ff';
+            ctx.fillStyle = p.color || '#3742fa';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
+        }
         ctx.restore();
     });
 
-    enemies.forEach(e => {
-        ctx.save();
-        ctx.fillStyle = e.color;
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = e.aura; ctx.lineWidth = e.isBoss ? 5 : 2; ctx.stroke();
-
-        let barW = e.radius * 2;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(e.x - barW/2, e.y - e.radius - 14, barW, 6);
-        ctx.fillStyle = e.isBoss ? '#ff4757' : '#a855f7';
-        ctx.fillRect(e.x - barW/2, e.y - e.radius - 14, barW * (e.hp / e.maxHp), 6);
-
-        ctx.fillStyle = '#fff'; ctx.font = '11px Consolas'; ctx.textAlign = 'center';
-        ctx.fillText(e.name || '주령', e.x, e.y - e.radius - 18);
-        ctx.restore();
-    });
-
-    if(mahoraga) {
-        ctx.save();
-        ctx.fillStyle = '#f1c40f';
-        ctx.beginPath(); ctx.arc(mahoraga.x, mahoraga.y, 35, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-        ctx.fillStyle = '#000'; ctx.font = 'bold 12px Consolas'; ctx.textAlign = 'center';
-        ctx.fillText('마허라', mahoraga.x, mahoraga.y - 40);
-        ctx.restore();
-    }
-
-    // [고죠 울트라 하이퀄리티 스킨 렌더링 - 더 디테일한 무하한 오라 및 복장 연출]
-    ctx.save();
-    if(player.charType === 'Gojo') {
-        let pulse = Math.sin(Date.now() / 120) * 6;
-        
-        // 외곽 무하한 결계 링 2중 효과
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.6)';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.arc(player.x, player.y, 34 + pulse, 0, Math.PI*2); ctx.stroke();
-
-        ctx.strokeStyle = 'rgba(112, 161, 255, 0.35)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(player.x, player.y, 44 - pulse, 0, Math.PI*2); ctx.stroke();
-
-        // 고죠 캐릭터 본체 (하이퀄리티 디자인)
-        ctx.fillStyle = '#0652dd';
-        ctx.beginPath(); ctx.arc(player.x, player.y, 23, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 4; ctx.stroke();
-
-        // 눈가 안대 디자인 및 푸른 안광 디테일
-        ctx.fillStyle = '#1e272e';
-        ctx.beginPath(); ctx.rect(player.x - 14, player.y - 7, 28, 6); ctx.fill();
-        ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 1; ctx.stroke();
-
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(player.x + player.facing * 5, player.y - 4, 3.5, 0, Math.PI*2); ctx.fill();
-    } else {
-        ctx.fillStyle = player.charType === 'Sukuna' ? '#ff4757' : '#2ecc71';
-        ctx.beginPath(); ctx.arc(player.x, player.y, 22, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
-    }
-
-    if(limitlessActive) {
-        ctx.strokeStyle = 'rgba(112, 161, 255, 0.75)';
-        ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.arc(player.x, player.y, 48, 0, Math.PI*2); ctx.stroke();
-    }
-
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Consolas'; ctx.textAlign = 'center';
-    ctx.fillText(player.charType === 'Gojo' ? '고죠 사토루' : (player.charType === 'Sukuna' ? '스쿠나' : '메구미'), player.x, player.y - 40);
-    ctx.restore();
-
+    drawPlayerSprite(player);
     ctx.restore();
 }
 
@@ -1191,4 +1241,4 @@ function gameLoop() {
 </html>
 """
 
-components.html(game_html, height=850, scrolling=False)
+components.html(game_html, height=950)
