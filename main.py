@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 자폭 허식 '茈' 컴비네이션 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 자폭 무라사키 & 대범위 아오/아카 개정판")
 
 st.markdown("""
     <style>
@@ -119,7 +119,7 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:16px;">주술사</div>
-                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#e056fd;">[자폭 무라사키 콤비네이션 패치]</span></div>
+                <div style="font-size:10px; color:#aaa; margin-top:4px;">체력 (HP) <span style="color:#e056fd;">[대범위 아오/아카 개정판]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:10px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -165,14 +165,14 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">[아오 잔해 + 아카 = 자폭 무라사키 콤비네이션 패치]</p>
+        <p style="color:#a1a1aa; margin-top:10px;">[술식순전 '아오' & 술식반전 '아카' 대범위 확장 패치]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
                     • Q: 신속 아오 폭주 (무적 버프)<br>
-                    • E: 아카 (아오 잔해 유도 시 자폭 茈 발동)<br>
-                    • R: 아오 (발사체 흡수 & 잔해 생성)<br>
+                    • E: 술식반전 · 「赤」 (광역 밀쳐내기 & 자폭 茈 유도)<br>
+                    • R: 술식순전 · 「蒼」 (대형 블랙홀 당기기 & 대형 잔해 생성)<br>
                     • T: 대형 허식 「茈」 / X: 무량공처
                 </p>
             </div>
@@ -213,8 +213,6 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-const yowaimoAudio = new Audio('https://www.myinstants.com/media/sounds/yowai-mo-gojo-77212.mp3');
-yowaimoAudio.volume = 0.8;
 const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
 aoAudio.volume = 1.0;
 const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
@@ -223,7 +221,7 @@ purpleAudio.volume = 1.0;
 let audioCtx = null;
 function initAudio() {
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    [yowaimoAudio, aoAudio, purpleAudio].forEach(audio => {
+    [aoAudio, purpleAudio].forEach(audio => {
         if(audio.paused) {
             audio.play().catch(() => {});
             audio.pause();
@@ -234,7 +232,6 @@ function initAudio() {
 
 function playVoiceAndSound(type) {
     initAudio();
-    if(type === 'yowaimo') { yowaimoAudio.currentTime = 0; yowaimoAudio.play().catch(err => {}); return; }
     if(type === 'ao_voice') { aoAudio.currentTime = 0; aoAudio.play().catch(err => {}); return; }
     if(type === 'purple_voice') { purpleAudio.currentTime = 0; purpleAudio.play().catch(err => {}); return; }
 
@@ -295,7 +292,7 @@ let maxCooldowns = {
 };
 
 let dialogues = {
-    Gojo: { Q: '신속 아오 폭주 (무적)', E: '술식 순전 · 「赤」', R: '술식 반전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
+    Gojo: { Q: '신속 아오 폭주 (무적)', E: '술식반전 · 「赤」', R: '술식순전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
     Sukuna: { Q: '신속 아오 폭주 (무적)', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
     Megumi: { Q: '신속 아오 폭주 (무적)', E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
 };
@@ -436,11 +433,6 @@ function performAutoAttack() {
     addUlt(0.8);
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
-    if(player.charType === 'Gojo' && Math.random() < 0.25) {
-        playVoiceAndSound('yowaimo');
-        showDialogue('「약하니까요」');
-    }
-
     if(player.charType === 'Gojo') {
         let shotX = player.x + Math.cos(ang) * 20;
         let shotY = player.y + Math.sin(ang) * 20;
@@ -496,10 +488,10 @@ function castSkill(key) {
         addUlt(2.5);
         
         if(player.charType === 'Gojo') {
+            // E스킬: 아카 (술식반전 아카) - 대범위 확장 및 잔해 유도
             playVoiceAndSound('aka');
-            triggerVibration(25);
+            triggerVibration(30);
             
-            // 아오 잔해(blueOrbs)가 존재하면 아카가 무조건 그 잔해를 향해 날아가 자폭 무라사키 유도
             let targetOrb = blueOrbs.length > 0 ? blueOrbs[0] : null;
             let finalVx = Math.cos(ang)*18;
             let finalVy = Math.sin(ang)*18;
@@ -518,8 +510,8 @@ function castSkill(key) {
                 x: player.x, y: player.y, 
                 targetX: targetXPos, targetY: targetYPos,
                 vx: finalVx, vy: finalVy,
-                type: 'aka', damage: 3000, radius: 16,
-                maxDist: targetOrb ? Math.hypot(targetOrb.x - player.x, targetOrb.y - player.y) : 300, 
+                type: 'aka', damage: 3500, radius: 28, // 반경을 더욱 크게 확대
+                maxDist: targetOrb ? Math.hypot(targetOrb.x - player.x, targetOrb.y - player.y) : 350, 
                 traveled: 0, targetOrb: targetOrb
             });
         } else if(player.charType === 'Sukuna') {
@@ -534,10 +526,11 @@ function castSkill(key) {
         addUlt(4.0);
         
         if(player.charType === 'Gojo') {
+            // R스킬: 아오 (술식순전 아오) - 대형 블랙홀 및 대범위 흡수 장치
             playVoiceAndSound('ao_voice');
-            triggerVibration(20);
+            triggerVibration(25);
             blackHoles.push({
-                orbitAngle: ang, orbitRadius: 240, radius: 400, life: 180, damage: 2500, x: player.x, y: player.y
+                orbitAngle: ang, orbitRadius: 260, radius: 650, life: 180, damage: 3000, x: player.x, y: player.y // 범위 대폭 확장
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
@@ -798,8 +791,8 @@ function update() {
             let d = Math.hypot(bh.x - e.x, bh.y - e.y);
             if(d < bh.radius) {
                 let pullAng = Math.atan2(bh.y - e.y, bh.x - e.x);
-                e.x += Math.cos(pullAng) * 13;
-                e.y += Math.sin(pullAng) * 13;
+                e.x += Math.cos(pullAng) * 15;
+                e.y += Math.sin(pullAng) * 15;
             }
         });
 
@@ -810,8 +803,8 @@ function update() {
         });
 
         if(bh.life <= 0) {
-            blueOrbs.push({ x: bh.x, y: bh.y, radius: 95, life: 350 });
-            explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 260, color: '#3742fa', life: 18, damage: bh.damage});
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 150, life: 350 }); // 아오 잔해 크기 확장
+            explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 400, color: '#3742fa', life: 18, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
     });
@@ -854,7 +847,6 @@ function update() {
         p.x += p.vx; p.y += p.vy;
 
         if(p.type === 'aka') {
-            // 아오 잔해가 도중에 소멸했는지 체크하고 실시간 유도
             if(p.targetOrb) {
                 let orbExists = blueOrbs.includes(p.targetOrb);
                 if(orbExists) {
@@ -871,7 +863,7 @@ function update() {
             blueOrbs.forEach((bo, boi) => {
                 if(Math.hypot(bo.x - p.x, bo.y - p.y) < bo.radius + p.radius) {
                     hitOrb = true;
-                    blueOrbs.splice(boi, 1); // 잔해 소모
+                    blueOrbs.splice(boi, 1);
                 }
             });
 
@@ -883,27 +875,26 @@ function update() {
             });
 
             if(reachedTarget || hitEnemy || hitOrb) {
-                if(hitOrb || (p.targetOrb && Math.hypot(p.x - p.targetOrb.x, p.y - p.targetOrb.y) < 100)) {
-                    // 자폭 무라사키 발동! 맵 전체 데미지 10000 + 현재 체력의 50% 차감
+                if(hitOrb || (p.targetOrb && Math.hypot(p.x - p.targetOrb.x, p.y - p.targetOrb.y) < 120)) {
                     playVoiceAndSound('purple_voice');
                     showDialogue('「자폭 허식 · 茈」');
                     triggerVibration(50);
 
                     explosions.push({
-                        x: p.x, y: p.y, radius: 40, maxRadius: 900, color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 10000
+                        x: p.x, y: p.y, radius: 40, maxRadius: 1100, color: 'rgba(168, 85, 247, 0.95)', life: 40, damage: 10000
                     });
 
                     enemies.forEach(e => {
                         e.hp -= 10000;
-                        e.hp -= e.maxHp * 0.5; // 현재 체력 / 최대 체력 비례 50% 추가 깎기
+                        e.hp -= e.maxHp * 0.5;
                     });
                 } else {
                     explosions.push({
-                        x: p.x, y: p.y, radius: 20, maxRadius: 160, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
+                        x: p.x, y: p.y, radius: 30, maxRadius: 320, color: 'rgba(255, 71, 87, 0.85)', life: 20, damage: p.damage
                     });
-                    triggerVibration(20);
+                    triggerVibration(25);
                     enemies.forEach(e => {
-                        if(Math.hypot(e.x - p.x, e.y - p.y) < 160) {
+                        if(Math.hypot(e.x - p.x, e.y - p.y) < 320) {
                             e.hp -= p.damage;
                         }
                     });
@@ -1210,19 +1201,19 @@ function draw() {
     });
 
     blackHoles.forEach(bh => {
-        ctx.shadowBlur = 45; ctx.shadowColor = '#3742fa';
+        ctx.shadowBlur = 55; ctx.shadowColor = '#3742fa';
         ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
-        ctx.beginPath(); ctx.arc(bh.x, bh.y, 85, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 6; ctx.stroke();
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, 140, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 8; ctx.stroke();
         ctx.shadowBlur = 0;
     });
 
     blueOrbs.forEach(bo => {
         let alpha = bo.life / 350;
-        ctx.shadowBlur = 50; ctx.shadowColor = '#0026ff';
+        ctx.shadowBlur = 70; ctx.shadowColor = '#0026ff';
         ctx.fillStyle = `rgba(0, 38, 255, ${alpha})`;
         ctx.beginPath(); ctx.arc(bo.x, bo.y, bo.radius, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 8; ctx.stroke();
+        ctx.strokeStyle = `rgba(100, 200, 255, ${alpha})`; ctx.lineWidth = 10; ctx.stroke();
         ctx.shadowBlur = 0;
     });
 
@@ -1296,10 +1287,10 @@ function draw() {
             ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#00d2ff'; ctx.lineWidth = 4; ctx.stroke();
         } else if(p.type === 'aka') {
-            ctx.shadowBlur = 25; ctx.shadowColor = '#ff4757';
+            ctx.shadowBlur = 35; ctx.shadowColor = '#ff4757';
             ctx.fillStyle = '#ff6b81';
             ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
         } else {
             ctx.shadowBlur = 10; ctx.shadowColor = '#70a1ff';
             ctx.fillStyle = p.color || '#3742fa';
