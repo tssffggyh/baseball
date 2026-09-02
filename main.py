@@ -82,10 +82,10 @@ game_html = """
     }
     #dialogue-text { font-size: 24px; font-weight: bold; color: #e0f2fe; letter-spacing: 3px; }
 
-    #class-select, #game-over {
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    #class-select {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
         background: rgba(3, 3, 6, 0.98); backdrop-filter: blur(15px);
-        display: flex; flex-direction: column; justify-content: center; z-index: 100;
+        display: flex; flex-direction: column; justify-content: center; z-index: 9999;
         align-items: center; pointer-events: auto;
     }
     .card-group { display: flex; gap: 30px; margin-top: 40px; }
@@ -101,6 +101,12 @@ game_html = """
     .card h2 { margin-bottom: 12px; font-size: 26px; }
     .card p { font-size: 12px; color: #a1a1aa; line-height: 1.6; text-align: left; }
     
+    #game-over {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(3, 3, 6, 0.98); backdrop-filter: blur(15px);
+        display: none; flex-direction: column; justify-content: center; z-index: 100;
+        align-items: center; pointer-events: auto;
+    }
     .restart-btn {
         margin-top: 30px; padding: 15px 40px; font-size: 20px; font-weight: bold;
         color: #fff; background: linear-gradient(90deg, #ff4757, #00d2ff);
@@ -195,7 +201,7 @@ game_html = """
         </div>
     </div>
 
-    <div id="game-over" style="display:none;">
+    <div id="game-over">
         <h1 style="color:#ff4757; font-size:56px; letter-spacing:3px;">YOU DIED</h1>
         <p style="color:#aaa; margin-top:10px; font-size:18px;" id="final-stats">주령들의 공격으로 사망했습니다.</p>
         <button class="restart-btn" id="restart-btn">다시 도전하기</button>
@@ -584,7 +590,9 @@ function triggerGameOver() {
     isGameOver = true;
     if(bossRespawnTimer) clearInterval(bossRespawnTimer);
     document.getElementById('ui-layer').style.display = 'none';
-    document.getElementById('game-over').style.display = 'flex';
+    let gOver = document.getElementById('game-over');
+    gOver.style.display = 'flex';
+    gOver.style.zIndex = '9999';
     document.getElementById('final-stats').innerText = `도달한 보스 레벨: Lv.${bossLevel} | 처치한 보스: ${defeatedBosses}마리 | 처치한 일반 주령: ${normalKillCount}마리`;
 }
 
