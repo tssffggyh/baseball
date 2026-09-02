@@ -129,7 +129,7 @@ game_html = """
                         <span class="skill-key" style="color:#3498db;">AUTO</span><span>오토에임</span>
                     </div>
                     <div class="skill-icon">
-                        <span class="skill-key">Q</span><span id="sk-q">신속아오</span>
+                        <span class="skill-key">Q</span><span id="sk-q">0.2초영역</span>
                         <div id="cd-q" class="cooldown-overlay">0</div>
                     </div>
                     <div class="skill-icon">
@@ -170,7 +170,7 @@ game_html = """
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (무적 버프)<br>
+                    • Q: 0.2초 영역전개 (3초간 경직 & 주변 몹 정지)<br>
                     • E: 술식반전 · 「赤」 (광역 밀쳐내기 & 자폭 茈 유도)<br>
                     • R: 술식순전 · 「蒼」 (대형 블랙홀 당기기 & 대형 잔해 생성)<br>
                     • T: 대형 허식 「茈」 / X: 무량공처 (지속시간 대폭 상향)
@@ -179,7 +179,7 @@ game_html = """
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (무적 버프)<br>
+                    • Q: 0.2초 영역전개 (3초간 경직 & 주변 몹 정지)<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자 (지속시간 대폭 상향)
                 </p>
@@ -187,7 +187,7 @@ game_html = """
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • Q: 신속 아오 폭주 (무적 버프)<br>
+                    • Q: 0.2초 영역전개 (3초간 경직 & 주변 몹 정지)<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라 (지속시간 대폭 상향)
                 </p>
@@ -216,7 +216,7 @@ resizeCanvas();
 const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
 aoAudio.volume = 1.0;
 const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
-purpleAudio.volume = 0.4; // [수정] 무라사키 음성 소리 크기를 줄임 (1.0 -> 0.4)
+purpleAudio.volume = 0.4;
 
 let audioCtx = null;
 function initAudio() {
@@ -272,8 +272,9 @@ let limitlessTimer = 0;
 let limitlessActive = false;
 let limitlessDurationCounter = 0;
 
-let speedAoActive = false;
-let speedAoTimer = 0; 
+// [수정] 0.2초 영역전개 관련 상태 변수 (캐릭터 경직 3초 = 180프레임, 몹 정지)
+let fastDomainActive = false;
+let fastDomainTimer = 0;
 
 let bloodSplatters = [];
 
@@ -286,15 +287,15 @@ let player = {
 
 let cooldowns = { Q: 0, E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
-    Gojo: { Q: 29, E: 8, R: 15, T: 24, X: 0 },
-    Sukuna: { Q: 29, E: 7, R: 14, T: 21, X: 0 },
-    Megumi: { Q: 29, E: 8, R: 15, T: 23, X: 0 }
+    Gojo: { Q: 15, E: 8, R: 15, T: 24, X: 0 },
+    Sukuna: { Q: 15, E: 7, R: 14, T: 21, X: 0 },
+    Megumi: { Q: 15, E: 8, R: 15, T: 23, X: 0 }
 };
 
 let dialogues = {
-    Gojo: { Q: '신속 아오 폭주 (무적)', E: '술식반전 · 「赤」', R: '술식순전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
-    Sukuna: { Q: '신속 아오 폭주 (무적)', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
-    Megumi: { Q: '신속 아오 폭주 (무적)', E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
+    Gojo: { Q: '0.2초 영역전개', E: '술식반전 · 「赤」', R: '술식순전 · 「蒼」', T: '허식 「茈」', X: '료이키텐카이 무량공처' },
+    Sukuna: { Q: '0.2초 영역전개', E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
+    Megumi: { Q: '0.2초 영역전개', E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '마허라 소환' }
 };
 
 let activeDomain = null;
@@ -356,7 +357,7 @@ window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35 * 1.5)); }
 
 function takeDamage(damage) {
-    if(speedAoActive) return; 
+    if(fastDomainActive) return; // 0.2초 영역전개 시전 중(3초간 경직)에는 무적
     player.hp -= damage; 
     lastHitTime = Date.now();
 }
@@ -381,9 +382,9 @@ function selectChar(type) {
     document.getElementById('class-select').style.display = 'none';
     
     let skNames = {
-        'Gojo': ['신속아오', '아카', '아오', '무라사키', '무량공처'],
-        'Sukuna': ['신속아오', '해(解)', '팔(捌)', '푸가', '복마어주자'],
-        'Megumi': ['신속아오', '누에', '옥견', '그림자', '마허라']
+        'Gojo': ['0.2초영역', '아카', '아오', '무라사키', '무량공처'],
+        'Sukuna': ['0.2초영역', '해(解)', '팔(捌)', '푸가', '복마어주자'],
+        'Megumi': ['0.2초영역', '누에', '옥견', '그림자', '마허라']
     };
     
     document.getElementById('char-name').innerText = type === 'Gojo' ? '고죠 사토루' : (type === 'Sukuna' ? '양면 스쿠나' : '후시구로 메구미');
@@ -422,7 +423,7 @@ function getAutoAimAngle() {
 }
 
 function performAutoAttack() {
-    if(isGameOver) return;
+    if(isGameOver || fastDomainActive) return; // 3초간 멈춰있을 때는 평타 불가
     let now = Date.now();
     let attackInterval = (player.charType === 'Gojo') ? 700 : 600;
     if(now - player.lastAttack < attackInterval) return;
@@ -454,7 +455,7 @@ function performAutoAttack() {
 }
 
 function castSkill(key) {
-    if(isGameOver) return;
+    if(isGameOver || fastDomainActive) return; // 경직 중에는 다른 스킬 사용 불가
     if(cooldowns[key] > 0) return;
     if(key === 'X' && player.ultEnergy < player.maxUlt) return;
 
@@ -477,12 +478,13 @@ function castSkill(key) {
     showDialogue(dialogues[player.charType][key]);
 
     if(key === 'Q') {
+        // [수정] Q스킬: 0.2초 영역전개 (주변 모든 몹 멈춤 + 자신은 3초동안 제자리 가만히 멈춤)
         cooldowns.Q = maxCooldowns[player.charType].Q;
-        speedAoActive = true;
-        speedAoTimer = 500;
+        fastDomainActive = true;
+        fastDomainTimer = 180; // 3초 (60프레임 * 3)
         playVoiceAndSound('ao_voice');
-        triggerVibration(25);
-        addUlt(3.0);
+        triggerVibration(35);
+        addUlt(5.0);
     } else if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
         addUlt(2.5);
@@ -528,7 +530,7 @@ function castSkill(key) {
             playVoiceAndSound('ao_voice');
             triggerVibration(25);
             blackHoles.push({
-                orbitAngle: ang, orbitRadius: 260, radius: 420, life: 180, damage: 3000, x: player.x, y: player.y // [수정] 아오(블랙홀) 크기 축소 (650 -> 420)
+                orbitAngle: ang, orbitRadius: 260, radius: 420, life: 180, damage: 3000, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=0; i<12; i++) {
@@ -544,7 +546,6 @@ function castSkill(key) {
         cooldowns.T = maxCooldowns[player.charType].T;
         if(player.charType === 'Gojo') {
             addUlt(6.0);
-            // [수정] 자폭 무라사키를 할 때는 음성 지원(playVoiceAndSound) 호출 안 함
             triggerVibration(35);
             purpleProjectiles.push({
                 x: player.x, y: player.y,
@@ -661,53 +662,23 @@ function update() {
 
     performAutoAttack();
 
-    if(speedAoActive) {
-        speedAoTimer--;
-        player.speed = player.baseSpeed * 2.5; 
-        
-        windTrails.push({
-            x: player.x, y: player.y, radius: Math.random() * 40 + 30, life: 15, alpha: 0.7
-        });
-
-        enemies.forEach(e => {
-            let dist = Math.hypot(e.x - player.x, e.y - player.y);
-            if(dist < e.radius + 30) {
-                e.hp -= 120.0;
-            }
-        });
-
-        if(speedAoTimer <= 0) {
-            speedAoActive = false;
-            player.speed = player.baseSpeed;
+    // [수정] 0.2초 영역전개 사용 시 3초 동안 자신은 멈춰있고(이동 불가), 몹들은 멈춤
+    if(fastDomainActive) {
+        fastDomainTimer--;
+        if(fastDomainTimer <= 0) {
+            fastDomainActive = false;
         }
     } else {
-        player.speed = player.baseSpeed;
+        let dx = 0, dy = 0;
+        if(keys['a']) { dx -= 1; player.facing = -1; }
+        if(keys['d']) { dx += 1; player.facing = 1; }
+        if(keys['w']) dy -= 1;
+        if(keys['s']) dy += 1;
+        if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+
+        player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
+        player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
     }
-
-    if(player.charType === 'Gojo') {
-        limitlessTimer += 0.016; 
-        if(!limitlessActive && limitlessTimer >= 7.0) {
-            limitlessActive = true;
-            limitlessDurationCounter = 180; 
-        }
-        if(limitlessActive) {
-            limitlessDurationCounter--;
-            if(limitlessDurationCounter <= 0) {
-                limitlessActive = false;
-                limitlessTimer = 0; 
-            }
-        }
-    }
-
-    let dx = 0, dy = 0;
-    if(keys['a']) { dx -= 1; player.facing = -1; }
-    if(keys['d']) { dx += 1; player.facing = 1; }
-    if(keys['w']) dy -= 1;
-    if(keys['s']) dy += 1;
-    if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
-
-    player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
-    player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
 
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
@@ -801,8 +772,8 @@ function update() {
         });
 
         if(bh.life <= 0) {
-            blueOrbs.push({ x: bh.x, y: bh.y, radius: 100, life: 350 }); // [수정] 남겨지는 블루 오프 크기 축소 (150 -> 100)
-            explosions.push({x: bh.x, y: bh.y, radius: 180, maxRadius: 280, color: '#3742fa', life: 18, damage: bh.damage}); // [수정] 아오 폭발 크기 축소
+            blueOrbs.push({ x: bh.x, y: bh.y, radius: 100, life: 350 });
+            explosions.push({x: bh.x, y: bh.y, radius: 180, maxRadius: 280, color: '#3742fa', life: 18, damage: bh.damage});
             blackHoles.splice(bhi, 1);
         }
     });
@@ -874,7 +845,6 @@ function update() {
 
             if(reachedTarget || hitEnemy || hitOrb) {
                 if(hitOrb || (p.targetOrb && Math.hypot(p.x - p.targetOrb.x, p.y - p.targetOrb.y) < 120)) {
-                    // [수정] 자폭 무라사키 폭발 시에도 음성(purple_voice)을 호출하지 않음
                     showDialogue('「자폭 허식 · 茈」');
                     triggerVibration(50);
 
@@ -946,76 +916,80 @@ function update() {
     });
 
     enemies.forEach((e, ei) => {
-        if(activeDomain && activeDomain.type === 'Gojo') e.speed = 0;
-        else e.speed = e.isBoss ? e.speed : (e.isRanged ? 2.0 : 2.8);
-
-        let ang = Math.atan2(player.y - e.y, player.x - e.x);
-        let dist = Math.hypot(player.x - e.x, player.y - e.y);
-
-        if(player.charType === 'Gojo' && limitlessActive && dist < 130) {
-            e.x -= Math.cos(ang) * 14; 
-            e.y -= Math.sin(ang) * 14;
+        // [수정] 0.2초 영역전개 사용 중이거나 무량공처 영역 안이면 몹들이 완전히 멈춤
+        if(fastDomainActive || (activeDomain && activeDomain.type === 'Gojo')) {
+            e.speed = 0;
         } else {
-            if(e.isRanged && dist < 300) {
-                e.x -= Math.cos(ang) * e.speed;
-                e.y -= Math.sin(ang) * e.speed;
+            e.speed = e.isBoss ? e.speed : (e.isRanged ? 2.0 : 2.8);
+
+            let ang = Math.atan2(player.y - e.y, player.x - e.x);
+            let dist = Math.hypot(player.x - e.x, player.y - e.y);
+
+            if(player.charType === 'Gojo' && limitlessActive && dist < 130) {
+                e.x -= Math.cos(ang) * 14; 
+                e.y -= Math.sin(ang) * 14;
             } else {
-                e.x += Math.cos(ang) * e.speed;
-                e.y += Math.sin(ang) * e.speed;
-            }
-        }
-
-        e.attackCd = (e.attackCd || 0) + 1;
-        e.skillCd = (e.skillCd || 0) + 1;
-        e.ultCd = (e.ultCd || 0) + 1;
-
-        if(e.isRanged && e.attackCd >= 80 && dist < 550 && e.speed > 0) {
-            e.attackCd = 0;
-            enemyProjectiles.push({
-                x: e.x, y: e.y, vx: Math.cos(ang)*8, vy: Math.sin(ang)*8,
-                damage: 18, radius: 6
-            });
-        }
-
-        if(e.isBoss && e.speed > 0) {
-            if(e.skillCd >= 70) {
-                e.skillCd = 0;
-                let patternType = Math.floor(Math.random() * 3);
-                
-                if(patternType === 0) {
-                    for(let i=-2; i<=2; i++) {
-                        enemyProjectiles.push({
-                            x: e.x, y: e.y, vx: Math.cos(ang + i*0.22)*11, vy: Math.sin(ang + i*0.22)*11,
-                            damage: e.dmg * 0.7, radius: 8
-                        });
-                    }
-                } else if(patternType === 1) {
-                    explosions.push({
-                        x: player.x + (Math.random()-0.5)*120, y: player.y + (Math.random()-0.5)*120,
-                        radius: 20, maxRadius: 150, color: 'rgba(231, 76, 60, 0.65)', life: 25, damage: e.dmg * 1.1
-                    });
+                if(e.isRanged && dist < 300) {
+                    e.x -= Math.cos(ang) * e.speed;
+                    e.y -= Math.sin(ang) * e.speed;
                 } else {
-                    for(let i=0; i<8; i++) {
-                        let rAng = (Math.PI * 2 / 8) * i;
-                        enemyProjectiles.push({
-                            x: e.x, y: e.y, vx: Math.cos(rAng)*7.5, vy: Math.sin(rAng)*7.5,
-                            damage: e.dmg * 0.8, radius: 7
+                    e.x += Math.cos(ang) * e.speed;
+                    e.y += Math.sin(ang) * e.speed;
+                }
+            }
+
+            e.attackCd = (e.attackCd || 0) + 1;
+            e.skillCd = (e.skillCd || 0) + 1;
+            e.ultCd = (e.ultCd || 0) + 1;
+
+            if(e.isRanged && e.attackCd >= 80 && dist < 550 && e.speed > 0) {
+                e.attackCd = 0;
+                enemyProjectiles.push({
+                    x: e.x, y: e.y, vx: Math.cos(ang)*8, vy: Math.sin(ang)*8,
+                    damage: 18, radius: 6
+                });
+            }
+
+            if(e.isBoss && e.speed > 0) {
+                if(e.skillCd >= 70) {
+                    e.skillCd = 0;
+                    let patternType = Math.floor(Math.random() * 3);
+                    
+                    if(patternType === 0) {
+                        for(let i=-2; i<=2; i++) {
+                            enemyProjectiles.push({
+                                x: e.x, y: e.y, vx: Math.cos(ang + i*0.22)*11, vy: Math.sin(ang + i*0.22)*11,
+                                damage: e.dmg * 0.7, radius: 8
+                            });
+                        }
+                    } else if(patternType === 1) {
+                        explosions.push({
+                            x: player.x + (Math.random()-0.5)*120, y: player.y + (Math.random()-0.5)*120,
+                            radius: 20, maxRadius: 150, color: 'rgba(231, 76, 60, 0.65)', life: 25, damage: e.dmg * 1.1
                         });
+                    } else {
+                        for(let i=0; i<8; i++) {
+                            let rAng = (Math.PI * 2 / 8) * i;
+                            enemyProjectiles.push({
+                                x: e.x, y: e.y, vx: Math.cos(rAng)*7.5, vy: Math.sin(rAng)*7.5,
+                                damage: e.dmg * 0.8, radius: 7
+                            });
+                        }
                     }
                 }
             }
-        }
 
-        if(!e.isRanged && dist < e.radius + 30 && e.speed > 0) {
-            if(e.attackCd >= (e.isBoss ? 20 : 40)) {
-                e.attackCd = 0;
-                let dmg = e.isBoss ? e.dmg : 14;
-                takeDamage(dmg);
-                triggerVibration(e.isBoss ? 15 : 6);
-                meleeAttacks.push({
-                    x: (e.x + player.x) / 2, y: (e.y + player.y) / 2,
-                    ang: ang, radius: e.isBoss ? e.radius + 10 : 25, life: 10, isBoss: e.isBoss
-                });
+            if(!e.isRanged && dist < e.radius + 30 && e.speed > 0) {
+                if(e.attackCd >= (e.isBoss ? 20 : 40)) {
+                    e.attackCd = 0;
+                    let dmg = e.isBoss ? e.dmg : 14;
+                    takeDamage(dmg);
+                    triggerVibration(e.isBoss ? 15 : 6);
+                    meleeAttacks.push({
+                        x: (e.x + player.x) / 2, y: (e.y + player.y) / 2,
+                        ang: ang, radius: e.isBoss ? e.radius + 10 : 25, life: 10, isBoss: e.isBoss
+                    });
+                }
             }
         }
 
@@ -1076,6 +1050,32 @@ function drawPlayerSprite(p) {
     } else {
         ctx.fillStyle = '#0f172a'; ctx.fillRect(-10, -16, 20, 32);
         ctx.fillStyle = '#1e293b'; ctx.fillRect(-11, -34, 22, 12);
+    }
+    ctx.restore();
+}
+
+// [수정] 머리 위 수리검 모양(기다란 모양) 이펙트 렌더링 함수
+function drawShuriken(x, y) {
+    ctx.save();
+    ctx.translate(x, y - 55);
+    ctx.rotate(Date.now() * 0.01); // 회전 효과
+    ctx.strokeStyle = '#00d2ff';
+    ctx.fillStyle = 'rgba(112, 161, 255, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#00d2ff';
+
+    // 기다란 수리검 날개 4방향 그려주기
+    for(let i=0; i<4; i++) {
+        ctx.rotate(Math.PI / 2);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-6, -25);
+        ctx.lineTo(0, -35);
+        ctx.lineTo(6, -25);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
     }
     ctx.restore();
 }
@@ -1145,18 +1145,6 @@ function draw() {
         ctx.restore();
     });
 
-    if(speedAoActive) {
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255, 215, 0, 0.9)';
-        ctx.lineWidth = 4;
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = '#ffd700';
-        ctx.beginPath();
-        ctx.arc(player.x, player.y, 45, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-    }
-
     if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
         ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
@@ -1199,9 +1187,9 @@ function draw() {
     });
 
     blackHoles.forEach(bh => {
-        ctx.shadowBlur = 40; ctx.shadowColor = '#3742fa'; // [수정] 블랙홀 이펙트 범위 조절
+        ctx.shadowBlur = 40; ctx.shadowColor = '#3742fa';
         ctx.fillStyle = 'rgba(10, 10, 50, 0.9)';
-        ctx.beginPath(); ctx.arc(bh.x, bh.y, 95, 0, Math.PI*2); ctx.fill(); // [수정] 블랙홀 시각적 크기 축소 (140 -> 95)
+        ctx.beginPath(); ctx.arc(bh.x, bh.y, 95, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#70a1ff'; ctx.lineWidth = 6; ctx.stroke();
         ctx.shadowBlur = 0;
     });
@@ -1298,6 +1286,12 @@ function draw() {
     });
 
     drawPlayerSprite(player);
+
+    // [수정] 0.2초 영역전개 시전 중일 때 머리 위에 수리검 이펙트 표시
+    if(fastDomainActive) {
+        drawShuriken(player.x, player.y);
+    }
+
     ctx.restore();
 }
 
