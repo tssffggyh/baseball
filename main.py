@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide", page_title="주술회전: 오토에임 패치")
+st.set_page_config(layout="wide", page_title="주술회전: 고죠 사토루 음성 효과 패치")
 
 st.markdown("""
     <style>
@@ -156,7 +156,7 @@ game_html = """
     </div>
 
     <div id="dialogue-box">
-        <div id="dialogue-text">영역전개 「무량처공」</div>
+        <div id="dialogue-text">무량공처</div>
     </div>
 
     <div id="class-select">
@@ -166,10 +166,11 @@ game_html = """
             <div class="card" onclick="selectChar('Gojo')">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • E: 술식 반전 「아카」(데미지 500)<br>
-                    • R: 술식 순전 「아오」(대형 아오 3초 회전 후 파란 잔해 생성)<br>
-                    • T: 허식 「무라사키」<br>
-                    • <strong>★잔해에 아카 맞추면 자폭 무라사키 (최소 HP 1 보장)</strong>
+                    • E: 아카 「赤」 (음성 출력)<br>
+                    • R: 아오 「蒼」 (블랙홀 투사체 흡수)<br>
+                    • T: 무라사키 「虚式」<br>
+                    • X: 영역전개 「료이키텐카이 무량공처」<br>
+                    • <strong>★잔해에 아카 맞추면 자폭 무라사키</strong>
                 </p>
             </div>
             <div class="card" onclick="selectChar('Sukuna')">
@@ -211,6 +212,66 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
+// Web Audio API 사운드 합성 시스템 (효과음 & 음성 연출)
+let audioCtx = null;
+function initAudio() {
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playSound(type) {
+    initAudio();
+    if(!audioCtx) return;
+    
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    let now = audioCtx.currentTime;
+
+    if(type === 'aka') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.3);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+    } else if(type === 'ao') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(450, now + 0.4);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+    } else if(type === 'purple') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(80, now + 0.8);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+        osc.start(now); osc.stop(now + 0.8);
+    } else if(type === 'domain') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(100, now);
+        osc.frequency.linearRampToValueAtTime(350, now + 0.6);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+        osc.start(now); osc.stop(now + 0.6);
+    }
+}
+
+// 브라우저 음성 합성(SpeechSynthesis)을 이용한 원작 대사 출력
+function speakVoice(text, lang = 'ja-JP') {
+    if('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // 이전 음성 취소 후 즉시 출력
+        let utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang;
+        utterance.rate = 1.1;
+        utterance.pitch = 0.9;
+        window.speechSynthesis.speak(utterance);
+    }
+}
+
 const WORLD_WIDTH = 3600;
 const WORLD_HEIGHT = 2700;
 
@@ -242,7 +303,7 @@ let maxCooldowns = {
 };
 
 let dialogues = {
-    Gojo: { E: '술식 반전 「아카」', R: '술식 순전 「아오」', T: '허식 「무라사키」', X: '영역전개 「무량처공」' },
+    Gojo: { E: '「赤」 (Aka)', R: '「蒼」 (Ao)', T: '허식 「무라사키」', X: '료이키텐카이 무량공처' },
     Sukuna: { E: '참격 「해(解)」', R: '참격 「팔(捌)」', T: '「푸가(🔥)」', X: '영역전개 「복마어주자」' },
     Megumi: { E: '십종영법술 「누에」', R: '십종영법술 「옥견」', T: '그림자 속박', X: '팔지검 이계신장 강대마허라' }
 };
@@ -288,28 +349,21 @@ function getBossData(lvl) {
     };
 }
 
-// 오토에임 함수: 가장 가까운 적을 탐색하여 조준 각도(Angle) 또는 목표 좌표 반환
 function getAutoAimTarget() {
     if(enemies.length === 0) return { x: player.x + player.facing * 100, y: player.y, angle: player.facing > 0 ? 0 : Math.PI };
-    
     let closest = enemies[0];
     let minDist = Math.hypot(closest.x - player.x, closest.y - player.y);
-    
     for(let i = 1; i < enemies.length; i++) {
         let dist = Math.hypot(enemies[i].x - player.x, enemies[i].y - player.y);
-        if(dist < minDist) {
-            minDist = dist;
-            closest = enemies[i];
-        }
+        if(dist < minDist) { minDist = dist; closest = enemies[i]; }
     }
-    
     let angle = Math.atan2(closest.y - player.y, closest.x - player.x);
     return { x: closest.x, y: closest.y, angle: angle };
 }
 
 window.addEventListener('mousedown', e => { if(e.button === 0) basicAttack(); });
-
 window.addEventListener('keydown', e => {
+    initAudio();
     let k = e.key.toLowerCase();
     keys[k] = true;
     if(k === 'e') castSkill('E');
@@ -320,11 +374,7 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + amount); }
-
-function takeDamage(damage) {
-    player.hp -= damage;
-    lastHitTime = Date.now();
-}
+function takeDamage(damage) { player.hp -= damage; lastHitTime = Date.now(); }
 
 function showDialogue(text) {
     let box = document.getElementById('dialogue-box');
@@ -341,11 +391,12 @@ function triggerVibration(intensity) {
 }
 
 function selectChar(type) {
+    initAudio();
     player.charType = type;
     document.getElementById('class-select').style.display = 'none';
     
     let skNames = {
-        'Gojo': ['아카', '아오', '무라사키', '무량처공'],
+        'Gojo': ['아카', '아오', '무라사키', '무량공처'],
         'Sukuna': ['해(解)', '팔(捌)', '푸가', '복마어주자'],
         'Megumi': ['누에', '옥견', '그림자', '마허라']
     };
@@ -413,6 +464,8 @@ function castSkill(key) {
         addUlt(8.0);
         
         if(player.charType === 'Gojo') {
+            playSound('aka');
+            speakVoice('赤', 'ja-JP');
             triggerVibration(20);
             projectiles.push({
                 x: player.x, y: player.y, targetX: targetX, targetY: targetY,
@@ -420,12 +473,10 @@ function castSkill(key) {
                 type: 'aka', damage: 500, radius: 18
             });
         } else if(player.charType === 'Sukuna') {
-            triggerVibration(15);
             for(let i=-2; i<=2; i++) {
                 slashes.push({ x: player.x, y: player.y, ang: ang + i*0.2, length: 220, life: 14, damage: 95 });
             }
         } else {
-            triggerVibration(8);
             explosions.push({x: targetX, y: targetY, radius: 70, maxRadius: 70, color: '#f1c40f', life: 15, damage: 120});
         }
     } else if(key === 'R') {
@@ -433,6 +484,8 @@ function castSkill(key) {
         addUlt(12.0);
         
         if(player.charType === 'Gojo') {
+            playSound('ao');
+            speakVoice('蒼', 'ja-JP');
             triggerVibration(20);
             blackHoles.push({
                 orbitAngle: ang,
@@ -444,7 +497,6 @@ function castSkill(key) {
                 y: player.y
             });
         } else if(player.charType === 'Sukuna') {
-            triggerVibration(20);
             for(let i=0; i<12; i++) {
                 slashes.push({
                     x: targetX + (Math.random()-0.5)*200, y: targetY + (Math.random()-0.5)*200,
@@ -452,13 +504,14 @@ function castSkill(key) {
                 });
             }
         } else {
-            triggerVibration(10);
             projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, type:'normal', damage: 100, radius: 10, color: '#2ecc71'});
         }
     } else if(key === 'T') {
         cooldowns.T = maxCooldowns[player.charType].T;
         if(player.charType === 'Gojo') {
             addUlt(20.0);
+            playSound('purple');
+            speakVoice('虚式 茈', 'ja-JP');
             triggerVibration(35);
             laserBeams.push({
                 x: player.x, y: player.y, ang: ang, length: 1800, width: 80,
@@ -466,30 +519,36 @@ function castSkill(key) {
             });
         } else if(player.charType === 'Sukuna') {
             addUlt(15.0);
-            triggerVibration(12);
             explosions.push({x: targetX, y: targetY, radius: 180, maxRadius: 180, color: '#e67e22', life: 30, damage: 300});
         } else {
             addUlt(15.0);
-            triggerVibration(12);
             enemies.forEach(e => { if(Math.hypot(e.x - player.x, e.y - player.y) < 300) e.speed = 0.5; });
         }
     } else if(key === 'X') {
         player.ultEnergy = 0;
+        playSound('domain');
+        if(player.charType === 'Gojo') {
+            speakVoice('領域展開 無量空処', 'ja-JP');
+            activeDomain = { type: 'Gojo', timer: 260 };
+        } else if(player.charType === 'Sukuna') {
+            speakVoice('領域展開 伏魔御廚子', 'ja-JP');
+            activeDomain = { type: 'Sukuna', timer: 200 };
+        } else {
+            speakVoice('十種影法術 鵺', 'ja-JP');
+            mahoraga = { x: player.x, y: player.y - 50, life: 600 };
+        }
         triggerVibration(35);
-        if(player.charType === 'Gojo') activeDomain = { type: 'Gojo', timer: 260 };
-        else if(player.charType === 'Sukuna') activeDomain = { type: 'Sukuna', timer: 200 };
-        else mahoraga = { x: player.x, y: player.y - 50, life: 600 };
     }
 }
 
 function triggerPurpleExplosion(x, y, boIndex) {
+    playSound('purple');
+    speakVoice('茈', 'ja-JP');
     showDialogue('허식 「무라사키」 (자폭 피격!)');
     triggerVibration(80);
 
     let selfDamage = Math.min(player.hp * 0.5, player.hp - 1);
-    if(selfDamage > 0) {
-        takeDamage(selfDamage);
-    }
+    if(selfDamage > 0) takeDamage(selfDamage);
 
     if(boIndex !== undefined && boIndex !== null && boIndex >= 0 && boIndex < blueOrbs.length) {
         blueOrbs.splice(boIndex, 1);
@@ -658,7 +717,6 @@ function update() {
     blackHoles.forEach((bh, bhi) => {
         bh.life--;
         bh.orbitAngle += 0.06;
-
         bh.x = player.x + Math.cos(bh.orbitAngle) * bh.orbitRadius;
         bh.y = player.y + Math.sin(bh.orbitAngle) * bh.orbitRadius;
 
@@ -672,6 +730,16 @@ function update() {
             }
         });
 
+        enemyProjectiles.forEach((ep, epi) => {
+            let d = Math.hypot(bh.x - ep.x, bh.y - ep.y);
+            if(d < bh.radius) {
+                let pullAng = Math.atan2(bh.y - ep.y, bh.x - ep.x);
+                ep.vx = Math.cos(pullAng) * 14;
+                ep.vy = Math.sin(pullAng) * 14;
+                if(d < 40) enemyProjectiles.splice(epi, 1);
+            }
+        });
+
         if(bh.life <= 0) {
             blueOrbs.push({ x: bh.x, y: bh.y, radius: 95, life: 350 });
             explosions.push({x: bh.x, y: bh.y, radius: 260, maxRadius: 260, color: '#3742fa', life: 18, damage: bh.damage});
@@ -681,6 +749,15 @@ function update() {
 
     blueOrbs.forEach((bo, boi) => {
         bo.life--;
+        enemyProjectiles.forEach((ep, epi) => {
+            let d = Math.hypot(bo.x - ep.x, bo.y - ep.y);
+            if(d < bo.radius) {
+                let pullAng = Math.atan2(bo.y - ep.y, bo.x - ep.x);
+                ep.x += Math.cos(pullAng) * 8;
+                ep.y += Math.sin(pullAng) * 8;
+                if(d < 30) enemyProjectiles.splice(epi, 1);
+            }
+        });
         if(bo.life <= 0) blueOrbs.splice(boi, 1);
     });
 
@@ -690,9 +767,7 @@ function update() {
             let endX = lb.x + Math.cos(lb.ang) * lb.length;
             let endY = lb.y + Math.sin(lb.ang) * lb.length;
             let d = Math.abs((endY - lb.y)*e.x - (endX - lb.x)*e.y + endX*lb.y - endY*lb.x) / Math.hypot(endY - lb.y, endX - lb.x);
-            if(d < lb.width / 2 + e.radius) {
-                e.hp -= lb.damage / 10;
-            }
+            if(d < lb.width / 2 + e.radius) e.hp -= lb.damage / 10;
         });
         if(lb.life <= 0) laserBeams.splice(lbi, 1);
     });
@@ -803,7 +878,6 @@ function update() {
                 let dmg = e.isBoss ? e.dmg : 14;
                 takeDamage(dmg);
                 triggerVibration(e.isBoss ? 15 : 6);
-
                 meleeAttacks.push({
                     x: (e.x + player.x) / 2, y: (e.y + player.y) / 2,
                     ang: ang, radius: e.isBoss ? e.radius + 10 : 25, life: 10, isBoss: e.isBoss
