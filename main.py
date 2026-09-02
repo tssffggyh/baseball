@@ -28,7 +28,7 @@ game_html = """
     }
     #game-container {
         position: relative; width: 100vw; height: 100vh;
-        overflow: hidden; background: #000;
+        overflow: hidden; background: #020204;
     }
     canvas { display: block; cursor: crosshair; width: 100%; height: 100%; }
     
@@ -219,23 +219,6 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-const aoAudio = new Audio('https://www.myinstants.com/media/sounds/jujutsu-kaisen-gojo-blue-ao.mp3');
-aoAudio.volume = 1.0;
-const purpleAudio = new Audio('https://www.myinstants.com/media/sounds/hollow-purple.mp3');
-purpleAudio.volume = 1.0;
-
-let audioCtx = null;
-function initAudio() {
-    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    [aoAudio, purpleAudio].forEach(audio => {
-        if(audio.paused) {
-            audio.play().catch(() => {});
-            audio.pause();
-            audio.currentTime = 0;
-        }
-    });
-}
-
 const WORLD_WIDTH = 7200;
 const WORLD_HEIGHT = 5400;
 
@@ -318,7 +301,6 @@ function getBossData(lvl) {
 }
 
 window.addEventListener('keydown', e => {
-    initAudio();
     let k = e.key.toLowerCase();
     keys[k] = true;
     if(k === 'q') castSkill('Q');
@@ -351,7 +333,6 @@ function triggerVibration(intensity) {
 }
 
 function startGame(type) {
-    initAudio();
     player.charType = type;
     document.getElementById('class-select').style.display = 'none';
     
