@@ -257,7 +257,7 @@ const WORLD_HEIGHT = 5400;
 
 let bossLevel = 1;
 let defeatedBosses = 0;
-let normalKillCount = 0; // 일반 주령 처치 수 변수 추가
+let normalKillCount = 0;
 let isGameOver = false;
 let screenShake = 0;
 let camera = { x: 0, y: 0 };
@@ -358,7 +358,6 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// 궁극기 게이지 상승량 대폭 축소 (기존 대비 약 3~4분의 1 수준으로 하향)
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35)); }
 function takeDamage(damage) { player.hp -= damage; lastHitTime = Date.now(); }
 
@@ -404,7 +403,7 @@ function basicAttack() {
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
-    addUlt(0.8); // 평타 당 궁 게이지 상승량 감소
+    addUlt(0.8);
     let target = getAutoAimTarget();
     let ang = target.angle;
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
@@ -461,7 +460,7 @@ function castSkill(key) {
 
     if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
-        addUlt(2.5); // E 스킬 궁 게이지 증가량 조정
+        addUlt(2.5);
         
         if(player.charType === 'Gojo') {
             playVoiceAndSound('aka');
@@ -482,7 +481,7 @@ function castSkill(key) {
         }
     } else if(key === 'R') {
         cooldowns.R = maxCooldowns[player.charType].R;
-        addUlt(4.0); // R 스킬 궁 게이지 증가량 조정
+        addUlt(4.0);
         
         if(player.charType === 'Gojo') {
             playVoiceAndSound('ao_voice');
@@ -503,7 +502,7 @@ function castSkill(key) {
     } else if(key === 'T') {
         cooldowns.T = maxCooldowns[player.charType].T;
         if(player.charType === 'Gojo') {
-            addUlt(6.0); // T 스킬 궁 게이지 증가량 조정
+            addUlt(6.0);
             playVoiceAndSound('purple_voice');
             triggerVibration(35);
             purpleProjectiles.push({
@@ -952,7 +951,7 @@ function update() {
             if(e.isBoss) {
                 defeatedBosses++;
                 bossLevel++;
-                addUlt(8.0); // 보스 처치 시 궁 게이지 증가량 조정
+                addUlt(8.0);
                 enemies.splice(ei, 1);
                 
                 if(bossLevel <= 100) {
@@ -962,8 +961,8 @@ function update() {
                     showDialogue(`🎉 축하합니다! 100단계 보스 정복!`);
                 }
             } else {
-                normalKillCount++; // 일반 몬스터 처치 수 증가
-                addUlt(0.5); // 일반 주령 처치 시 궁 게이지 증가량 조정
+                normalKillCount++;
+                addUlt(0.5);
                 enemies.splice(ei, 1);
             }
         }
@@ -972,7 +971,7 @@ function update() {
     document.getElementById('hp-bar').style.width = Math.max(0, (player.hp / player.maxHp * 100)) + '%';
     document.getElementById('ult-bar').style.width = Math.min(100, (player.ultEnergy / player.maxUlt * 100)) + '%';
     document.getElementById('kill-status').innerText = `처치한 보스: ${defeatedBosses} / 100`;
-    document.getElementById('mob-kill-status').innerText = `처치한 일반 주령: ${normalKillCount}마리`; // UI 텍스트 갱신
+    document.getElementById('mob-kill-status').innerText = `처치한 일반 주령: ${normalKillCount}마리`;
 }
 
 function drawPlayerSprite(p) {
