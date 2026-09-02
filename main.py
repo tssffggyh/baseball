@@ -118,7 +118,7 @@ game_html = """
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div class="hud-card">
                 <div id="char-name" style="color:#a855f7; font-weight:bold; font-size:15px;">주술사</div>
-                <div style="font-size:9px; color:#aaa; margin-top:3px;">체력 (HP) <span style="color:#f1c40f;">[천공의 별 궁극버프]</span></div>
+                <div style="font-size:9px; color:#aaa; margin-top:3px;">체력 (HP) <span style="color:#00d2ff;">[천공의 별 발동중]</span></div>
                 <div class="bar-outer"><div id="hp-bar" class="bar-hp"></div></div>
                 <div style="font-size:9px; color:#aaa;">궁극기 게이지 (ULT) [X]</div>
                 <div class="bar-outer"><div id="ult-bar" class="bar-ult"></div></div>
@@ -164,12 +164,12 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:42px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[Q스킬: 천공의 별 (60초 쿨, 20초 지속, 스턴/무적/아카 데미지 충돌)]</p>
+        <p style="color:#a1a1aa; margin-top:8px; font-size:13px;">[Q스킬: 천공의 별 (3초 시전정지 후 무적/이속증가/무하한해제/20초스턴/아카데미지)]</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • Q: 천공의 별 (20초 스턴/무적/이속증가)<br>
+                    • Q: 천공의 별<br>
                     • E: 술식반전 · 「赤」<br>
                     • R: 술식순전 · 「蒼」<br>
                     • T: 대형 허식 「茈」 / X: 무량공처
@@ -178,7 +178,7 @@ game_html = """
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • Q: 천공의 별 (20초 스턴/무적/이속증가)<br>
+                    • Q: 천공의 별<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
@@ -186,7 +186,7 @@ game_html = """
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • Q: 천공의 별 (20초 스턴/무적/이속증가)<br>
+                    • Q: 천공의 별<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라
                 </p>
@@ -264,8 +264,12 @@ let bossRespawnTimer = null;
 let respawnCountdown = 0;
 let gojoDomainCount = 0;
 let limitlessActive = true;
-let skyStarActive = false;
-let skyStarTimer = 0;
+
+// Q스킬 상태 관리 변수
+let skyStarCasting = false;   // 3초간 멈춰있는 시전 상태
+let skyStarCastTimer = 0;     // 3초(180프레임) 카운트
+let skyStarActive = false;    // 버프 적용 중 상태 (무적, 이속증가, 무하한 꺼짐)
+let skyStarTimer = 0;         // 지속 시간 카운트
 let bloodSplatters = [];
 
 let player = {
@@ -347,7 +351,7 @@ window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35 * 1.5)); }
 
 function takeDamage(damage) {
-    if(skyStarActive) return;
+    if(skyStarActive) return; // Q스킬 발동 중 무적
     player.hp -= damage; 
     lastHitTime = Date.now();
 }
@@ -413,7 +417,7 @@ function getAutoAimAngle() {
 }
 
 function performAutoAttack() {
-    if(isGameOver) return;
+    if(isGameOver || skyStarCasting) return; // 시전 중에는 평타 불가
     let now = Date.now();
     let attackInterval = (player.charType === 'Gojo') ? 700 : 600;
     if(now - player.lastAttack < attackInterval) return;
@@ -444,7 +448,7 @@ function performAutoAttack() {
 }
 
 function castSkill(key) {
-    if(isGameOver) return;
+    if(isGameOver || skyStarCasting) return;
     if(cooldowns[key] > 0) return;
     if(key === 'X' && player.ultEnergy < player.maxUlt) return;
 
@@ -468,18 +472,11 @@ function castSkill(key) {
 
     if(key === 'Q') {
         cooldowns.Q = maxCooldowns[player.charType].Q;
-        skyStarActive = true;
-        skyStarTimer = 1200;
-        limitlessActive = false;
-        player.speed = player.baseSpeed * 3.2;
-
-        enemies.forEach(e => {
-            e.stunTimer = 1200;
-        });
-
+        skyStarCasting = true;        // 3초간 이동 불가 상태 돌입
+        skyStarCastTimer = 180;       // 3초 (60프레임 * 3)
+        limitlessActive = false;      // 무하한 꺼짐
         playVoiceAndSound('ao_voice');
-        triggerVibration(40);
-        addUlt(10.0);
+        triggerVibration(30);
     } else if(key === 'E') {
         cooldowns.E = maxCooldowns[player.charType].E;
         addUlt(2.5);
@@ -655,26 +652,43 @@ function update() {
     if(screenShake > 0) screenShake--;
     if(player.hp <= 0) { triggerGameOver(); return; }
 
-    performAutoAttack();
+    // Q스킬 시전 중(3초 정지) 처리
+    if(skyStarCasting) {
+        skyStarCastTimer--;
+        if(skyStarCastTimer <= 0) {
+            skyStarCasting = false;
+            skyStarActive = true;
+            skyStarTimer = 600; // 버프 지속 시간 (예: 10초)
+            player.speed = player.baseSpeed * 3.5; // 이동속도 대폭 증가
 
-    if(skyStarActive) {
-        skyStarTimer--;
-        if(skyStarTimer <= 0) {
-            skyStarActive = false;
-            limitlessActive = true;
-            player.speed = player.baseSpeed;
+            // 적들에게 20초간 스턴 부여
+            enemies.forEach(e => {
+                e.stunTimer = 1200; // 20초 (60프레임 * 20)
+            });
+            triggerVibration(40);
         }
+    } else {
+        performAutoAttack();
+
+        if(skyStarActive) {
+            skyStarTimer--;
+            if(skyStarTimer <= 0) {
+                skyStarActive = false;
+                limitlessActive = true; // 무하한 복구
+                player.speed = player.baseSpeed;
+            }
+        }
+
+        let dx = 0, dy = 0;
+        if(keys['a']) { dx -= 1; player.facing = -1; }
+        if(keys['d']) { dx += 1; player.facing = 1; }
+        if(keys['w']) dy -= 1;
+        if(keys['s']) dy += 1;
+        if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+
+        player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
+        player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
     }
-
-    let dx = 0, dy = 0;
-    if(keys['a']) { dx -= 1; player.facing = -1; }
-    if(keys['d']) { dx += 1; player.facing = 1; }
-    if(keys['w']) dy -= 1;
-    if(keys['s']) dy += 1;
-    if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
-
-    player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
-    player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
 
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
@@ -988,13 +1002,14 @@ function update() {
             }
         }
 
+        // Q스킬 지속 중 닿는 적들에게 아카 데미지 적용
         if(skyStarActive) {
             let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
-            if(distToPlayer < player.radius + e.radius + 20) {
-                e.hp -= 3500;
+            if(distToPlayer < player.radius + e.radius + 40) {
+                e.hp -= 3500; // 아카에 준하는 데미지
                 purpleEffects.push({
                     x: e.x, y: e.y, vx: (Math.random()-0.5)*3, vy: (Math.random()-0.5)*3,
-                    radius: Math.random()*6+3, life: 10, color: '#f1c40f'
+                    radius: Math.random()*6+3, life: 10, color: '#00d2ff'
                 });
             }
         }
@@ -1040,10 +1055,10 @@ function drawPlayerSprite(p) {
     ctx.scale(p.facing, 1);
 
     if(p.charType === 'Gojo') {
-        ctx.shadowBlur = 20; ctx.shadowColor = skyStarActive ? '#f1c40f' : '#70a1ff';
+        ctx.shadowBlur = 20; ctx.shadowColor = skyStarActive ? '#00d2ff' : '#70a1ff';
         ctx.fillStyle = '#0a0a14'; ctx.fillRect(-10, -16, 20, 32);
         ctx.fillStyle = '#ffffff'; ctx.fillRect(-9, -32, 18, 12);
-        ctx.fillStyle = skyStarActive ? '#f1c40f' : '#70a1ff'; ctx.fillRect(-7, -24, 14, 4);
+        ctx.fillStyle = skyStarActive ? '#00d2ff' : '#70a1ff'; ctx.fillRect(-7, -24, 14, 4);
         ctx.shadowBlur = 0;
     } else if(p.charType === 'Sukuna') {
         ctx.fillStyle = '#111'; ctx.fillRect(-10, -16, 20, 32);
@@ -1056,32 +1071,33 @@ function drawPlayerSprite(p) {
     ctx.restore();
 }
 
+// 하늘색 길다란 4개 꼭지점의 별 (천천히 회전)
 function drawSkyStar(x, y) {
     ctx.save();
-    ctx.translate(x, y - 60);
-    let rotAngle = Date.now() * 0.002;
+    ctx.translate(x, y - 65);
+    let rotAngle = Date.now() * 0.001; // 천천히 회전
     ctx.rotate(rotAngle);
     
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = '#f1c40f';
-    ctx.fillStyle = '#f1c40f';
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = '#00d2ff';
+    ctx.fillStyle = '#00d2ff';
     
-    let starRadius = 35;
-    for (let i = 0; i < 4; i++) {
-        ctx.rotate(Math.PI / 2);
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(0, -starRadius);
-        ctx.lineTo(5, -5);
-        ctx.lineTo(starRadius, 0);
-        ctx.lineTo(5, 5);
-        ctx.lineTo(0, starRadius);
-        ctx.lineTo(-5, 5);
-        ctx.lineTo(-starRadius, 0);
-        ctx.lineTo(-5, -5);
-        ctx.closePath();
-        ctx.fill();
-    }
+    // 길다란 4개의 꼭지점을 가진 별 모양 그리기
+    ctx.beginPath();
+    ctx.moveTo(0, -45);  // 위쪽 긴 꼭지점
+    ctx.quadraticCurveTo(0, 0, 45, 0);   // 오른쪽
+    ctx.quadraticCurveTo(0, 0, 0, 45);   // 아래쪽
+    ctx.quadraticCurveTo(0, 0, -45, 0);  // 왼쪽
+    ctx.quadraticCurveTo(0, 0, 0, -45);
+    ctx.closePath();
+    ctx.fill();
+
+    // 중심부 빛나는 효과
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
 }
 
@@ -1150,6 +1166,7 @@ function draw() {
         ctx.restore();
     });
 
+    // 무하한이 켜져있을 때만 테두리 표시 (skyStarActive 중에는 꺼짐)
     if(player.charType === 'Gojo' && limitlessActive) {
         ctx.save();
         ctx.strokeStyle = 'rgba(112, 161, 255, 0.85)';
@@ -1292,7 +1309,8 @@ function draw() {
 
     drawPlayerSprite(player);
 
-    if(skyStarActive) {
+    // 시전 중이거나 버프 활성화 중일 때 머리 위 별 표시
+    if(skyStarCasting || skyStarActive) {
         drawSkyStar(player.x, player.y);
     }
 
