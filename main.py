@@ -126,7 +126,7 @@ game_html = """
                 
                 <div class="skill-container">
                     <div class="skill-icon" style="border-color:#3498db;">
-                        <span class="skill-key" style="color:#3498db;">AUTO</span><span>평타</span>
+                        <span class="skill-key" style="color:#3498db;">CLICK</span><span>평타</span>
                     </div>
                     <div class="skill-icon">
                         <span class="skill-key">E</span><span id="sk-e">스킬1</span>
@@ -161,12 +161,12 @@ game_html = """
 
     <div id="class-select">
         <h1 style="color:#f3e8ff; font-size:48px; letter-spacing:2px; text-shadow:0 0 20px #a855f7;">JUJUTSU KAISEN</h1>
-        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오.</p>
+        <p style="color:#a1a1aa; margin-top:10px;">플레이할 주술사를 선택하십시오. (마우스 클릭으로 수동 공격)</p>
         <div class="card-group">
             <div class="card" id="card-gojo">
                 <h2 style="color:#70a1ff;">👁️ 고죠 사토루</h2>
                 <p>
-                    • 평타: 고출력 주력탄<br>
+                    • 평타: 고출력 주력탄 (클릭)<br>
                     • E: 아카 「赤」 / R: 아오 「蒼」<br>
                     • T: 허식 「茈」 / X: 무량공처
                 </p>
@@ -174,7 +174,7 @@ game_html = """
             <div class="card" id="card-sukuna">
                 <h2 style="color:#ff4757;">👹 양면 스쿠나</h2>
                 <p>
-                    • 기본공격: 참격 연사<br>
+                    • 기본공격: 참격 (클릭)<br>
                     • E: 해(解) / R: 팔(捌)<br>
                     • T: 푸가(🔥) / X: 복마어주자
                 </p>
@@ -182,7 +182,7 @@ game_html = """
             <div class="card" id="card-megumi">
                 <h2 style="color:#2ecc71;">🐺 후시구로 메구미</h2>
                 <p>
-                    • 기본공격: 그림자 투사체<br>
+                    • 기본공격: 그림자 투사체 (클릭)<br>
                     • E: 누에 / R: 옥견<br>
                     • T: 그림자 속박 / X: 마허라
                 </p>
@@ -333,18 +333,6 @@ function getBossData(lvl) {
     };
 }
 
-function getAutoAimTarget() {
-    if(enemies.length === 0) return { x: player.x + player.facing * 100, y: player.y, angle: player.facing > 0 ? 0 : Math.PI, dist: 9999 };
-    let closest = enemies[0];
-    let minDist = Math.hypot(closest.x - player.x, closest.y - player.y);
-    for(let i = 1; i < enemies.length; i++) {
-        let dist = Math.hypot(enemies[i].x - player.x, enemies[i].y - player.y);
-        if(dist < minDist) { minDist = dist; closest = enemies[i]; }
-    }
-    let angle = Math.atan2(closest.y - player.y, closest.x - player.x);
-    return { x: closest.x, y: closest.y, angle: angle, dist: minDist };
-}
-
 window.addEventListener('keydown', e => {
     initAudio();
     let k = e.key.toLowerCase();
@@ -355,6 +343,13 @@ window.addEventListener('keydown', e => {
     if(k === 'x') castSkill('X');
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// 마우스 클릭 시 평타 발사 (가만히 있으면 안 때리도록 변경)
+window.addEventListener('mousedown', e => {
+    if(isGameOver) return;
+    initAudio();
+    basicAttack(e.clientX, e.clientY);
+});
 
 function addUlt(amount) { player.ultEnergy = Math.min(player.maxUlt, player.ultEnergy + (amount * 0.35)); }
 function takeDamage(damage) { player.hp -= damage; lastHitTime = Date.now(); }
@@ -399,16 +394,18 @@ document.getElementById('card-sukuna').addEventListener('click', () => selectCha
 document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
 document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
-function basicAttack() {
+function basicAttack(clientX, clientY) {
     if(isGameOver) return;
     let now = Date.now();
-    let attackInterval = (player.charType === 'Gojo') ? 1050 : 550;
+    let attackInterval = (player.charType === 'Gojo') ? 400 : 300;
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
+    let worldMouseX = clientX + camera.x;
+    let worldMouseY = clientY + camera.y;
+    let ang = Math.atan2(worldMouseY - player.y, worldMouseX - player.x);
+
     addUlt(0.8);
-    let target = getAutoAimTarget();
-    let ang = target.angle;
     player.facing = Math.cos(ang) >= 0 ? 1 : -1;
 
     if(player.charType === 'Gojo' && Math.random() < 0.35) {
@@ -441,11 +438,9 @@ function castSkill(key) {
     if(cooldowns[key] > 0) return;
     if(key === 'X' && player.ultEnergy < player.maxUlt) return;
 
-    let target = getAutoAimTarget();
-    let targetX = target.x;
-    let targetY = target.y;
-    let ang = target.angle;
-    player.facing = Math.cos(ang) >= 0 ? 1 : -1;
+    let targetX = player.x + player.facing * 200;
+    let targetY = player.y;
+    let ang = player.facing > 0 ? 0 : Math.PI;
 
     if(key === 'X' && player.charType === 'Gojo') {
         gojoDomainCount++;
@@ -473,7 +468,7 @@ function castSkill(key) {
                 targetX: targetX, targetY: targetY,
                 vx: Math.cos(ang)*18, vy: Math.sin(ang)*18,
                 type: 'aka', damage: 600, radius: 16,
-                maxDist: Math.hypot(targetX - player.x, targetY - player.y), traveled: 0
+                maxDist: 300, traveled: 0
             });
         } else if(player.charType === 'Sukuna') {
             for(let i=-2; i<=2; i++) {
@@ -649,25 +644,15 @@ function update() {
     camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
     camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
-    let target = getAutoAimTarget();
-    if(target.dist < 850) {
-        basicAttack();
-    }
-
     if(enemies.filter(e => !e.isBoss).length < 35) spawnCurse();
 
     if(activeDomain) {
         activeDomain.timer--;
         triggerVibration(4);
         if(activeDomain.type === 'Gojo') {
-            enemies.forEach(e => { e.speed = 0; e.hp -= 2.5; });
+            enemies.forEach(e => { e.speed = 0; }); // 고죠 영역 안에서 멈추기만 하고 데미지는 안 줌 (오직 플레이어가 칠 때만)
         } else if(activeDomain.type === 'Sukuna') {
-            if(activeDomain.timer % 3 === 0) {
-                slashes.push({
-                    x: player.x + (Math.random()-0.5)*600, y: player.y + (Math.random()-0.5)*600,
-                    ang: Math.random()*Math.PI*2, length: 220, life: 6, damage: 50
-                });
-            }
+            // 스쿠나 영역 내에서 자동 참격 제거 (플레이어가 직접 칠 때만 닳도록 함)
         }
         if(activeDomain.timer <= 0) activeDomain = null;
     }
@@ -689,7 +674,6 @@ function update() {
         if(bossTarget) {
             let ang = Math.atan2(bossTarget.y - mahoraga.y, bossTarget.x - mahoraga.x);
             mahoraga.x += Math.cos(ang) * 4.5; mahoraga.y += Math.sin(ang) * 4.5;
-            if(Math.hypot(bossTarget.x - mahoraga.x, bossTarget.y - mahoraga.y) < 60) bossTarget.hp -= 25;
         }
         if(mahoraga.life <= 0) mahoraga = null;
     }
@@ -728,17 +712,6 @@ function update() {
                 let pullAng = Math.atan2(bh.y - e.y, bh.x - e.x);
                 e.x += Math.cos(pullAng) * 13;
                 e.y += Math.sin(pullAng) * 13;
-                e.hp -= 4.0;
-            }
-        });
-
-        enemyProjectiles.forEach((ep, epi) => {
-            let d = Math.hypot(bh.x - ep.x, bh.y - ep.y);
-            if(d < bh.radius) {
-                let pullAng = Math.atan2(bh.y - ep.y, bh.x - ep.x);
-                ep.vx = Math.cos(pullAng) * 14;
-                ep.vy = Math.sin(pullAng) * 14;
-                if(d < 40) enemyProjectiles.splice(epi, 1);
             }
         });
 
@@ -751,26 +724,11 @@ function update() {
 
     blueOrbs.forEach((bo, boi) => {
         bo.life--;
-        enemyProjectiles.forEach((ep, epi) => {
-            let d = Math.hypot(bo.x - ep.x, bo.y - ep.y);
-            if(d < bo.radius) {
-                let pullAng = Math.atan2(bo.y - ep.y, bo.x - ep.x);
-                ep.x += Math.cos(pullAng) * 8;
-                ep.y += Math.sin(pullAng) * 8;
-                if(d < 30) enemyProjectiles.splice(epi, 1);
-            }
-        });
         if(bo.life <= 0) blueOrbs.splice(boi, 1);
     });
 
     laserBeams.forEach((lb, lbi) => {
         lb.life--;
-        enemies.forEach(e => {
-            let endX = lb.x + Math.cos(lb.ang) * lb.length;
-            let endY = lb.y + Math.sin(lb.ang) * lb.length;
-            let d = Math.abs((endY - lb.y)*e.x - (endX - lb.x)*e.y + endX*lb.y - endY*lb.x) / Math.hypot(endY - lb.y, endX - lb.x);
-            if(d < lb.width / 2 + e.radius) e.hp -= lb.damage / 10;
-        });
         if(lb.life <= 0) laserBeams.splice(lbi, 1);
     });
 
@@ -920,18 +878,6 @@ function update() {
                             damage: e.dmg * 0.8, radius: 7
                         });
                     }
-                }
-            }
-
-            if(e.ultCd >= 220) {
-                e.ultCd = 0;
-                showDialogue(`⚠️ [보스 궁극기] 파멸의 참격 파동 발동!`);
-                triggerVibration(18);
-                for(let i=0; i<12; i++) {
-                    let rAng = (Math.PI * 2 / 12) * i;
-                    slashes.push({
-                        x: e.x, y: e.y, ang: rAng, length: 240, life: 20, damage: e.dmg * 1.4
-                    });
                 }
             }
         }
@@ -1113,25 +1059,6 @@ function draw() {
         ctx.fill();
         ctx.strokeStyle = '#e056fd';
         ctx.lineWidth = 10;
-        ctx.stroke();
-        ctx.restore();
-    });
-
-    laserBeams.forEach(lb => {
-        ctx.save();
-        ctx.shadowBlur = 30; ctx.shadowColor = '#a855f7';
-        ctx.strokeStyle = 'rgba(224, 86, 253, 0.9)';
-        ctx.lineWidth = lb.width;
-        ctx.beginPath();
-        ctx.moveTo(lb.x, lb.y);
-        ctx.lineTo(lb.x + Math.cos(lb.ang)*lb.length, lb.y + Math.sin(lb.ang)*lb.length);
-        ctx.stroke();
-        
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = lb.width * 0.4;
-        ctx.beginPath();
-        ctx.moveTo(lb.x, lb.y);
-        ctx.lineTo(lb.x + Math.cos(lb.ang)*lb.length, lb.y + Math.sin(lb.ang)*lb.length);
         ctx.stroke();
         ctx.restore();
     });
