@@ -242,26 +242,6 @@ function initAudio() {
     });
 }
 
-function playVoiceAndSound(type) {
-    initAudio();
-    if(type === 'ao_voice') { aoAudio.currentTime = 0; aoAudio.play().catch(err => {}); return; }
-    if(type === 'purple_voice') { purpleAudio.currentTime = 0; purpleAudio.play().catch(err => {}); return; }
-    if(!audioCtx) return;
-    let now = audioCtx.currentTime;
-    let osc = audioCtx.createOscillator();
-    let gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    if(type === 'aka') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(440, now);
-        osc.frequency.exponentialRampToValueAtTime(110, now + 0.35);
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-        osc.start(now); osc.stop(now + 0.35);
-    }
-}
-
 const WORLD_WIDTH = 7200;
 const WORLD_HEIGHT = 5400;
 
@@ -325,7 +305,6 @@ let sukunaFlash = 0;
 let sukunaPassiveTimer = 0;
 let gojoInfinityTimer = 0;
 
-
 const HUMAN_BOSS_TITLES = ["특급 주술사 켄자쿠", "빙관의 주술사 우라우메", "타락한 천재 주술사", "저주받은 왕 스쿠나 분신", "피의 지배자 아바타"];
 
 function getBossData(lvl) {
@@ -376,7 +355,6 @@ function showDialogue(text) {
 
 function triggerVibration(intensity) {
     screenShake = intensity;
-    if (navigator.vibrate) navigator.vibrate(intensity * 15);
 }
 
 function selectChar(type) {
@@ -397,7 +375,9 @@ function selectChar(type) {
 
     for(let i=0; i<40; i++) spawnCurse();
     spawnBoss();
-    gameLoop();
+    
+    // 강제 화면 갱신 및 루프 시작
+    requestAnimationFrame(gameLoop);
 }
 
 document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
@@ -487,9 +467,7 @@ function castSkill(key) {
         cooldowns.E = maxCooldowns[player.charType].E;
         
         if(player.charType === 'Gojo') {
-            playVoiceAndSound('aka');
             triggerVibration(30);
-            
             let targetOrb = blueOrbs.length > 0 ? blueOrbs[0] : null;
             let finalVx = Math.cos(ang)*18;
             let finalVy = Math.sin(ang)*18;
@@ -513,20 +491,19 @@ function castSkill(key) {
                 traveled: 0, targetOrb: targetOrb
             });
         } else if(player.charType === 'Sukuna') {
-            // E스킬 고퀄리티 및 강력한 버프 적용
             for(let i=-4; i<=4; i++) {
                 let a = ang + i * 0.08;
                 slashes.push({
                     x: player.x + Math.cos(a) * 40,
                     y: player.y + Math.sin(a) * 40,
                     ang: a,
-                    length: 110, // 짧게 조절된 참격 길이
+                    length: 110,
                     curve: -15,
                     life: 25,
-                    damage: 3200, // 버프된 강력한 데미지
+                    damage: 3200,
                     width: 7,
                     color: '#000000',
-                    outline: '#ff2d55', // 고퀄리티 붉은 외곽선
+                    outline: '#ff2d55',
                     speed: 22,
                     ranged: true
                 });
@@ -540,13 +517,11 @@ function castSkill(key) {
         cooldowns.R = maxCooldowns[player.charType].R;
         
         if(player.charType === 'Gojo') {
-            playVoiceAndSound('ao_voice');
             triggerVibration(25);
             blackHoles.push({
                 orbitAngle: ang, orbitRadius: 260, radius: 420, life: 180, damage: 3000, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
-            // R: 적들의 위치에만 참격이 보이며 대량 타격
             let rTargets = enemies
                 .filter(e => Math.hypot(e.x-player.x, e.y-player.y) < 1300)
                 .sort((a,b) =>
@@ -561,7 +536,7 @@ function castSkill(key) {
                         x: e.x + (Math.random() - 0.5) * 30,
                         y: e.y + (Math.random() - 0.5) * 30,
                         ang: Math.random() * Math.PI * 2,
-                        length: 95, // 짧은 참격
+                        length: 95,
                         life: 15,
                         damage: 2400,
                         width: 6
@@ -578,23 +553,19 @@ function castSkill(key) {
         triggerVibration(35);
 
         if(player.charType === 'Sukuna') {
-            // 푸가: 두꺼운 빨간 화살이 날아가다 폭발 (영역전개 중 범위/위력 극대화)
             let fugaBoost = activeDomain && activeDomain.type === 'Sukuna';
             sukunaFlames.push({
                 x: player.x, y: player.y,
                 vx: Math.cos(ang) * (fugaBoost ? 13 : 9),
                 vy: Math.sin(ang) * (fugaBoost ? 13 : 9),
-                radius: fugaBoost ? 50 : 30, // 더 두꺼운 화살
-                maxRadius: fugaBoost ? 750 : 260, // 영역전개 시 겁나 넓어짐
+                radius: fugaBoost ? 50 : 30,
+                maxRadius: fugaBoost ? 750 : 260,
                 life: fugaBoost ? 90 : 70,
-                damage: fugaBoost ? 18000 : 7500, // 영역전개 시 훨씬 쎄짐
+                damage: fugaBoost ? 18000 : 7500,
                 type: 'fuga'
             });
             sukunaFlash = 20;
         } else {
-            purpleAudio.currentTime = 0;
-            purpleAudio.play().catch(() => {});
-
             chargingPurples.push({
                 ang: ang,
                 radius: 5,       
@@ -621,7 +592,6 @@ function castSkill(key) {
 
         } else if(player.charType === 'Sukuna') {
             activeDomain = { type: 'Sukuna', timer: 2400, radius: 850 };
-            player.sukunaUltKills = 0;
             player.ultEnergy = 0;
             sukunaFlash = 40;
             for(let i=0; i<65; i++) {
@@ -748,10 +718,10 @@ function update() {
 
     let dx = 0, dy = 0;
     if(playerStunTimer <= 0) {
-        if(keys['a']) { dx -= 1; player.facing = -1; }
-        if(keys['d']) { dx += 1; player.facing = 1; }
-        if(keys['w']) dy -= 1;
-        if(keys['s']) dy += 1;
+        if(keys['a'] || keys['arrowleft']) { dx -= 1; player.facing = -1; }
+        if(keys['d'] || keys['arrowright']) { dx += 1; player.facing = 1; }
+        if(keys['w'] || keys['arrowup']) dy -= 1;
+        if(keys['s'] || keys['arrowdown']) dy += 1;
         if(dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
 
         player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
@@ -765,7 +735,6 @@ function update() {
 
     if(sukunaFlash > 0) sukunaFlash--;
 
-    // 스쿠나 패시브: 8초마다 3초 동안 주변에 들어온 적을 오토어택으로 썰기
     sukunaPassiveTimer = (sukunaPassiveTimer + 1) % 480;
     if(player.charType === 'Sukuna' && sukunaPassiveTimer < 180) {
         if(sukunaPassiveTimer % 10 === 0) {
@@ -775,7 +744,7 @@ function update() {
                     slashes.push({
                         x: e.x, y: e.y,
                         ang: pa,
-                        length: 85, // 짧은 참격
+                        length: 85,
                         curve: -12,
                         life: 10,
                         damage: 850,
@@ -898,7 +867,7 @@ function update() {
         pp.y += pp.vy;
         pp.life--;
 
-        enemies.forEach((e, ei) => {
+        enemies.forEach((e) => {
             let dist = Math.hypot(e.x - pp.x, e.y - pp.y);
             if(dist < e.radius + pp.radius) {
                 e.hp -= 800;
@@ -1084,7 +1053,6 @@ function update() {
         player.sukunaBasicCooldown--;
     }
 
-    // 스쿠나 평타: 짧고 간결한 참격 난사
     if(player.charType === 'Sukuna' && player.sukunaBasicTimer > 0) {
         player.sukunaBasicTimer--;
         player.sukunaBasicShotTimer = (player.sukunaBasicShotTimer || 0) - 1;
@@ -1096,7 +1064,7 @@ function update() {
                 x: player.x + Math.cos(a) * 35,
                 y: player.y + Math.sin(a) * 35,
                 ang: a,
-                length: 80, // 매우 짧게 조정된 평타 참격
+                length: 80,
                 curve: -10,
                 life: 15,
                 damage: 120,
@@ -1448,7 +1416,6 @@ function draw() {
         ctx.restore();
     });
 
-    // 짧게 조절된 일반 참격 (U자형)
     slashes.forEach(s => {
         ctx.save();
         ctx.translate(s.x, s.y);
@@ -1495,7 +1462,6 @@ function draw() {
         ctx.restore();
     });
 
-    // 푸가: 두꺼운 빨간 화살 연출
     sukunaFlames.forEach(f => {
         ctx.save();
         ctx.translate(f.x, f.y);
@@ -1604,6 +1570,9 @@ function gameLoop() {
     draw();
     if(!isGameOver) requestAnimationFrame(gameLoop);
 }
+
+// 최초 로드 시 캔버스 크기 강제 동기화 및 대기 루프 실행
+resizeCanvas();
 </script>
 </body>
 </html>
