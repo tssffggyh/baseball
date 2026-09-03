@@ -99,7 +99,11 @@ game_html = """
         background: rgba(20, 20, 35, 0.7); border: 2px solid rgba(168, 85, 247, 0.3);
         border-radius: 16px; padding: 25px 15px; width: 260px;
         text-align: center; cursor: pointer; transition: all 0.3s ease;
+        pointer-events: auto;
     }
+    /* 카드 내부 요소들이 클릭을 방해하지 않도록 설정 */
+    .card * { pointer-events: none; }
+    
     .card:hover {
         transform: translateY(-8px); border-color: #a855f7;
         box-shadow: 0 15px 35px rgba(168, 85, 247, 0.4); background: rgba(30, 30, 50, 0.9);
@@ -111,6 +115,7 @@ game_html = """
         margin-top: 25px; padding: 12px 35px; font-size: 18px; font-weight: bold;
         color: #fff; background: linear-gradient(90deg, #ff4757, #a855f7);
         border: none; border-radius: 10px; cursor: pointer; transition: 0.2s;
+        pointer-events: auto;
     }
     .restart-btn:hover { transform: scale(1.05); }
 </style>
@@ -325,7 +330,6 @@ let sukunaFlash = 0;
 let sukunaPassiveTimer = 0;
 let gojoInfinityTimer = 0;
 
-
 const HUMAN_BOSS_TITLES = ["특급 주술사 켄자쿠", "빙관의 주술사 우라우메", "타락한 천재 주술사", "저주받은 왕 스쿠나 분신", "피의 지배자 아바타"];
 
 function getBossData(lvl) {
@@ -353,6 +357,33 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
+// 카드 클릭 이벤트 명시적 바인딩
+document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
+document.getElementById('card-sukuna').addEventListener('click', () => selectChar('Sukuna'));
+document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
+document.getElementById('restart-btn').addEventListener('click', () => location.reload());
+
+function selectChar(type) {
+    initAudio();
+    player.charType = type;
+    document.getElementById('class-select').style.display = 'none';
+    
+    let skNames = {
+        'Gojo': ['아카', '아오', '무라사키', '무량공처'],
+        'Sukuna': ['해(解)', '팔(捌)', '푸가', '복마어주자'],
+        'Megumi': ['누에', '옥견', '그림자', '마허라']
+    };
+    
+    document.getElementById('char-name').innerText = type === 'Gojo' ? '고죠 사토루' : (type === 'Sukuna' ? '양면 스쿠나' : '후시구로 메구미');
+    document.getElementById('sk-e').innerText = skNames[type][0];
+    document.getElementById('sk-r').innerText = skNames[type][1];
+    document.getElementById('sk-t').innerText = skNames[type][2];
+
+    for(let i=0; i<40; i++) spawnCurse();
+    spawnBoss();
+    gameLoop();
+}
+
 function addUltFromKill() {
     totalKillCount++;
     if(activeDomain) return;
@@ -378,32 +409,6 @@ function triggerVibration(intensity) {
     screenShake = intensity;
     if (navigator.vibrate) navigator.vibrate(intensity * 15);
 }
-
-function selectChar(type) {
-    initAudio();
-    player.charType = type;
-    document.getElementById('class-select').style.display = 'none';
-    
-    let skNames = {
-        'Gojo': ['아카', '아오', '무라사키', '무량공처'],
-        'Sukuna': ['해(解)', '팔(捌)', '푸가', '복마어주자'],
-        'Megumi': ['누에', '옥견', '그림자', '마허라']
-    };
-    
-    document.getElementById('char-name').innerText = type === 'Gojo' ? '고죠 사토루' : (type === 'Sukuna' ? '양면 스쿠나' : '후시구로 메구미');
-    document.getElementById('sk-e').innerText = skNames[type][0];
-    document.getElementById('sk-r').innerText = skNames[type][1];
-    document.getElementById('sk-t').innerText = skNames[type][2];
-
-    for(let i=0; i<40; i++) spawnCurse();
-    spawnBoss();
-    gameLoop();
-}
-
-document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
-document.getElementById('card-sukuna').addEventListener('click', () => selectChar('Sukuna'));
-document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
-document.getElementById('restart-btn').addEventListener('click', () => location.reload());
 
 function getAutoAimAngle() {
     if(enemies.length === 0) return 0;
@@ -448,7 +453,6 @@ function performAutoAttack() {
             });
         }
     } else if(player.charType === 'Sukuna') {
-        // 스쿠나 평타: 훨씬 짧고 날렵하게 수정 (길이 70)
         slashes.push({
             x: player.x + Math.cos(ang) * 35,
             y: player.y + Math.sin(ang) * 35,
@@ -523,7 +527,6 @@ function castSkill(key) {
                 traveled: 0, targetOrb: targetOrb
             });
         } else if(player.charType === 'Sukuna') {
-            // E스킬(해): 고퀄리티 대폭 버프 (더 화려하고 강력한 참격 폭풍 발사)
             for(let i=-5; i<=5; i++) {
                 let a = ang + i * 0.08;
                 slashes.push({
@@ -556,7 +559,6 @@ function castSkill(key) {
                 orbitAngle: ang, orbitRadius: 260, radius: 420, life: 180, damage: 3000, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
-            // R스킬(팔): 멀리 있는 적들의 정확한 위치에만 참격이 생성되도록 대폭 상향
             let rTargets = enemies
                 .filter(e => Math.hypot(e.x-player.x, e.y-player.y) < 1600)
                 .sort((a,b) =>
@@ -587,7 +589,6 @@ function castSkill(key) {
         triggerVibration(35);
 
         if(player.charType === 'Sukuna') {
-            // 푸가: 영역전개 도중 사용하면 범위와 위력이 겁나 넓어지고 세짐
             let fugaBoost = activeDomain && activeDomain.type === 'Sukuna';
             sukunaFlames.push({
                 x: player.x, y: player.y,
@@ -774,7 +775,6 @@ function update() {
 
     if(sukunaFlash > 0) sukunaFlash--;
 
-    // 스쿠나 패시브: 8초마다 3초 동안 주변에 들어온 적을 오토어택으로 써는 느낌
     sukunaPassiveTimer = (sukunaPassiveTimer + 1) % 480;
     if(player.charType === 'Sukuna' && sukunaPassiveTimer < 180) {
         if(sukunaPassiveTimer % 12 === 0) {
@@ -801,7 +801,6 @@ function update() {
     gojoInfinityTimer = (gojoInfinityTimer + 1) % 480;
     let gojoInfinityActive = player.charType === 'Gojo' && gojoInfinityTimer < 180;
 
-    // 푸가 화살 연출 (두꺼운 빨간 화살)
     sukunaFlames.forEach((f, fi) => {
         f.x += f.vx;
         f.y += f.vy;
@@ -1475,7 +1474,6 @@ function draw() {
         ctx.restore();
     });
 
-    // 두껍고 선명한 빨간 화살 푸가 렌더링
     sukunaFlames.forEach(f => {
         ctx.save();
         ctx.translate(f.x, f.y);
@@ -1546,7 +1544,7 @@ function draw() {
             ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
         } else {
             ctx.shadowBlur = 10; ctx.shadowColor = '#70a1ff';
-.fillStyle = p.color || '#3742fa';
+            ctx.fillStyle = p.color || '#3742fa';
             ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill();
         }
         ctx.restore();
