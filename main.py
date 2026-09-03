@@ -600,6 +600,8 @@ function castSkill(key) {
         } else if(player.charType === 'Sukuna') {
             // 복마어주자: 넓은 영역에 지속적으로 참격이 생성됨
             activeDomain = { type: 'Sukuna', timer: 2400, radius: 760 };
+            player.sukunaUltKills = 0;
+            player.ultEnergy = 0;
             sukunaFlash = 35;
             for(let i=0; i<55; i++) {
                 let a = Math.random() * Math.PI * 2;
@@ -1044,16 +1046,16 @@ function update() {
         player.sukunaBasicShotTimer = (player.sukunaBasicShotTimer || 0) - 1;
 
         if(player.sukunaBasicShotTimer <= 0) {
-            player.sukunaBasicShotTimer = 6;
+            player.sukunaBasicShotTimer = 12;
             let a = getAutoAimAngle();
             slashes.push({
                 x: player.x + Math.cos(a) * 55,
                 y: player.y + Math.sin(a) * 55,
                 ang: a,
-                length: 360,
-                curve: -48,
+                length: 300,
+                curve: -32,
                 life: 24,
-                damage: 140,
+                damage: 55,
                 width: 9,
                 color: '#000000',
                 outline: '#ffffff',
@@ -1206,7 +1208,7 @@ function drawPlayerSprite(p) {
         ctx.fillStyle = '#70a1ff'; ctx.fillRect(-7, -24, 14, 4);
         ctx.shadowBlur = 0;
     } else if(p.charType === 'Sukuna') {
-        ctx.shadowBlur = 24; ctx.shadowColor = '#78ffbe';
+        ctx.shadowBlur = 24; ctx.shadowColor = '#dcaaff';
         ctx.fillStyle = '#111'; ctx.fillRect(-11, -17, 22, 34);
         ctx.fillStyle = '#ff7675'; ctx.fillRect(-10, -33, 20, 11);
         ctx.fillStyle = '#ff4757'; ctx.fillRect(-7, -24, 14, 3);
@@ -1271,13 +1273,13 @@ function draw() {
     if(screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // 맵 끝: 기본 맵 색과 반대 계열의 경계색
+    // 맵 끝: 흰색으로 꽉 찬 경계
     ctx.save();
-    ctx.strokeStyle = '#f0f0f0';
-    ctx.lineWidth = 28;
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = '#000000';
-    ctx.strokeRect(14, 14, WORLD_WIDTH - 28, WORLD_HEIGHT - 28);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, WORLD_WIDTH, 24);
+    ctx.fillRect(0, WORLD_HEIGHT - 24, WORLD_WIDTH, 24);
+    ctx.fillRect(0, 0, 24, WORLD_HEIGHT);
+    ctx.fillRect(WORLD_WIDTH - 24, 0, 24, WORLD_HEIGHT);
     ctx.restore();
 
 
@@ -1309,15 +1311,15 @@ function draw() {
                 ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill();
             }
         } else {
-            ctx.fillStyle = 'rgba(8, 42, 28, 0.78)';
+            ctx.fillStyle = 'rgba(45, 12, 65, 0.82)';
             ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
 
             // 복마어주자 영역 테두리
             ctx.save();
-            ctx.strokeStyle = 'rgba(120, 255, 190, 0.50)';
+            ctx.strokeStyle = 'rgba(220, 170, 255, 0.55)';
             ctx.lineWidth = 5;
             ctx.shadowBlur = 30;
-            ctx.shadowColor = '#78ffbe';
+            ctx.shadowColor = '#dcaaff';
             ctx.beginPath();
             ctx.arc(player.x, player.y, activeDomain.radius || 760, 0, Math.PI * 2);
             ctx.stroke();
