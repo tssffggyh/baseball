@@ -1331,17 +1331,14 @@ function draw() {
     if(screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // 맵 끝: 흰색으로 꽉 찬 경계
+    // 월드 경계만 흰색으로 표시 (화면 전체를 덮지 않음)
     ctx.save();
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, WORLD_WIDTH, 24);
-    ctx.fillRect(0, WORLD_HEIGHT - 24, WORLD_WIDTH, 24);
-    ctx.fillRect(0, 0, 24, WORLD_HEIGHT);
-    ctx.fillRect(WORLD_WIDTH - 24, 0, 24, WORLD_HEIGHT);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 24;
+    ctx.strokeRect(12, 12, WORLD_WIDTH - 24, WORLD_HEIGHT - 24);
     ctx.restore();
 
-
-    if(sukunaFlash > 0 && player.charType === 'Sukuna') {
+if(sukunaFlash > 0 && player.charType === 'Sukuna') {
         ctx.fillStyle = `rgba(255, 30, 55, ${Math.min(0.16, sukunaFlash / 220)})`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
@@ -1369,7 +1366,7 @@ function draw() {
                 ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill();
             }
         } else {
-            ctx.fillStyle = 'rgba(45, 12, 65, 0.82)';
+            ctx.fillStyle = 'rgba(45, 12, 65, 0.28)';
             ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
 
             // 복마어주자 영역 테두리
