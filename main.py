@@ -99,11 +99,7 @@ game_html = """
         background: rgba(20, 20, 35, 0.7); border: 2px solid rgba(168, 85, 247, 0.3);
         border-radius: 16px; padding: 25px 15px; width: 260px;
         text-align: center; cursor: pointer; transition: all 0.3s ease;
-        pointer-events: auto;
     }
-    /* 카드 내부 요소들이 클릭을 방해하지 않도록 설정 */
-    .card * { pointer-events: none; }
-    
     .card:hover {
         transform: translateY(-8px); border-color: #a855f7;
         box-shadow: 0 15px 35px rgba(168, 85, 247, 0.4); background: rgba(30, 30, 50, 0.9);
@@ -115,7 +111,6 @@ game_html = """
         margin-top: 25px; padding: 12px 35px; font-size: 18px; font-weight: bold;
         color: #fff; background: linear-gradient(90deg, #ff4757, #a855f7);
         border: none; border-radius: 10px; cursor: pointer; transition: 0.2s;
-        pointer-events: auto;
     }
     .restart-btn:hover { transform: scale(1.05); }
 </style>
@@ -296,7 +291,7 @@ let player = {
 let cooldowns = { E: 0, R: 0, T: 0, X: 0 };
 let maxCooldowns = {
     Gojo: { E: 8, R: 7, T: 16, X: 0 },
-    Sukuna: { E: 5, R: 6, T: 12, X: 0 },
+    Sukuna: { E: 7, R: 7, T: 14, X: 0 },
     Megumi: { E: 8, R: 7, T: 15, X: 0 }
 };
 
@@ -330,6 +325,7 @@ let sukunaFlash = 0;
 let sukunaPassiveTimer = 0;
 let gojoInfinityTimer = 0;
 
+
 const HUMAN_BOSS_TITLES = ["특급 주술사 켄자쿠", "빙관의 주술사 우라우메", "타락한 천재 주술사", "저주받은 왕 스쿠나 분신", "피의 지배자 아바타"];
 
 function getBossData(lvl) {
@@ -357,35 +353,9 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// 카드 클릭 이벤트 명시적 바인딩
-document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
-document.getElementById('card-sukuna').addEventListener('click', () => selectChar('Sukuna'));
-document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
-document.getElementById('restart-btn').addEventListener('click', () => location.reload());
-
-function selectChar(type) {
-    initAudio();
-    player.charType = type;
-    document.getElementById('class-select').style.display = 'none';
-    
-    let skNames = {
-        'Gojo': ['아카', '아오', '무라사키', '무량공처'],
-        'Sukuna': ['해(解)', '팔(捌)', '푸가', '복마어주자'],
-        'Megumi': ['누에', '옥견', '그림자', '마허라']
-    };
-    
-    document.getElementById('char-name').innerText = type === 'Gojo' ? '고죠 사토루' : (type === 'Sukuna' ? '양면 스쿠나' : '후시구로 메구미');
-    document.getElementById('sk-e').innerText = skNames[type][0];
-    document.getElementById('sk-r').innerText = skNames[type][1];
-    document.getElementById('sk-t').innerText = skNames[type][2];
-
-    for(let i=0; i<40; i++) spawnCurse();
-    spawnBoss();
-    gameLoop();
-}
-
 function addUltFromKill() {
     totalKillCount++;
+    // 궁극기 사용 중에는 처치해도 궁 게이지가 오르지 않음.
     if(activeDomain) return;
     player.ultEnergy = Math.min(player.maxUlt, (totalKillCount % 60) * (player.maxUlt / 60));
     if(totalKillCount % 60 === 0) player.ultEnergy = player.maxUlt;
@@ -410,6 +380,32 @@ function triggerVibration(intensity) {
     if (navigator.vibrate) navigator.vibrate(intensity * 15);
 }
 
+function selectChar(type) {
+    initAudio();
+    player.charType = type;
+    document.getElementById('class-select').style.display = 'none';
+    
+    let skNames = {
+        'Gojo': ['아카', '아오', '무라사키', '무량공처'],
+        'Sukuna': ['해(解)', '팔(捌)', '푸가', '복마어주자'],
+        'Megumi': ['누에', '옥견', '그림자', '마허라']
+    };
+    
+    document.getElementById('char-name').innerText = type === 'Gojo' ? '고죠 사토루' : (type === 'Sukuna' ? '양면 스쿠나' : '후시구로 메구미');
+    document.getElementById('sk-e').innerText = skNames[type][0];
+    document.getElementById('sk-r').innerText = skNames[type][1];
+    document.getElementById('sk-t').innerText = skNames[type][2];
+
+    for(let i=0; i<40; i++) spawnCurse();
+    spawnBoss();
+    gameLoop();
+}
+
+document.getElementById('card-gojo').addEventListener('click', () => selectChar('Gojo'));
+document.getElementById('card-sukuna').addEventListener('click', () => selectChar('Sukuna'));
+document.getElementById('card-megumi').addEventListener('click', () => selectChar('Megumi'));
+document.getElementById('restart-btn').addEventListener('click', () => location.reload());
+
 function getAutoAimAngle() {
     if(enemies.length === 0) return 0;
     let closestEnemy = null;
@@ -432,7 +428,7 @@ function getAutoAimAngle() {
 function performAutoAttack() {
     if(isGameOver || playerStunTimer > 0) return;
     let now = Date.now();
-    let attackInterval = (player.charType === 'Gojo') ? 700 : 450;
+    let attackInterval = (player.charType === 'Gojo') ? 700 : 600;
     if(now - player.lastAttack < attackInterval) return;
     player.lastAttack = now;
 
@@ -453,21 +449,13 @@ function performAutoAttack() {
             });
         }
     } else if(player.charType === 'Sukuna') {
-        slashes.push({
-            x: player.x + Math.cos(ang) * 35,
-            y: player.y + Math.sin(ang) * 35,
-            ang: ang,
-            length: 70,
-            curve: -10,
-            life: 14,
-            damage: 120,
-            width: 5,
-            color: '#000000',
-            outline: '#ffffff',
-            speed: 18,
-            ranged: true
-        });
-        sukunaFlash = 4;
+        // 스쿠나 평타: 2초 연사 → 2초 쿨타임
+        if(!player.sukunaBasicTimer || player.sukunaBasicTimer <= 0) {
+            if(player.sukunaBasicCooldown && player.sukunaBasicCooldown > 0) return;
+            player.sukunaBasicTimer = 120;
+            player.sukunaBasicCooldown = 120;
+            player.sukunaBasicShotTimer = 0;
+        }
     } else {
         projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*14, vy: Math.sin(ang)*14, damage: 60, radius: 8, color: '#2ecc71', type:'normal'});
     }
@@ -527,25 +515,26 @@ function castSkill(key) {
                 traveled: 0, targetOrb: targetOrb
             });
         } else if(player.charType === 'Sukuna') {
-            for(let i=-5; i<=5; i++) {
-                let a = ang + i * 0.08;
+            // 解(해): 넓은 부채꼴의 고속 참격 7연 + 검정/흰색 고급 연출
+            for(let i=-3; i<=3; i++) {
+                let a = ang + i * 0.10;
                 slashes.push({
-                    x: player.x + Math.cos(a) * 40,
-                    y: player.y + Math.sin(a) * 40,
+                    x: player.x + Math.cos(a) * 58,
+                    y: player.y + Math.sin(a) * 58,
                     ang: a,
-                    length: 190,
-                    curve: -20,
-                    life: 25,
-                    damage: 2800,
-                    width: 9,
-                    color: '#111111',
-                    outline: '#ff3344',
-                    speed: 20,
+                    length: 235,
+                    curve: -30,
+                    life: 22,
+                    damage: 1900,
+                    width: 8,
+                    color: '#000000',
+                    outline: '#ffffff',
+                    speed: 18,
                     ranged: true
                 });
             }
-            sukunaFlash = 15;
-            triggerVibration(32);
+            sukunaFlash = 12;
+            triggerVibration(28);
         } else {
             explosions.push({x: targetX, y: targetY, radius: 70, maxRadius: 70, color: '#f1c40f', life: 15, damage: 1200});
         }
@@ -559,28 +548,30 @@ function castSkill(key) {
                 orbitAngle: ang, orbitRadius: 260, radius: 420, life: 180, damage: 3000, x: player.x, y: player.y
             });
         } else if(player.charType === 'Sukuna') {
+            // 捌(팔): 멀리 있는 적의 현재 위치에만 대량의 참격
             let rTargets = enemies
-                .filter(e => Math.hypot(e.x-player.x, e.y-player.y) < 1600)
+                .filter(e => Math.hypot(e.x-player.x, e.y-player.y) < 1100)
                 .sort((a,b) =>
                     Math.hypot(a.x-player.x,a.y-player.y) -
                     Math.hypot(b.x-player.x,b.y-player.y)
-                );
+                )
+                .slice(0, 14);
 
             rTargets.forEach(e => {
-                for(let i=0; i<2; i++) {
+                for(let i=0; i<3; i++) {
                     domainSlashes.push({
-                        x: e.x + (Math.random()-0.5)*20,
-                        y: e.y + (Math.random()-0.5)*20,
+                        x: e.x,
+                        y: e.y,
                         ang: Math.random() * Math.PI * 2,
-                        length: 160,
-                        life: 20,
-                        damage: 2400,
-                        width: 7
+                        length: 150 + Math.random() * 80,
+                        life: 18,
+                        damage: 1750,
+                        width: 6 + Math.random() * 3
                     });
                 }
             });
-            sukunaFlash = 15;
-            triggerVibration(38);
+            sukunaFlash = 12;
+            triggerVibration(34);
         } else {
             projectiles.push({x: player.x, y: player.y, vx: Math.cos(ang)*15, vy: Math.sin(ang)*15, type:'normal', damage: 1500, radius: 10, color: '#2ecc71'});
         }
@@ -589,23 +580,24 @@ function castSkill(key) {
         triggerVibration(35);
 
         if(player.charType === 'Sukuna') {
+            // 푸가: 두꺼운 붉은 화살이 날아가다가 폭발
             let fugaBoost = activeDomain && activeDomain.type === 'Sukuna';
             sukunaFlames.push({
                 x: player.x, y: player.y,
-                vx: Math.cos(ang) * (fugaBoost ? 14 : 9),
-                vy: Math.sin(ang) * (fugaBoost ? 14 : 9),
-                radius: fugaBoost ? 45 : 25,
-                maxRadius: fugaBoost ? 850 : 250,
-                life: fugaBoost ? 100 : 70,
-                damage: fugaBoost ? 18000 : 7000,
-                isSuper: fugaBoost,
+                vx: Math.cos(ang) * (fugaBoost ? 11 : 8.5),
+                vy: Math.sin(ang) * (fugaBoost ? 11 : 8.5),
+                radius: fugaBoost ? 34 : 24,
+                maxRadius: fugaBoost ? 440 : 230,
+                life: fugaBoost ? 85 : 75,
+                damage: fugaBoost ? 10000 : 6500,
                 type: 'fuga'
             });
-            sukunaFlash = 25;
+            sukunaFlash = 18;
         } else {
             purpleAudio.currentTime = 0;
             purpleAudio.play().catch(() => {});
 
+            // 움직이는 위치를 따라가도록 등록
             chargingPurples.push({
                 ang: ang,
                 radius: 5,       
@@ -631,20 +623,22 @@ function castSkill(key) {
             }, 3000);
 
         } else if(player.charType === 'Sukuna') {
-            activeDomain = { type: 'Sukuna', timer: 2400, radius: 850 };
+            // 복마어주자: 넓은 영역에 지속적으로 참격이 생성됨
+            activeDomain = { type: 'Sukuna', timer: 2400, radius: 760 };
+            player.sukunaUltKills = 0;
             player.ultEnergy = 0;
-            sukunaFlash = 40;
-            for(let i=0; i<70; i++) {
+            sukunaFlash = 35;
+            for(let i=0; i<55; i++) {
                 let a = Math.random() * Math.PI * 2;
-                let r = Math.sqrt(Math.random()) * 850;
+                let r = Math.sqrt(Math.random()) * 760;
                 domainSlashes.push({
                     x: player.x + Math.cos(a) * r,
                     y: player.y + Math.sin(a) * r,
                     ang: Math.random() * Math.PI * 2,
-                    length: 120 + Math.random() * 150,
-                    life: 24,
-                    damage: 2500,
-                    width: 5
+                    length: 100 + Math.random() * 170,
+                    life: 24 + Math.random() * 10,
+                    damage: 2200,
+                    width: 4 + Math.random() * 3
                 });
             }
         } else {
@@ -775,21 +769,21 @@ function update() {
 
     if(sukunaFlash > 0) sukunaFlash--;
 
+    // 스쿠나 패시브: 8초마다 3초 동안 주변 적을 자동으로 베기
     sukunaPassiveTimer = (sukunaPassiveTimer + 1) % 480;
     if(player.charType === 'Sukuna' && sukunaPassiveTimer < 180) {
-        if(sukunaPassiveTimer % 12 === 0) {
+        if(sukunaPassiveTimer % 8 === 0) {
             enemies.forEach(e => {
-                let dist = Math.hypot(e.x - player.x, e.y - player.y);
-                if(dist <= 300) {
-                    let pa = Math.atan2(e.y - player.y, e.x - player.x);
+                if(Math.hypot(e.x-player.x, e.y-player.y) <= 260) {
+                    let pa = Math.atan2(e.y-player.y, e.x-player.x);
                     slashes.push({
                         x: e.x, y: e.y,
                         ang: pa,
-                        length: 80,
-                        curve: -12,
+                        length: 110,
+                        curve: -22,
                         life: 10,
-                        damage: 400,
-                        width: 5,
+                        damage: 650,
+                        width: 6,
                         color: '#000000',
                         outline: '#ffffff'
                     });
@@ -798,9 +792,11 @@ function update() {
         }
     }
 
+    // 고죠 무하한 패시브: 8초마다 3초 동안 적 발사체를 차단
     gojoInfinityTimer = (gojoInfinityTimer + 1) % 480;
     let gojoInfinityActive = player.charType === 'Gojo' && gojoInfinityTimer < 180;
 
+    // 스쿠나 푸가: 화살로 날아가고 마지막에 폭발
     sukunaFlames.forEach((f, fi) => {
         f.x += f.vx;
         f.y += f.vy;
@@ -808,13 +804,13 @@ function update() {
 
         if(f.life <= 0 || f.x < 0 || f.x > WORLD_WIDTH || f.y < 0 || f.y > WORLD_HEIGHT) {
             explosions.push({
-                x: f.x, y: f.y, radius: 30,
+                x: f.x, y: f.y, radius: 25,
                 maxRadius: f.maxRadius,
-                color: f.isSuper ? 'rgba(255, 20, 20, 0.95)' : 'rgba(255, 60, 60, 0.85)',
-                life: 35,
+                color: 'rgba(255, 35, 35, 0.82)',
+                life: 28,
                 damage: f.damage
             });
-            triggerVibration(f.isSuper ? 35 : 22);
+            triggerVibration(22);
             sukunaFlames.splice(fi, 1);
         }
     });
@@ -824,6 +820,7 @@ function update() {
         triggerVibration(4);
 
         if(activeDomain.type === 'Sukuna') {
+            // 복마어주자 안에서는 주기적으로 무작위 참격 생성
             if(activeDomain.timer % 6 === 0) {
                 for(let i=0; i<4; i++) {
                     let a = Math.random() * Math.PI * 2;
@@ -832,15 +829,15 @@ function update() {
                         x: player.x + Math.cos(a) * r,
                         y: player.y + Math.sin(a) * r,
                         ang: Math.random() * Math.PI * 2,
-                        length: 130,
-                        life: 18, damage: 1800,
-                        width: 5
+                        length: 110 + Math.random() * 160,
+                        life: 18, damage: 1500,
+                        width: 4 + Math.random() * 3
                     });
                 }
             }
             enemies.forEach(e => {
                 if(Math.hypot(e.x - player.x, e.y - player.y) < activeDomain.radius) {
-                    e.hp -= 40;
+                    e.hp -= 30;
                 }
             });
         }
@@ -893,6 +890,7 @@ function update() {
         }
 
         if(cp.chargeTimer <= 0) {
+            // 발사 순간 플레이어의 현재 위치에서 투사체 생성
             purpleProjectiles.push({
                 x: player.x, y: player.y,
                 vx: Math.cos(cp.ang) * 14, vy: Math.sin(cp.ang) * 14,
@@ -1089,6 +1087,37 @@ function update() {
         if(ex.life <= 0) explosions.splice(exi, 1);
     });
 
+    // 스쿠나 평타 쿨타임
+    if(player.charType === 'Sukuna' && player.sukunaBasicTimer <= 0 &&
+       player.sukunaBasicCooldown > 0) {
+        player.sukunaBasicCooldown--;
+    }
+
+    // 스쿠나 평타 연사: 2초 동안 약 0.1초마다 긴 U자 참격
+    if(player.charType === 'Sukuna' && player.sukunaBasicTimer > 0) {
+        player.sukunaBasicTimer--;
+        player.sukunaBasicShotTimer = (player.sukunaBasicShotTimer || 0) - 1;
+
+        if(player.sukunaBasicShotTimer <= 0) {
+            player.sukunaBasicShotTimer = 16;
+            let a = getAutoAimAngle();
+            slashes.push({
+                x: player.x + Math.cos(a) * 48,
+                y: player.y + Math.sin(a) * 48,
+                ang: a,
+                length: 155,
+                curve: -25,
+                life: 18,
+                damage: 45,
+                width: 7,
+                color: '#000000',
+                outline: '#ffffff',
+                speed: 16,
+                ranged: true
+            });
+        }
+    }
+
     slashes.forEach((s, si) => {
         s.life--;
         if(s.ranged) {
@@ -1236,6 +1265,7 @@ function drawPlayerSprite(p) {
         ctx.fillStyle = '#111'; ctx.fillRect(-11, -17, 22, 34);
         ctx.fillStyle = '#ff7675'; ctx.fillRect(-10, -33, 20, 11);
         ctx.fillStyle = '#ff4757'; ctx.fillRect(-7, -24, 14, 3);
+        // 얼굴의 특징적인 문양
         ctx.strokeStyle = '#8b0000'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(-7,-28); ctx.lineTo(-2,-26); ctx.moveTo(7,-28); ctx.lineTo(2,-26); ctx.stroke();
         ctx.shadowBlur = 0;
@@ -1296,6 +1326,7 @@ function draw() {
     if(screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 맵 끝: 흰색으로 꽉 찬 경계
     ctx.save();
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, WORLD_WIDTH, 24);
@@ -1303,6 +1334,7 @@ function draw() {
     ctx.fillRect(0, 0, 24, WORLD_HEIGHT);
     ctx.fillRect(WORLD_WIDTH - 24, 0, 24, WORLD_HEIGHT);
     ctx.restore();
+
 
     if(sukunaFlash > 0 && player.charType === 'Sukuna') {
         ctx.fillStyle = `rgba(255, 30, 55, ${Math.min(0.16, sukunaFlash / 220)})`;
@@ -1335,13 +1367,14 @@ function draw() {
             ctx.fillStyle = 'rgba(45, 12, 65, 0.82)';
             ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
 
+            // 복마어주자 영역 테두리
             ctx.save();
             ctx.strokeStyle = 'rgba(220, 170, 255, 0.55)';
             ctx.lineWidth = 5;
             ctx.shadowBlur = 30;
             ctx.shadowColor = '#dcaaff';
             ctx.beginPath();
-            ctx.arc(player.x, player.y, activeDomain.radius || 850, 0, Math.PI * 2);
+            ctx.arc(player.x, player.y, activeDomain.radius || 760, 0, Math.PI * 2);
             ctx.stroke();
             ctx.restore();
         }
@@ -1375,6 +1408,7 @@ function draw() {
         ctx.shadowBlur = 0;
     });
 
+    // 차징 중인 무라사키가 플레이어의 현재 위치(player.x, player.y)를 따라다니도록 렌더링
     chargingPurples.forEach(cp => {
         ctx.save();
         ctx.shadowBlur = 40;
@@ -1428,6 +1462,7 @@ function draw() {
         ctx.restore();
     });
 
+    // 일반 참격: 짧고 살짝 휜 U자형, 흰 테두리 + 검은 내부
     slashes.forEach(s => {
         ctx.save();
         ctx.translate(s.x, s.y);
@@ -1436,7 +1471,7 @@ function draw() {
         ctx.shadowColor = '#000000';
 
         ctx.strokeStyle = s.outline || 'rgba(255,255,255,0.95)';
-        ctx.lineWidth = (s.width || 5) + 4;
+        ctx.lineWidth = (s.width || 5) + 5;
         ctx.beginPath();
         ctx.moveTo(-s.length/2, 0);
         ctx.quadraticCurveTo(0, s.curve || -18, s.length/2, 0);
@@ -1474,42 +1509,43 @@ function draw() {
         ctx.restore();
     });
 
+    // 푸가: 두꺼운 붉은 화살이 날아가는 모습
     sukunaFlames.forEach(f => {
         ctx.save();
         ctx.translate(f.x, f.y);
         ctx.rotate(Math.atan2(f.vy, f.vx));
-        ctx.shadowBlur = 35;
-        ctx.shadowColor = '#ff0022';
+        ctx.shadowBlur = 28;
+        ctx.shadowColor = '#ff1f3d';
 
-        ctx.fillStyle = '#600000';
+        ctx.fillStyle = '#8b0000';
         ctx.beginPath();
-        ctx.moveTo(-70, -f.radius*0.6);
-        ctx.lineTo(30, -f.radius*0.6);
-        ctx.lineTo(30, -f.radius*1.2);
-        ctx.lineTo(95, 0);
-        ctx.lineTo(30, f.radius*1.2);
-        ctx.lineTo(30, f.radius*0.6);
-        ctx.lineTo(-70, f.radius*0.6);
+        ctx.moveTo(-55, -f.radius*0.45);
+        ctx.lineTo(25, -f.radius*0.45);
+        ctx.lineTo(25, -f.radius);
+        ctx.lineTo(78, 0);
+        ctx.lineTo(25, f.radius);
+        ctx.lineTo(25, f.radius*0.45);
+        ctx.lineTo(-55, f.radius*0.45);
         ctx.closePath();
         ctx.fill();
 
-        ctx.fillStyle = '#ff1133';
+        ctx.fillStyle = '#ff334d';
         ctx.beginPath();
-        ctx.moveTo(-60, -f.radius*0.35);
-        ctx.lineTo(35, -f.radius*0.35);
-        ctx.lineTo(35, -f.radius*0.8);
-        ctx.lineTo(75, 0);
-        ctx.lineTo(35, f.radius*0.8);
-        ctx.lineTo(35, f.radius*0.35);
-        ctx.lineTo(-60, f.radius*0.35);
+        ctx.moveTo(-48, -f.radius*0.24);
+        ctx.lineTo(28, -f.radius*0.24);
+        ctx.lineTo(28, -f.radius*0.58);
+        ctx.lineTo(61, 0);
+        ctx.lineTo(28, f.radius*0.58);
+        ctx.lineTo(28, f.radius*0.24);
+        ctx.lineTo(-48, f.radius*0.24);
         ctx.closePath();
         ctx.fill();
 
-        ctx.fillStyle = 'rgba(255,220,50,0.9)';
+        ctx.fillStyle = 'rgba(255,110,40,0.8)';
         ctx.beginPath();
-        ctx.moveTo(-70, -f.radius*0.2);
-        ctx.lineTo(-130, 0);
-        ctx.lineTo(-70, f.radius*0.2);
+        ctx.moveTo(-55, -f.radius*0.3);
+        ctx.lineTo(-115, 0);
+        ctx.lineTo(-55, f.radius*0.3);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
