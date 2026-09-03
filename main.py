@@ -1326,6 +1326,14 @@ function drawEnemySprite(e) {
     ctx.restore();
 }
 
+function updateCamera() {
+    const viewW = canvas.width;
+    const viewH = canvas.height;
+
+    camera.x = Math.max(0, Math.min(WORLD_WIDTH - viewW, player.x - viewW / 2));
+    camera.y = Math.max(0, Math.min(WORLD_HEIGHT - viewH, player.y - viewH / 2));
+}
+
 function draw() {
     ctx.save();
     if(screenShake > 0) ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
@@ -1612,6 +1620,7 @@ if(sukunaFlash > 0 && player.charType === 'Sukuna') {
 
 function gameLoop() {
     update();
+    updateCamera();
     draw();
     if(!isGameOver) requestAnimationFrame(gameLoop);
 }
