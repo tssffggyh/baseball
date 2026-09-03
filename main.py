@@ -651,9 +651,14 @@ function castSkill(key) {
 }
 
 function spawnCurse() {
-    let x = Math.random() * WORLD_WIDTH;
-    let y = Math.random() * WORLD_HEIGHT;
-    if(Math.hypot(x - player.x, y - player.y) < 500) return;
+    // 플레이어 주변에 생성해서 현재 카메라 화면에서 몬스터가 보이도록 함.
+    let spawnAngle = Math.random() * Math.PI * 2;
+    let spawnDist = 380 + Math.random() * 380;
+    let x = player.x + Math.cos(spawnAngle) * spawnDist;
+    let y = player.y + Math.sin(spawnAngle) * spawnDist;
+
+    x = Math.max(80, Math.min(WORLD_WIDTH - 80, x));
+    y = Math.max(80, Math.min(WORLD_HEIGHT - 80, y));
 
     let isRanged = Math.random() < 0.4;
     let newEnemy = {
@@ -691,7 +696,7 @@ function spawnBoss() {
     let cfg = getBossData(bossLevel);
 
     let spawnAngle = Math.random() * Math.PI * 2;
-    let spawnDist = 900 + Math.random() * 300;
+    let spawnDist = 520 + Math.random() * 180;
     let bx = player.x + Math.cos(spawnAngle) * spawnDist;
     let by = player.y + Math.sin(spawnAngle) * spawnDist;
 
@@ -763,9 +768,6 @@ function update() {
         player.x = Math.max(30, Math.min(WORLD_WIDTH - 30, player.x + dx * player.speed));
         player.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, player.y + dy * player.speed));
     }
-
-    camera.x += (player.x - canvas.width / 2 - camera.x) * 0.1;
-    camera.y += (player.y - canvas.height / 2 - camera.y) * 0.1;
 
     if(enemies.filter(e => !e.isBoss).length < 80) spawnCurse();
 
